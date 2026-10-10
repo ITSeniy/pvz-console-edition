@@ -65,6 +65,7 @@ REX_EXTERN(sub_82149538); // Board::PixelToGridX
 REX_EXTERN(sub_821495B0); // Board::PixelToGridY without terrain height
 REX_EXTERN(sub_82149728); // Board::PixelToGridY
 REX_EXTERN(sub_8218F9A8); // GamepadControls::DrawSeedPreview
+REX_EXTERN(sub_821D5A18); // Plant::DrawSeedType(g, seed, imitater, variation, x, y)
 REX_EXTERN(sub_82135C48); // Board::CanPlantAt
 REX_EXTERN(sub_82149848); // Board::GridToPixelY
 REX_EXTERN(sub_821774C0); // CursorObject::Draw
@@ -168,6 +169,8 @@ struct HeavyWeaponMouse { uint32_t board = 0; bool firing = false; } heavy_weapo
 thread_local bool explicit_mouse_collect = false;
 struct LateCursor { uint32_t board = 0, controls = 0; std::array<uint32_t, 17> graphics{}; };
 thread_local LateCursor late_cursor;
+// Static zombie drawn at the PC cursor, relative to the pointer.
+constexpr float kZombieCursorX = -80, kZombieCursorY = -102;
 thread_local bool drawing_late_cursor = false;
 uint32_t mouse_hovered_button = 0;
 struct NativePadButtonPress { uint32_t manager = 0, widget = 0, user = 0; } native_pad_button_press;
@@ -1842,7 +1845,11 @@ void ApplyPointer(PPCContext& ctx, uint32_t controls, uint8_t* base, std::option
         Read(base, controls + 0x68) >= 1 && Read(base, controls + 0x68) <= 4) {
       const auto bank = MouseSeedBank(board, controls, base);
       const bool lawn = snapshot->y >= int32_t(Read(base, bank + 0x28)) + int32_t(Read(base, bank + 0x30));
-      state(lawn ? 4 : 1); // Native release-to-grid attraction; bank stays free.
+      // Native release-to-grid attraction re-targets on every lawn move; the
+      // bank stays free. SetState always re-enters, which would restart the
+      // seed preview on each move over the cards, so enter state 1 only once.
+      if (lawn) state(4);
+      else if (Read(base, controls + 0x68) != 1) state(1);
       if (REXCVAR_GET(pvz_input_trace) && lawn)
         REXLOG_INFO("PvZ console pointer {},{} target {},{}", snapshot->x, snapshot->y,
             Float(base, controls + 0x58), Float(base, controls + 0x5C));
@@ -2514,10 +2521,13 @@ REX_HOOK_RAW(sub_8218D0F8) {
           Write(base, graphics + 8, gx); Write(base, graphics + 12, gy);
         }
       }
-      Write(base, graphics + 8, std::bit_cast<uint32_t>(std::bit_cast<float>(gx) + item_position->x));
-      Write(base, graphics + 12, std::bit_cast<uint32_t>(std::bit_cast<float>(gy) + item_position->y));
-      GuestCall(ctx, base, sub_8218F9A8);
-      Write(base, graphics + 8, gx); Write(base, graphics + 12, gy);
+      // The hand shows the packet's static cached zombie (Plant::DrawSeedType),
+      // as PC does; the animated native preview stays on the target cell.
+      const auto packet = selection.bank + 0x50 + uint32_t(selection.packet) * 0x7C;
+      auto draw = GuestFrame(ctx, graphics, Read(base, packet + 0x50), Read(base, packet + 0x54), 0);
+      draw.f1.f64 = item_position->x + kZombieCursorX;
+      draw.f2.f64 = item_position->y + kZombieCursorY;
+      sub_821D5A18(draw, base);
     }
     return;
   }
