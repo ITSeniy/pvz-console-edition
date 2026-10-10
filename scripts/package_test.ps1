@@ -1,12 +1,14 @@
 [CmdletBinding()]
-param([string]$OutputDirectory = 'dist', [switch]$IncludeMinigamesProfile, [switch]$TestUnlock)
+# -Unvalidated packages a manual-test build without fresh regression reports;
+# the archive name and build-info.json say so, and no stale reports are shipped.
+param([string]$OutputDirectory = 'dist', [switch]$IncludeMinigamesProfile, [switch]$TestUnlock, [switch]$Unvalidated)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
 Set-Location $projectRoot
 if ($TestUnlock -and -not $IncludeMinigamesProfile) { throw 'TestUnlock packaging requires the minigames test profile.' }
 $outputRoot = [System.IO.Path]::GetFullPath($OutputDirectory)
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-$name = "pvz-console-edition-test-$stamp"
+$name = "pvz-console-edition-test-$stamp$(if ($Unvalidated) { '-unvalidated' })"
 $packageRoot = Join-Path $outputRoot $name
 $archivePath = Join-Path $outputRoot "$name.zip"
 if ((Test-Path -LiteralPath $packageRoot) -or (Test-Path -LiteralPath $archivePath)) {
@@ -35,6 +37,7 @@ if ($IncludeMinigamesProfile) {
         'research/input-coverage/android-families.json')) {
         if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Missing minigames file: $file" }
     }
+    if (-not $Unvalidated) {
     foreach ($report in @('runtime-data/minigames-mouse-validation.json',
         'runtime-data/heavy-weapon-fire-buy-latest.json',
         'runtime-data/heavy-weapon-deluxe-validation.json',
@@ -86,13 +89,26 @@ if ($IncludeMinigamesProfile) {
         $result = Get-Content -LiteralPath $report -Raw | ConvertFrom-Json
         if ($result.passed -ne $result.total -or $result.total -le 0) { throw "Feedback validation did not pass: $report" }
     }
+    }
 }
 $exeTime = (Get-Item build/pvz-console-edition.exe).LastWriteTimeUtc
 if (Get-ChildItem src -Recurse -File | Where-Object { $_.LastWriteTimeUtc -gt $exeTime }) {
     throw 'Sources are newer than pvz-console-edition.exe. Run build.bat first.'
 }
+# Same order as build.bat: PVZ_VS, vswhere, then the standard install folders
+# (vswhere finds nothing when the installer's instance registry is missing).
+$vsRoot = $env:PVZ_VS
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
-$vsRoot = & $vswhere -latest -products * -property installationPath
+if (-not $vsRoot -and (Test-Path -LiteralPath $vswhere)) {
+    $vsRoot = & $vswhere -latest -prerelease -products * -property installationPath
+}
+if (-not $vsRoot) {
+    $vsRoot = Get-ChildItem -LiteralPath (Join-Path $env:ProgramFiles 'Microsoft Visual Studio'),
+        (Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio') -Directory -ErrorAction SilentlyContinue |
+        Get-ChildItem -Directory | Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'VC/Auxiliary/Build/vcvars64.bat') } |
+        Select-Object -Last 1 -ExpandProperty FullName
+}
+if (-not $vsRoot) { throw 'Visual Studio with C++ tools was not found. Set PVZ_VS to its installation folder.' }
 $redistRoot = Join-Path $vsRoot 'VC/Redist/MSVC'
 $crt = Get-ChildItem -LiteralPath $redistRoot -Directory -Recurse |
     Where-Object { $_.Name -match '^Microsoft\.VC\d+\.CRT$' -and $_.Parent.Name -eq 'x64' } |
@@ -122,8 +138,7 @@ $testResults = if ($TestUnlock) { 'packaging/TEST-UNLOCK-RESULTS.md' } else { 'p
 Copy-Item -LiteralPath $testResults -Destination (Join-Path $packageRoot 'TEST-RESULTS.md')
 if ($IncludeMinigamesProfile) {
     New-Item -ItemType Directory -Force -Path (Join-Path $packageRoot 'docs'),
-        (Join-Path $packageRoot 'runtime-data/minigames-test/user'),
-        (Join-Path $packageRoot 'validation') | Out-Null
+        (Join-Path $packageRoot 'runtime-data/minigames-test/user') | Out-Null
     Copy-Item -LiteralPath Start-Minigames.bat -Destination $packageRoot
     foreach ($folder in @('584109FF','B13EBABEBABEBABE')) {
         Copy-Item -LiteralPath "runtime-data/minigames-test/user/$folder" -Recurse -Destination (
@@ -146,6 +161,8 @@ if ($IncludeMinigamesProfile) {
         research/input-coverage/handlers.json,research/input-coverage/android-families.json -Destination (
         Join-Path $packageRoot 'docs/input-inventory')
     Copy-Item -LiteralPath packaging/MINIGAMES-TEST-RESULTS.md -Destination $packageRoot
+    if (-not $Unvalidated) {
+    New-Item -ItemType Directory -Force -Path (Join-Path $packageRoot 'validation') | Out-Null
     Copy-Item -LiteralPath runtime-data/minigames-mouse-validation.json,
         runtime-data/heavy-weapon-fire-buy-latest.json,
         runtime-data/heavy-weapon-deluxe-validation.json,
@@ -163,11 +180,13 @@ if ($IncludeMinigamesProfile) {
     if ($TestUnlock) {
         Copy-Item -LiteralPath runtime-data/test-unlock-validation.json -Destination (Join-Path $packageRoot 'validation')
     }
+    }
 }
 Copy-Item -LiteralPath tools/rexglue-sdk/win-amd64/licenses -Destination (Join-Path $packageRoot 'licenses') -Recurse
 Copy-Item -LiteralPath third_party/rexglue-LICENSE.txt -Destination (Join-Path $packageRoot 'licenses/RexGlue-LICENSE.txt')
 $inventory = @(Get-ChildItem -LiteralPath $packageRoot -Recurse -File | ForEach-Object {
-    [ordered]@{ path = [System.IO.Path]::GetRelativePath($packageRoot,$_.FullName).Replace('\','/');
+    # Windows PowerShell 5.1 has no Path.GetRelativePath.
+    [ordered]@{ path = $_.FullName.Substring($packageRoot.Length + 1).Replace('\','/');
         bytes = $_.Length; sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }
 })
 [ordered]@{ build = $name; created_at = (Get-Date).ToString('o'); sdk_version = '0.10.0';
@@ -178,12 +197,13 @@ $inventory = @(Get-ChildItem -LiteralPath $packageRoot -Recurse -File | ForEach-
     mouse_services_control_model = 'native-tools-store-almanac';
     mouse_shop_control_model = 'native-hover-focus-house';
     pc_menu_control_model = 'host-achievements-native-cheats-confirm-quit';
-    services_feedback_validation_fresh = [bool]$IncludeMinigamesProfile;
-    expanded_feedback_validation_fresh = [bool]$IncludeMinigamesProfile;
+    services_feedback_validation_fresh = [bool]$IncludeMinigamesProfile -and -not $Unvalidated;
+    expanded_feedback_validation_fresh = [bool]$IncludeMinigamesProfile -and -not $Unvalidated;
     local_multiplayer_control_model = 'first-device-two-users';
     mouse_input_audit_model = $(if ($IncludeMinigamesProfile) { 'xbox-rtti-android-vita' } else { $null });
     mouse_event_transport_model = 'ordered-events-generation-cancel';
-    mouse_validation_fresh = -not [bool]$TestUnlock;
+    mouse_validation_fresh = -not [bool]$TestUnlock -and -not $Unvalidated;
+    validation_skipped = [bool]$Unvalidated;
     test_unlock_enabled = [bool]$TestUnlock;
     files = $inventory } | ConvertTo-Json -Depth 5 |
     Set-Content -LiteralPath (Join-Path $packageRoot 'build-info.json') -Encoding UTF8
