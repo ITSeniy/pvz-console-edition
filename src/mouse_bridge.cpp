@@ -643,52 +643,50 @@ void CancelMouseGestures(PPCContext& ctx, uint8_t* base, uint32_t manager) {
   base[manager + 0x108] = 0;
 }
 
-void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
-    const pvz::MouseInputEvent* input, bool lost_focus) {
-  const uint32_t manager = ctx.r3.u32;
-  static bool logged = false;
-  if (REXCVAR_GET(pvz_input_trace) && !logged) {
-    REXLOG_INFO("PvZ WidgetManager {:08X} vtable {:08X}: {}x{}", manager,
-        Read(base, manager), Read(base, manager + 0x48), Read(base, manager + 0x4C));
-    logged = true;
+// One consumed mouse event, or an idle update (input == nullptr), on the guest
+// thread. Run() applies cancellation and readiness first, then routes a button
+// through the handlers below in priority order; a handler returning true has
+// consumed it. Guest objects are re-read for every event and never retained.
+class MouseDispatch {
+ public:
+  MouseDispatch(PPCContext& ctx, uint8_t* base, const pvz::MouseInputEvent* input, bool lost_focus)
+      : ctx(ctx), base(base), input(input), lost_focus(lost_focus), manager(ctx.r3.u32) {
+    has_button = input && input->kind == pvz::MouseEventKind::Button && input->point;
+    if (has_button) event = {*input->point, input->click, input->down};
   }
-  if (Read(base, manager) != kWidgetManager) return;
-  static bool previous_owner = true;
-  const bool active_mouse = MouseActive();
-  const bool changed_owner = previous_owner != active_mouse;
-  previous_owner = active_mouse;
-  static std::string active_mode;
-  const auto mode = REXCVAR_GET(pvz_cursor_mode);
-  if (active_mode != mode) {
-    active_mode = mode;
-    selection.packet = -1;
-    REXLOG_INFO("PvZ cursor mode: {}", mode);
+  void Run() {
+    if (!Begin()) return;
+    if (!active_mouse) { ReleaseToController(); return; }
+    UpdatePointer();
+    if (has_button) Button();
   }
+
+ private:
+  PPCContext& ctx;
+  uint8_t* base;
+  const pvz::MouseInputEvent* input;
+  bool lost_focus;
+  const uint32_t manager;
+  bool has_button = false, cancel = false, active_mouse = false, changed_owner = false;
+  ButtonEvent event{};
   std::optional<pvz::Point> snapshot;
-  ButtonEvent button_event{};
-  std::span<const ButtonEvent> pending;
-  const bool cancel = input && input->kind == pvz::MouseEventKind::Cancel;
-  {
-    std::lock_guard lock(pointer_mutex);
-    snapshot = pointer; // Only the last consumed event, never future UI input.
-  }
-  if (input && input->kind == pvz::MouseEventKind::Button && input->point) {
-    button_event = {*input->point, input->click, input->down};
-    pending = {&button_event, 1};
-  }
-  if (cancel) CancelMouseGestures(ctx, base, manager);
-  auto call = [&](PPCFunc* fn, uint32_t self, int x, int y, int click) {
+  uint32_t focused_root = 0, root = 0;
+  // Button routing state, valid during Button() only.
+  uint32_t widget = 0, widget_vtable = 0, help = 0, chooser = 0;
+  uint32_t primary = 0, app = 0;
+  int tutorial = 0, mini_mode = 0;
+  bool shovel_lesson = false;
+
+  uint32_t Call(PPCFunc* fn, uint32_t self, int x, int y, int click) {
     return MouseGuestCall(ctx, base, fn, self, x, y, click);
-  };
-  const auto focused_root = TopRootWidget(manager, base);
-  if (pvz::ApplyReplayFixtures(ctx, base, focused_root, FindRootWidget(manager, kMainMenu, base))) return;
-  auto live_selection = [&]() {
+  }
+  bool LiveSelection() {
     const auto board = FindRootWidget(manager, kBoard, base, true);
     return board && board == selection.board && MouseControls(board, base) == selection.controls &&
         MouseSeedBank(board, selection.controls, base) == selection.bank;
-  };
-  auto item_board = [&]() -> uint32_t {
-    if (!live_selection()) return 0;
+  }
+  uint32_t ItemBoard() {
+    if (!LiveSelection()) return 0;
     const auto top = TopRootWidget(manager, base), board = selection.board;
     if (top == board) return board;
     // During the initial shovel lesson Intro keeps its SeedChooser root
@@ -698,44 +696,29 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
     if (top && Read(base, top) == kSeedChooser && app && GameMode(base, app) == kModeAdventure &&
         GameScene(base, app) == kSceneLevelIntro && InShovelLesson(base, board)) return board;
     return 0;
-  };
-  auto clear_item = [&]() {
-    const bool live = live_selection();
+  }
+  void ClearItem() {
+    const bool live = LiveSelection();
     selection.packet = -1;
     selection.packets.clear();
     selection.shovel = selection.usable_seed = false;
     if (live) {
-      call(sub_82139AC0, selection.board, 0, 0, 0);
+      Call(sub_82139AC0, selection.board, 0, 0, 0);
       HideUnselectedCursor(selection.controls, base);
     }
-  };
-  auto cancel_item_drag = [&](const char* reason) {
+  }
+  void CancelItemDrag(const char* reason) {
     if (item_drag.board) {
       discard_item_release = true;
       PVZ_TRACE("PvZ item drag cancelled {}", reason);
     }
     item_drag = {};
-    clear_item();
-  };
-  if (item_drag.board || (PcMouseMode() && selection.packet >= 0)) {
-    if (cancel || !PcMouseMode() || !item_board() ||
-        BoardPaused(base, selection.board) || !PlantMouse(selection.controls, base) ||
-        (item_drag.board && (item_drag.board != selection.board || item_drag.controls != selection.controls ||
-                            item_drag.bank != selection.bank))) {
-      PVZ_TRACE("PvZ item validity cancel {} pc {} live {} top {:08X} vt {:08X} board {:08X} paused {} controls blocked {} intro {:08X}",
-          cancel, PcMouseMode(), live_selection(), focused_root,
-          focused_root ? Read(base, focused_root) : 0, selection.board,
-          live_selection() ? BoardPaused(base, selection.board) : 0, live_selection() ? base[selection.controls + 0xC4] : 0,
-          live_selection() ? Read(base, selection.board + 0x1D0) : 0);
-      cancel_item_drag("input or screen changed");
-    }
-    else if (selection.packet >= 0 && !SamePackets(base)) cancel_item_drag("bank changed");
-    else if (item_drag.board && snapshot) item_drag.Observe(*snapshot);
+    ClearItem();
   }
   // Both click-click and drag-release use the existing Xbox plant action.
   // Conveyor Use can clear selection inside the native call before returning.
-  auto plant_packet = [&](uint32_t board, uint32_t controls) {
-    if (!live_selection() || selection.packet < 0 || !SamePackets(base)) return false;
+  bool PlantPacket(uint32_t board, uint32_t controls) {
+    if (!LiveSelection() || selection.packet < 0 || !SamePackets(base)) return false;
     const auto packet = selection.bank + 0x50 + uint32_t(selection.packet) * 0x7C;
     const auto uses = Read(base, packet + 0x68);
     Write(base, controls + 0xBC, uint32_t(selection.packet));
@@ -745,7 +728,7 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
       Write(base, whack_cursor + 0x44, Read(base, packet + 0x50));
       Write(base, whack_cursor + 0x4C, 1);
     }
-    call(sub_8214CDC0, board, 6, 0, 0);
+    Call(sub_8214CDC0, board, 6, 0, 0);
     if (const auto cursor = whack_cursor ? MouseCursor(board, base) : 0) Write(base, cursor + 0x4C, 7);
     const bool planted = selection.packet < 0 || Read(base, packet + 0x68) != uses;
     if (planted) {
@@ -755,78 +738,33 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
       PVZ_TRACE("PvZ mouse planted seed");
     }
     return planted;
-  };
-  if (beghouled_mouse.board && (cancel || !MouseActive() || focused_root != beghouled_mouse.board ||
-      BoardPaused(base, focused_root))) {
-    const auto live = FindRootWidget(manager, kBoard, base, true);
-    if (live == beghouled_mouse.board)
-      if (const auto challenge = Read(base, live + 0x1D4)) base[challenge + 0x28] = 0;
-    beghouled_mouse = {};
   }
-  if (cancel || !active_mouse || !heavy_weapon_mouse.board ||
-      focused_root != heavy_weapon_mouse.board || Read(base, focused_root) != kBoard || BoardPaused(base, focused_root) ||
-      BoardMode(base, focused_root) != kModeHeavyWeapon)
-    heavy_weapon_mouse = {};
-  if (console_shovel.board) {
-    const auto board = FindRootWidget(manager, kBoard, base, true);
-    if (cancel || !active_mouse || PcMouseMode() || !snapshot || !pvz::MapBoardPointer(*snapshot) || board != console_shovel.board ||
-        !board || BoardPaused(base, board) || MouseControls(board, base) != console_shovel.controls) {
-      // Cancelling must not trigger StateExit's completed-hold dig.
-      if (console_shovel.held && board && board == console_shovel.board && MouseControls(board, base) == console_shovel.controls) {
-        Write(base, console_shovel.controls + 0x70, 0);
-        call(sub_82190D80, console_shovel.controls, 1, 0, 0);
-        call(sub_82139AC0, board, 0, 0, 0);
-      }
-      console_shovel = {};
-    }
-  }
-  if (lost_focus && rex::cvar::Query<bool>("pvz_pause_on_focus_loss") &&
-      focused_root && Read(base, focused_root) == kBoard) {
-    const auto app = BoardApp(base, focused_root);
-    if (app && GameScene(base, app) == kScenePlaying && !BoardPaused(base, focused_root))
-      call(sub_8214CDC0, focused_root, 5, 0, 0);
-  }
-  if (REXCVAR_GET(pvz_mouse_cursor)) pvz::UpdateMouseNavigation(ctx, manager, base);
-  pvz::UpdatePcMenus(ctx, base, manager);
-  if (pvz::HostMenuOpen()) {
-    CancelMouseGestures(ctx, base, manager);
-    return;
-  }
-  if ((!focused_root || Read(base, focused_root) != kBoard ||
-      (!selection.shovel && !selection.usable_seed && selection.packet < 0)) && mouse_item_cursor.exchange(false))
-    pvz::RefreshHostSettings();
-  auto play_sample = [&](uint32_t app, uint32_t global) {
+  void PlaySample(uint32_t app, uint32_t global) {
     const auto sound = Read(base, global);
     if (app && int32_t(sound) >= 0) {
-      const auto instance = call(rex::runtime::ResolveIndirectFunction(Read(base, Read(base, app) + 0xE0)), app, int(sound), 1, 0);
+      const auto instance = Call(rex::runtime::ResolveIndirectFunction(Read(base, Read(base, app) + 0xE0)), app, int(sound), 1, 0);
       PVZ_TRACE("PvZ mouse sound {} id {} instance {:08X}", global == 0x82D0A630 ? "seed lift" : "buzzer", sound, instance);
     }
-  };
-  if (changed_owner) {
-    selection.packet = -1;
-    console_pointer = {};
-    REXLOG_INFO("PvZ input owner: {}", active_mouse ? "mouse" : "controller");
-    pvz::RefreshHostSettings();
   }
-  auto move = [&](pvz::Point p) {
+  void Move(pvz::Point p) {
     // MouseMove is inlined in this build; use its two verified paths.
     const auto top = TopRootWidget(manager, base);
     const auto local = top && Read(base, top) == kMainMenu ?
         std::optional<pvz::Point>(p) : pvz::MapUiPointer(p);
     base[manager + 0x108] = local.has_value();
     if (Read(base, manager + 0x114))
-      call(sub_824A65A0, manager, local ? int(local->x) : -1, local ? int(local->y) : -1, 0);
+      Call(sub_824A65A0, manager, local ? int(local->x) : -1, local ? int(local->y) : -1, 0);
     else
-      call(sub_824A6208, manager, local ? int(local->x) : -1, local ? int(local->y) : -1, 0);
+      Call(sub_824A6208, manager, local ? int(local->x) : -1, local ? int(local->y) : -1, 0);
     if (!PcMouseMode()) {
       if (auto menu = MouseMenu(manager, base); menu && StableMenu(menu, base)) {
         if (auto child = FindMenuButton(menu, MenuButtonAt(menu, p, base), base))
-          call(sub_824A5F48, manager, int(child), 0, 0);
+          Call(sub_824A5F48, manager, int(child), 0, 0);
       }
       if (local) {
         const auto dialog = DialogParent(Read(base, manager + 0xB0), base);
         if (auto child = DrawnDialogButtonAt(dialog, *local, base))
-          call(sub_824A5F48, manager, int(child), 0, 0);
+          Call(sub_824A5F48, manager, int(child), 0, 0);
       }
     }
     SyncMouseHover(ctx, manager, p, base);
@@ -835,7 +773,7 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
     if (top == beghouled_mouse.board && beghouled_mouse.held && !BoardPaused(base, top)) {
       if (auto lawn = pvz::MapBoardPointer(p)) {
         const auto challenge = Read(base, top + 0x1D4);
-        call(sub_82152F20, challenge, int(lawn->x), int(lawn->y), 0);
+        Call(sub_82152F20, challenge, int(lawn->x), int(lawn->y), 0);
         if (!base[challenge + 0x28]) beghouled_mouse.selected.reset();
       }
     }
@@ -864,8 +802,99 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
         return true;
       }, 64);
     }
-  };
-  if (!active_mouse) {
+  }
+
+  // Cancellation, ownership and per-frame validity. False stops this event.
+  bool Begin() {
+    static bool logged = false;
+    if (REXCVAR_GET(pvz_input_trace) && !logged) {
+      REXLOG_INFO("PvZ WidgetManager {:08X} vtable {:08X}: {}x{}", manager,
+          Read(base, manager), Read(base, manager + 0x48), Read(base, manager + 0x4C));
+      logged = true;
+    }
+    if (Read(base, manager) != kWidgetManager) return false;
+    static bool previous_owner = true;
+    active_mouse = MouseActive();
+    changed_owner = previous_owner != active_mouse;
+    previous_owner = active_mouse;
+    static std::string active_mode;
+    const auto mode = REXCVAR_GET(pvz_cursor_mode);
+    if (active_mode != mode) {
+      active_mode = mode;
+      selection.packet = -1;
+      REXLOG_INFO("PvZ cursor mode: {}", mode);
+    }
+    cancel = input && input->kind == pvz::MouseEventKind::Cancel;
+    {
+      std::lock_guard lock(pointer_mutex);
+      snapshot = pointer; // Only the last consumed event, never future UI input.
+    }
+    if (cancel) CancelMouseGestures(ctx, base, manager);
+    focused_root = TopRootWidget(manager, base);
+    if (pvz::ApplyReplayFixtures(ctx, base, focused_root, FindRootWidget(manager, kMainMenu, base))) return false;
+    if (item_drag.board || (PcMouseMode() && selection.packet >= 0)) {
+      if (cancel || !PcMouseMode() || !ItemBoard() ||
+          BoardPaused(base, selection.board) || !PlantMouse(selection.controls, base) ||
+          (item_drag.board && (item_drag.board != selection.board || item_drag.controls != selection.controls ||
+                              item_drag.bank != selection.bank))) {
+        PVZ_TRACE("PvZ item validity cancel {} pc {} live {} top {:08X} vt {:08X} board {:08X} paused {} controls blocked {} intro {:08X}",
+            cancel, PcMouseMode(), LiveSelection(), focused_root,
+            focused_root ? Read(base, focused_root) : 0, selection.board,
+            LiveSelection() ? BoardPaused(base, selection.board) : 0, LiveSelection() ? base[selection.controls + 0xC4] : 0,
+            LiveSelection() ? Read(base, selection.board + 0x1D0) : 0);
+        CancelItemDrag("input or screen changed");
+      }
+      else if (selection.packet >= 0 && !SamePackets(base)) CancelItemDrag("bank changed");
+      else if (item_drag.board && snapshot) item_drag.Observe(*snapshot);
+    }
+    if (beghouled_mouse.board && (cancel || !MouseActive() || focused_root != beghouled_mouse.board ||
+        BoardPaused(base, focused_root))) {
+      const auto live = FindRootWidget(manager, kBoard, base, true);
+      if (live == beghouled_mouse.board)
+        if (const auto challenge = Read(base, live + 0x1D4)) base[challenge + 0x28] = 0;
+      beghouled_mouse = {};
+    }
+    if (cancel || !active_mouse || !heavy_weapon_mouse.board ||
+        focused_root != heavy_weapon_mouse.board || Read(base, focused_root) != kBoard || BoardPaused(base, focused_root) ||
+        BoardMode(base, focused_root) != kModeHeavyWeapon)
+      heavy_weapon_mouse = {};
+    if (console_shovel.board) {
+      const auto board = FindRootWidget(manager, kBoard, base, true);
+      if (cancel || !active_mouse || PcMouseMode() || !snapshot || !pvz::MapBoardPointer(*snapshot) || board != console_shovel.board ||
+          !board || BoardPaused(base, board) || MouseControls(board, base) != console_shovel.controls) {
+        // Cancelling must not trigger StateExit's completed-hold dig.
+        if (console_shovel.held && board && board == console_shovel.board && MouseControls(board, base) == console_shovel.controls) {
+          Write(base, console_shovel.controls + 0x70, 0);
+          Call(sub_82190D80, console_shovel.controls, 1, 0, 0);
+          Call(sub_82139AC0, board, 0, 0, 0);
+        }
+        console_shovel = {};
+      }
+    }
+    if (lost_focus && rex::cvar::Query<bool>("pvz_pause_on_focus_loss") &&
+        focused_root && Read(base, focused_root) == kBoard) {
+      const auto app = BoardApp(base, focused_root);
+      if (app && GameScene(base, app) == kScenePlaying && !BoardPaused(base, focused_root))
+        Call(sub_8214CDC0, focused_root, 5, 0, 0);
+    }
+    if (REXCVAR_GET(pvz_mouse_cursor)) pvz::UpdateMouseNavigation(ctx, manager, base);
+    pvz::UpdatePcMenus(ctx, base, manager);
+    if (pvz::HostMenuOpen()) {
+      CancelMouseGestures(ctx, base, manager);
+      return false;
+    }
+    if ((!focused_root || Read(base, focused_root) != kBoard ||
+        (!selection.shovel && !selection.usable_seed && selection.packet < 0)) && mouse_item_cursor.exchange(false))
+      pvz::RefreshHostSettings();
+    if (changed_owner) {
+      selection.packet = -1;
+      console_pointer = {};
+      REXLOG_INFO("PvZ input owner: {}", active_mouse ? "mouse" : "controller");
+      pvz::RefreshHostSettings();
+    }
+    return true;
+  }
+  void ReleaseToController() {
     pvz::UpdateServicePointer(ctx, base, TopRootWidget(manager, base), std::nullopt);
     // End mouse capture first, then restore a live focus for native navigation.
     // Never dereference the previously hovered widget after a screen change.
@@ -896,67 +925,110 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
       }
       if (root && (Read(base, root) == kBoard || Read(base, root) == kChallengeScreen ||
           Read(base, root) == kStoreScreen || Read(base, root) == kHouseChooser)) first = root;
-      if (first) call(sub_824A5F48, manager, int(first), 0, 0);
+      if (first) Call(sub_824A5F48, manager, int(first), 0, 0);
       mouse_hovered_button = 0;
       captured_dialog = 0;
       captured_dialog_id = -1;
     }
-    return;
   }
-  if (snapshot && pending.empty()) move(*snapshot);
-  else if (!snapshot) {
-    SyncMouseHover(ctx, manager, std::nullopt, base);
-    pvz::UpdateChallengePointer(ctx, base, TopRootWidget(manager, base), std::nullopt);
-    pvz::UpdateServicePointer(ctx, base, TopRootWidget(manager, base), std::nullopt);
-  }
-  const auto title = FindRootWidget(manager, kTitleScreen, base);
-  title_ready.store(title && base[title + 0xED] &&
-      Read(base, title + 0xDC) == Read(base, title + 0xE0), std::memory_order_relaxed);
-  const auto over = MouseMenu(manager, base);
-  const bool over_menu = over != 0;
-  menu_ready.store(over_menu && StableMenu(over, base), std::memory_order_relaxed);
-  if (over_menu) {
-    board_ready.store(false, std::memory_order_relaxed);
-    selection = {};
-    console_pointer = {};
-  }
-  const auto root = TopRootWidget(manager, base);
-  const int wheel = input && input->kind == pvz::MouseEventKind::Wheel ?
-      mouse_wheel.Take(input->delta, root) : 0;
-  if (input && input->kind == pvz::MouseEventKind::Wheel && REXCVAR_GET(pvz_input_trace))
-    REXLOG_INFO("PvZ mouse wheel event {} delta {} steps {} target {:08X}",
-        input->sequence, input->delta, wheel, root ? Read(base, root) : 0);
-  pvz::ScrollChallenge(ctx, base, root, wheel);
-  pvz::ScrollService(ctx, base, root, wheel);
-  if (root && Read(base, root) == kBoard) {
-    const auto app = BoardApp(base, root);
-    const auto controls = MouseControls(root, base);
-    if (!PcMouseMode() && app && controls && (PlantMouse(controls, base) || GameMode(base, app) == kModeHeavyWeapon) &&
-        GameScene(base, app) == kScenePlaying && !BoardPaused(base, root)) {
-      for (int i = 0; i < std::min(10, std::abs(wheel)); ++i)
-        if (GameMode(base, app) == kModeSlotMachine)
-          call(sub_821538D8, Read(base, root + 0x1D4), 8, 0, 0);
-        else call(sub_8214CDC0, root, wheel > 0 ? 10 : 11, 0, 0);
+  void UpdatePointer() {
+    if (snapshot && !has_button) Move(*snapshot);
+    else if (!snapshot) {
+      SyncMouseHover(ctx, manager, std::nullopt, base);
+      pvz::UpdateChallengePointer(ctx, base, TopRootWidget(manager, base), std::nullopt);
+      pvz::UpdateServicePointer(ctx, base, TopRootWidget(manager, base), std::nullopt);
+    }
+    const auto title = FindRootWidget(manager, kTitleScreen, base);
+    title_ready.store(title && base[title + 0xED] &&
+        Read(base, title + 0xDC) == Read(base, title + 0xE0), std::memory_order_relaxed);
+    const auto over = MouseMenu(manager, base);
+    const bool over_menu = over != 0;
+    menu_ready.store(over_menu && StableMenu(over, base), std::memory_order_relaxed);
+    if (over_menu) {
+      board_ready.store(false, std::memory_order_relaxed);
+      selection = {};
+      console_pointer = {};
+    }
+    root = TopRootWidget(manager, base);
+    const int wheel = input && input->kind == pvz::MouseEventKind::Wheel ?
+        mouse_wheel.Take(input->delta, root) : 0;
+    if (input && input->kind == pvz::MouseEventKind::Wheel && REXCVAR_GET(pvz_input_trace))
+      REXLOG_INFO("PvZ mouse wheel event {} delta {} steps {} target {:08X}",
+          input->sequence, input->delta, wheel, root ? Read(base, root) : 0);
+    pvz::ScrollChallenge(ctx, base, root, wheel);
+    pvz::ScrollService(ctx, base, root, wheel);
+    if (root && Read(base, root) == kBoard) {
+      const auto app = BoardApp(base, root);
+      const auto controls = MouseControls(root, base);
+      if (!PcMouseMode() && app && controls && (PlantMouse(controls, base) || GameMode(base, app) == kModeHeavyWeapon) &&
+          GameScene(base, app) == kScenePlaying && !BoardPaused(base, root)) {
+        for (int i = 0; i < std::min(10, std::abs(wheel)); ++i)
+          if (GameMode(base, app) == kModeSlotMachine)
+            Call(sub_821538D8, Read(base, root + 0x1D4), 8, 0, 0);
+          else Call(sub_8214CDC0, root, wheel > 0 ? 10 : 11, 0, 0);
+      }
     }
   }
-  for (const auto& event : pending) {
+
+  void Button() {
+    if (MiddleClick()) return;
+    if (event.click > 0 && !event.down) heavy_weapon_mouse = {};
+    Move(event.point);
+    if (SecondPlayerJoin()) return;
+    FindHelpScreen();
+    if (HelpBack() || ConsoleShovelRelease() || TitleClick()) return;
+    // The framework tracks capture/lifetime. Do not retain guest widget
+    // pointers across frames or menu transitions.
+    widget = Read(base, manager + (event.down ? 0xB0 : 0xAC));
+    if (!event.down && !ReleaseCapture()) return;
+    if (input) {
+      std::lock_guard lock(pointer_mutex);
+      if (!mouse_events.Current(*input)) return;
+    }
+    if (event.click > 0 && event.down) discard_item_release = false;
+    if (event.click > 0 && !event.down && discard_item_release) {
+      discard_item_release = false;
+      return;
+    }
+    if (ItemDragRelease() || ShovelLessonDave()) return;
+    widget_vtable = widget ? Read(base, widget) : 0;
+    if (MainMenuClick() || ImitaterClick()) return;
+    chooser = ResolveChooser();
+    if (AwardClick() || SeedChooserClick() || DialogButtonClick()) return;
+    if (pvz::ChallengeMouseButton(ctx, base, TopRootWidget(manager, base), event.point, event.click, event.down)) return;
+    if (pvz::ServiceMouseButton(ctx, base, TopRootWidget(manager, base), event.point, event.click, event.down)) return;
+    // The lawn's draw offset is absent from Board's Widget rectangle. Route
+    // visible lawn clicks after painted buttons and modal screens were hit.
+    const auto live_field = TopRootWidget(manager, base);
+    if (live_field && Read(base, live_field) == kBoard && !BoardPaused(base, live_field) &&
+        pvz::MapBoardPointer(event.point)) widget = live_field;
+    if (widget && Read(base, widget) == kBoard && BoardClick()) return;
+    NativeMouseDown();
+  }
+
+  bool MiddleClick() {
     if (event.click == 2) {
       if (event.down && !PcMouseMode() && root && Read(base, root) == kBoard &&
           BoardMode(base, root) == kModeZombiquarium && !BoardPaused(base, root))
-        call(sub_821538D8, Read(base, root + 0x1D4), 9, 0, 0);
-      continue;
+        Call(sub_821538D8, Read(base, root + 0x1D4), 9, 0, 0);
+      return true;
     }
-    if (event.click > 0 && !event.down) heavy_weapon_mouse = {};
-    move(event.point);
+    return false;
+  }
+  bool SecondPlayerJoin() {
     if (event.click == 1 && event.down && pvz::LocalPlayersActive()) {
       if (const auto waiting = VisibleDescendant(manager, kWaitForSecondPlayer, base)) {
         const auto user = pvz::MouseUserIndex();
-        if (user >= 0) call(rex::runtime::ResolveIndirectFunction(Read(base, Read(base, waiting) + 0xC0)),
+        if (user >= 0) Call(rex::runtime::ResolveIndirectFunction(Read(base, Read(base, waiting) + 0xC0)),
             waiting, 6, user, 0);
-        continue;
+        return true;
       }
     }
-    auto help = VisibleDescendant(manager, kHelpTextScreen, base);
+    return false;
+  }
+  // Full-screen menus whose right click means Back.
+  void FindHelpScreen() {
+    help = VisibleDescendant(manager, kHelpTextScreen, base);
     if (!help) help = VisibleDescendant(manager, kLeaderboardMenu, base);
     if (!help) help = VisibleDescendant(manager, kHouseMenu, base);
     if (!help) help = VisibleDescendant(manager, kMailScreen, base);
@@ -966,10 +1038,15 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
     if (!help) help = VisibleDescendant(manager, kStoreScreen, base);
     if (!help) help = VisibleDescendant(manager, kAlmanac, base);
     if (help && TopRootWidget(manager, base) != help) help = 0;
+  }
+  bool HelpBack() {
     if (event.click < 0 && help) {
       if (event.down) pvz::CloseMouseHelp(ctx, help, base);
-      continue;
+      return true;
     }
+    return false;
+  }
+  bool ConsoleShovelRelease() {
     if (event.click < 0 && !event.down && console_shovel.board) {
       const auto board = FindRootWidget(manager, kBoard, base, true);
       if (board && board == console_shovel.board && MouseControls(board, base) == console_shovel.controls) {
@@ -977,82 +1054,81 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
         const auto before = Read(base, board + 0x5620);
         const auto elapsed = console_shovel.held ? Float(base, controls + 0x70) : 0.0f;
         if (console_shovel.held) {
-          call(sub_82190D80, controls, 1, 0, 0);
-          call(sub_82139AC0, board, 0, 0, 0);
+          Call(sub_82190D80, controls, 1, 0, 0);
+          Call(sub_82139AC0, board, 0, 0, 0);
         }
         PVZ_TRACE("PvZ console shovel released after {} dug {} tutorial {} -> {}",
             elapsed, Read(base, board + 0x583C) != count, before, Read(base, board + 0x5620));
       }
       console_shovel = {};
-      continue;
+      return true;
     }
+    return false;
+  }
+  bool TitleClick() {
     const auto active_title = FindRootWidget(manager, kTitleScreen, base);
     if (active_title && event.click > 0) {
       if (event.down) {
-        call(sub_82219690, active_title, 6, 0, 0);
+        Call(sub_82219690, active_title, 6, 0, 0);
         PVZ_TRACE("PvZ mouse title start");
       }
-      continue;
+      return true;
     }
-    // The framework tracks capture/lifetime. Do not retain guest widget
-    // pointers across frames or menu transitions.
-    uint32_t widget = Read(base, manager + (event.down ? 0xB0 : 0xAC));
-    // Release framework capture before any custom button consumes MouseUp.
-    // In a modal stack the release may be over a different widget than the
-    // title bar that started the drag; WidgetManager owns that capture.
-    if (!event.down) {
-      const auto release_root = TopRootWidget(manager, base);
-      const auto local = pvz::MapUiPointer(event.point);
-      call(sub_824A6358, manager, local ? int(local->x) : -1, local ? int(local->y) : -1, event.click);
-      PVZ_TRACE("PvZ framework release held {}", Read(base, manager + 0x114));
-      if (TopRootWidget(manager, base) != release_root) {
-        CancelMouseGestures(ctx, base, manager);
-        return;
-      }
-      const auto live_board = FindRootWidget(manager, kBoard, base, true);
-      if (captured_board && captured_board == live_board) widget = live_board;
-      else widget = Read(base, manager + 0xB0);
-      captured_board = 0;
+    return false;
+  }
+  // Release framework capture before any custom button consumes MouseUp.
+  // In a modal stack the release may be over a different widget than the
+  // title bar that started the drag; WidgetManager owns that capture.
+  // False when the release closed the screen.
+  bool ReleaseCapture() {
+    const auto release_root = TopRootWidget(manager, base);
+    const auto local = pvz::MapUiPointer(event.point);
+    Call(sub_824A6358, manager, local ? int(local->x) : -1, local ? int(local->y) : -1, event.click);
+    PVZ_TRACE("PvZ framework release held {}", Read(base, manager + 0x114));
+    if (TopRootWidget(manager, base) != release_root) {
+      CancelMouseGestures(ctx, base, manager);
+      return false;
     }
-    if (input) {
-      std::lock_guard lock(pointer_mutex);
-      if (!mouse_events.Current(*input)) return;
-    }
-    if (event.click > 0 && event.down) discard_item_release = false;
-    if (event.click > 0 && !event.down && discard_item_release) {
-      discard_item_release = false;
-      continue;
-    }
+    const auto live_board = FindRootWidget(manager, kBoard, base, true);
+    if (captured_board && captured_board == live_board) widget = live_board;
+    else widget = Read(base, manager + 0xB0);
+    captured_board = 0;
+    return true;
+  }
+  bool ItemDragRelease() {
     if (item_drag.board && event.click > 0 && !event.down) {
       item_drag.Observe(event.point);
       const auto drag = item_drag;
       item_drag = {};
-      const auto board = item_board();
-      if (!PcMouseMode() || !live_selection() || board != drag.board ||
+      const auto board = ItemBoard();
+      if (!PcMouseMode() || !LiveSelection() || board != drag.board ||
           BoardPaused(base, board) || drag.controls != selection.controls || drag.bank != selection.bank ||
           (drag.shovel ? !selection.shovel : selection.packet != drag.packet || !SamePackets(base))) {
-        clear_item();
-        continue;
+        ClearItem();
+        return true;
       }
       const auto local = pvz::MapBoardPointer(event.point);
-      if (!local) { clear_item(); continue; }
+      if (!local) { ClearItem(); return true; }
       // A short card click keeps the item in hand. The bank/tool bar cannot
       // become a lawn cell through the console's clamped grid conversion.
-      if (!drag.moved || !OverPlantingField(drag.bank, *local, base)) continue;
+      if (!drag.moved || !OverPlantingField(drag.bank, *local, base)) return true;
       ApplyPointer(ctx, drag.controls, base, event.point);
       if (drag.shovel) {
         const auto count = Read(base, board + 0x583C);
-        call(sub_821388A0, board, int(local->x), int(local->y), 6);
-        clear_item();
+        Call(sub_821388A0, board, int(local->x), int(local->y), 6);
+        ClearItem();
         PVZ_TRACE("PvZ item drag shovel dug {}", Read(base, board + 0x583C) != count);
       } else {
         const auto packet = drag.bank + 0x50 + uint32_t(drag.packet) * 0x7C;
-        const bool allowed = call(sub_8220F370, packet, 0, 0, 0) != 0;
-        const bool planted = allowed && plant_packet(board, drag.controls);
+        const bool allowed = Call(sub_8220F370, packet, 0, 0, 0) != 0;
+        const bool planted = allowed && PlantPacket(board, drag.controls);
         PVZ_TRACE("PvZ item drag seed release planted {} at {},{}", planted, local->x, local->y);
       }
-      continue;
+      return true;
     }
+    return false;
+  }
+  bool ShovelLessonDave() {
     // After the shovel lesson, capture can still point at Board while hover
     // is empty. Route both halves of LMB to the live cutscene, independently
     // of those widget hit fields and GamepadControls' gameplay A handling.
@@ -1064,12 +1140,14 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
         if (event.down) {
           const auto message = Read(base, app + 0xA24);
           PVZ_TRACE("PvZ mouse Dave cutscene click message {}", message);
-          call(sub_8217D798, Read(base, board + 0x1D0), 0, 0, 0);
+          Call(sub_8217D798, Read(base, board + 0x1D0), 0, 0, 0);
         }
-        continue;
+        return true;
       }
     }
-    const uint32_t widget_vtable = widget ? Read(base, widget) : 0;
+    return false;
+  }
+  bool MainMenuClick() {
     auto menu = MouseMenu(manager, base);
     if (menu && Read(base, menu) == kMainMenu) selection = {};
     if (menu && event.click > 0) {
@@ -1077,7 +1155,7 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
       if (event.down) {
         captured_menu = menu;
         captured_button = id;
-        if (auto child = FindMenuButton(menu, id, base)) call(sub_824AE388, child, 6, 0, 0);
+        if (auto child = FindMenuButton(menu, id, base)) Call(sub_824AE388, child, 6, 0, 0);
       }
       else {
         const bool activate = captured_menu == menu && captured_button >= 0 &&
@@ -1087,29 +1165,36 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
         captured_button = -1;
         if (activate) {
           PVZ_TRACE("PvZ menu activate button {}", id);
-          call(sub_824AE488, pressed, 6, 0, 0);
+          Call(sub_824AE488, pressed, 6, 0, 0);
         } else if (pressed) base[pressed + 0x74] = 0;
       }
-      continue;
+      return true;
     }
-    auto chooser = TopRootWidget(manager, base);
+    return false;
+  }
+  bool ImitaterClick() {
     if (const auto imitater = VisibleDescendant(manager, kImitaterDialog, base)) {
       if (event.down) {
-        if (event.click < 0) call(sub_822074F0, imitater, 7, int(Read(base, imitater + 0x1CC)), 0);
+        if (event.click < 0) Call(sub_822074F0, imitater, 7, int(Read(base, imitater + 0x1CC)), 0);
         else if (auto local = pvz::MapBoardPointer(event.point)) {
           const auto parent = Read(base, imitater + 0x24);
           const int x = int(local->x) - int32_t(Read(base, imitater + 0x40)) - (parent ? int32_t(Read(base, parent + 0x40)) : 0);
           const int y = int(local->y) - int32_t(Read(base, imitater + 0x44)) - (parent ? int32_t(Read(base, parent + 0x44)) : 0);
-          const int seed = int(call(sub_82206970, imitater, x, y, 0));
+          const int seed = int(Call(sub_82206970, imitater, x, y, 0));
           if (seed >= 0) {
             Write(base, imitater + 0x1C8, uint32_t(seed));
-            call(sub_822074F0, imitater, 6, int(Read(base, imitater + 0x1CC)), 0);
+            Call(sub_822074F0, imitater, 6, int(Read(base, imitater + 0x1CC)), 0);
             PVZ_TRACE("PvZ imitater copy seed {}", seed);
           }
         }
       }
-      continue;
+      return true;
     }
+    return false;
+  }
+  // The seed chooser or award screen under the pointer, if it owns input.
+  uint32_t ResolveChooser() {
+    auto chooser = TopRootWidget(manager, base);
     if (auto award = VisibleDescendant(manager, kAwardScreen, base)) chooser = award;
     else if (auto choices = VisibleDescendant(manager, kSeedChooser, base)) chooser = choices;
     for (auto ancestor = widget, depth = 0u; ancestor && depth < 16; ++depth) {
@@ -1122,6 +1207,9 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
     if (VisibleDescendant(manager, kImitaterDialog, base) || (chooser_top &&
         Read(base, chooser_top) != kHelpBar && Read(base, chooser_top) != kSeedChooser &&
         Read(base, chooser_top) != kBoard && Read(base, chooser_top) != kAwardScreen)) chooser = 0;
+    return chooser;
+  }
+  bool AwardClick() {
     if (chooser && Read(base, chooser) == kAwardScreen && event.click > 0) {
       const auto button = Read(base, chooser + 0xD8);
       const auto local = pvz::MapBoardPointer(event.point);
@@ -1132,19 +1220,22 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
         captured_dialog = 0; captured_dialog_id = -1;
         if (activate) {
           PVZ_TRACE("PvZ mouse NEXT LEVEL");
-          call(sub_8212C4D0, chooser, 6, 0, 0);
+          Call(sub_8212C4D0, chooser, 6, 0, 0);
         }
       }
-      continue;
+      return true;
     }
+    return false;
+  }
+  bool SeedChooserClick() {
     const auto chooser_ui = pvz::MapUiPointer(event.point);
     const bool chooser_button = chooser && chooser_ui && DrawnDialogButtonAt(chooser, *chooser_ui, base);
     if (chooser && Read(base, chooser) == kSeedChooser && event.click != 2 && event.down && !chooser_button) {
       if (Read(base, chooser + 0xE9C) != 0 && event.click == 1) {
-        call(sub_8220C280, chooser, 6, 0, 0); continue;
+        Call(sub_8220C280, chooser, 6, 0, 0); return true;
       }
       if (auto local = pvz::MapBoardPointer(event.point)) {
-        const int seed = int(call(sub_8220AFA8, chooser,
+        const int seed = int(Call(sub_8220AFA8, chooser,
             int(local->x) - int32_t(Read(base, chooser + 0x40)),
             int(local->y) - int32_t(Read(base, chooser + 0x44)), 0));
         if (seed >= 0) {
@@ -1153,22 +1244,25 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
           if (index >= 0 && index < 49) {
             const auto chosen = chooser + 0xE0 + uint32_t(index) * 0x40;
             const auto state = Read(base, chosen + 0x28);
-            if (event.click < 0 && state != 1) continue;
-            if (call(sub_82208A80, chooser, seed, 0, 0) ||
-                (state == 1 && base[chosen + 0x3C])) play_sample(app, 0x82D0AA24);
-            else if (state == 1) call(sub_8220B1C0, chooser, int(chosen), 0, 0);
+            if (event.click < 0 && state != 1) return true;
+            if (Call(sub_82208A80, chooser, seed, 0, 0) ||
+                (state == 1 && base[chosen + 0x3C])) PlaySample(app, 0x82D0AA24);
+            else if (state == 1) Call(sub_8220B1C0, chooser, int(chosen), 0, 0);
             else if (index == 48 && state != 1) {
               Write(base, chooser + 0xEAC + (pvz::LocalPlayersActive() ? uint32_t(pvz::MouseUserIndex()) * 4 : 0), 48);
-              call(sub_8220C280, chooser, 6, int(Read(base, chooser + 0xEA8)), 0);
+              Call(sub_8220C280, chooser, 6, int(Read(base, chooser + 0xEA8)), 0);
             }
-            else if (state == 3) call(sub_8220B440, chooser, int(chosen), 0, 0);
+            else if (state == 3) Call(sub_8220B440, chooser, int(chosen), 0, 0);
             PVZ_TRACE("PvZ chooser click seed {} state {}", seed, state);
             Write(base, chooser + 0xE84, uint32_t(-1));
           }
-          continue;
+          return true;
         }
       }
     }
+    return false;
+  }
+  bool DialogButtonClick() {
     auto dialog = DialogParent(Read(base, manager + 0xB0), base);
     const auto active_screen = TopRootWidget(manager, base);
     if (active_screen && Read(base, active_screen) != kMainMenu && Read(base, active_screen) != kBoard)
@@ -1183,17 +1277,17 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
     if (PcMouseMode() && event.click == 1 && event.down && dialog_button && Read(base, dialog) == kBoard) {
       const bool carried = selection.board == dialog && (selection.packet >= 0 || selection.shovel || selection.usable_seed);
       if (pvz::CancelCarriedGardenTool(ctx, base, dialog) || carried) {
-        if (carried) cancel_item_drag("button click");
+        if (carried) CancelItemDrag("button click");
         discard_item_release = true;
-        play_sample(BoardApp(base, dialog), 0x82D0A43C); // SOUND_GRAVEBUTTON.
-        continue;
+        PlaySample(BoardApp(base, dialog), 0x82D0A43C); // SOUND_GRAVEBUTTON.
+        return true;
       }
     }
     if (event.click > 0 && ((event.down && dialog_button) || (!event.down && captured_dialog))) {
       if (event.down) {
         captured_dialog = dialog;
         captured_dialog_id = int(Read(base, dialog_button + 0x6C));
-        call(sub_824AE388, dialog_button, 6, 0, 0);
+        Call(sub_824AE388, dialog_button, 6, 0, 0);
       } else {
         const auto pressed_dialog = captured_dialog;
         const auto pressed_id = captured_dialog_id;
@@ -1203,359 +1297,383 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
           if (auto child = FindMenuButton(dialog, pressed_id, base)) {
             if (child == dialog_button) {
               PVZ_TRACE("PvZ dialog activate button {}", pressed_id);
-              call(sub_824AE488, child, 6, 0, 0);
+              Call(sub_824AE488, child, 6, 0, 0);
             } else base[child + 0x74] = 0;
           }
         }
       }
-      continue;
+      return true;
     }
-    // The lawn's draw offset is absent from Board's Widget rectangle. Route
-    if (pvz::ChallengeMouseButton(ctx, base, TopRootWidget(manager, base), event.point, event.click, event.down)) continue;
-    if (pvz::ServiceMouseButton(ctx, base, TopRootWidget(manager, base), event.point, event.click, event.down)) continue;
-    // visible lawn clicks after painted buttons and modal screens were hit.
-    const auto live_field = TopRootWidget(manager, base);
-    if (live_field && Read(base, live_field) == kBoard && !BoardPaused(base, live_field) &&
-        pvz::MapBoardPointer(event.point)) widget = live_field;
-    if (widget && Read(base, widget) == kBoard) {
-      // Board's mouse methods mostly serve Zen Garden in the console build.
-      // Its gamepad button methods own planting/cancelling and player routing.
-      const uint32_t primary = MouseControls(widget, base);
-      const uint32_t app = BoardApp(base, widget);
-      if (pvz::LocalPlayersActive() && event.down && primary &&
-          Read(base, primary + 0xA0) == uint32_t(-1)) {
-        // Start joins/reconnects through Board's own two-player controller
-        // binding; the following click belongs to that player's controls.
-        call(sub_8214CDC0, widget, 5, pvz::MouseUserIndex(), 0);
-        if (Read(base, primary + 0xA0) == uint32_t(-1)) {
-          call(sub_8214CDC0, widget, 6, pvz::MouseUserIndex(), 0);
-          continue;
+    return false;
+  }
+
+  // Board's mouse methods mostly serve Zen Garden in the console build.
+  // Its gamepad button methods own planting/cancelling and player routing.
+  bool BoardClick() {
+    primary = MouseControls(widget, base);
+    app = BoardApp(base, widget);
+    if (pvz::LocalPlayersActive() && event.down && primary &&
+        Read(base, primary + 0xA0) == uint32_t(-1)) {
+      // Start joins/reconnects through Board's own two-player controller
+      // binding; the following click belongs to that player's controls.
+      Call(sub_8214CDC0, widget, 5, pvz::MouseUserIndex(), 0);
+      if (Read(base, primary + 0xA0) == uint32_t(-1)) {
+        Call(sub_8214CDC0, widget, 6, pvz::MouseUserIndex(), 0);
+        return true;
+      }
+    }
+    // Zen Garden has its own native mouse actions; avoid dispatching twice.
+    if (!app || GameMode(base, app) == kModeZenGarden || !primary ||
+        Read(base, primary) != kGamepadControls || int32_t(Read(base, primary + 0xA0)) != pvz::MouseUserIndex())
+      return false;
+    ApplyPointer(ctx, primary, base, event.point);
+    tutorial = int32_t(Read(base, widget + 0x5620));
+    shovel_lesson = InShovelLesson(base, widget);
+    mini_mode = int(GameMode(base, app));
+    if (IntroClick() || ZombiquariumClick() || ConsoleBeghouledClick() || ConsoleWhackClick() ||
+        HeavyWeaponClick()) return true;
+    if (PcMouseMode() && PlantMouse(primary, base) ? PcBoardClick() : ConsoleBoardClick()) return true;
+    // Planting and collection are handled above. Do not start Board mouse drag
+    // as well: it collects sun continuously and can swallow UI clicks.
+    if (PlantMouse(primary, base)) {
+      if (event.down) captured_board = widget;
+      return true;
+    }
+    return false;
+  }
+  bool IntroClick() {
+    // Dave and scripted introductions own A. Card picking must not eat
+    // that input while the native cutscene is waiting for a click.
+    if (event.click > 0 && ((GameMode(base, app) == kModeAdventure && GameScene(base, app) == kSceneLevelIntro && !shovel_lesson) ||
+        int32_t(Read(base, app + 0xA24)) != -1)) {
+      if (event.down) Call(sub_8214CDC0, widget, 6, 0, 0);
+      return true;
+    }
+    return false;
+  }
+  bool ZombiquariumClick() {
+    if (!PcMouseMode() && mini_mode == kModeZombiquarium && event.click == 1) {
+      const auto local = pvz::MapBoardPointer(event.point);
+      const auto bank = Read(base, widget + 0x1A4);
+      if (local && bank && event.down && !BoardPaused(base, widget)) {
+        const int packet = PacketAt(bank, *local, base);
+        if (packet >= 0) Write(base, primary + 0xBC, packet);
+        else {
+          const auto hit = ctx.r1.u32 - 0x80;
+          Write(base, hit, 0); Write(base, hit + 4, 0);
+          Call(sub_82139238, widget, int(local->x), int(local->y), int(hit));
+          Call(sub_82153300, Read(base, widget + 0x1D4), int(local->x), int(local->y), int(hit));
         }
       }
-      // Zen Garden has its own native mouse actions; avoid dispatching twice.
-      if (app && GameMode(base, app) != kModeZenGarden && primary &&
-          Read(base, primary) == kGamepadControls && int32_t(Read(base, primary + 0xA0)) == pvz::MouseUserIndex()) {
-        ApplyPointer(ctx, primary, base, event.point);
-        // Dave and scripted introductions own A. Card picking must not eat
-        // that input while the native cutscene is waiting for a click.
-        const int tutorial = int32_t(Read(base, widget + 0x5620));
-        const bool shovel_lesson = InShovelLesson(base, widget);
-        if (event.click > 0 && ((GameMode(base, app) == kModeAdventure && GameScene(base, app) == kSceneLevelIntro && !shovel_lesson) ||
-            int32_t(Read(base, app + 0xA24)) != -1)) {
-          if (event.down) call(sub_8214CDC0, widget, 6, 0, 0);
-          continue;
-        }
-        const int mini_mode = int(GameMode(base, app));
-        if (!PcMouseMode() && mini_mode == kModeZombiquarium && event.click == 1) {
-          const auto local = pvz::MapBoardPointer(event.point);
+      return true;
+    }
+    if (mini_mode == kModeZombiquarium && event.click < 0) {
+      if (event.down && !BoardPaused(base, widget)) {
+        const auto challenge = Read(base, widget + 0x1D4);
+        if (PcMouseMode()) Call(sub_821538D8, challenge, 9, 0, 0);
+        else {
           const auto bank = Read(base, widget + 0x1A4);
-          if (local && bank && event.down && !BoardPaused(base, widget)) {
-            const int packet = PacketAt(bank, *local, base);
-            if (packet >= 0) Write(base, primary + 0xBC, packet);
-            else {
-              const auto hit = ctx.r1.u32 - 0x80;
-              Write(base, hit, 0); Write(base, hit + 4, 0);
-              call(sub_82139238, widget, int(local->x), int(local->y), int(hit));
-              call(sub_82153300, Read(base, widget + 0x1D4), int(local->x), int(local->y), int(hit));
-            }
-          }
-          continue;
+          const auto selected = Read(base, primary + 0xBC);
+          if (bank && selected < Read(base, bank + 0x40) && selected < 10)
+            Call(sub_8220F510, bank + 0x50 + selected * 0x7C, 0, 0, 0);
         }
-        if (mini_mode == kModeZombiquarium && event.click < 0) {
-          if (event.down && !BoardPaused(base, widget)) {
+      }
+      return true;
+    }
+    return false;
+  }
+  bool ConsoleBeghouledClick() {
+    if (!PcMouseMode() && (mini_mode == kModeBeghouled || mini_mode == kModeBeghouledTwist) && PlantMouse(primary, base)) {
+      const auto challenge = Read(base, widget + 0x1D4);
+      const auto local = pvz::MapBoardPointer(event.point);
+      if (!event.down) {
+        if (mini_mode == kModeBeghouled) { base[challenge + 0x28] = 0; beghouled_mouse.held = false; }
+        return true;
+      }
+      if (event.click < 0) {
+        const auto selected = Read(base, primary + 0xBC);
+        if (selected < Read(base, selection.bank + 0x40) && selected < 10)
+          Call(sub_8220F510, selection.bank + 0x50 + selected * 0x7C, 0, 0, 0);
+      } else if (local && PacketAt(selection.bank, *local, base) < 0) {
+        const auto hit = ctx.r1.u32 - 0x80;
+        Write(base, hit, 0); Write(base, hit + 4, 0);
+        Call(sub_82139238, widget, int(local->x), int(local->y), int(hit));
+        Call(sub_82153300, challenge, int(local->x), int(local->y), int(hit));
+        if (mini_mode == kModeBeghouled && base[challenge + 0x28]) beghouled_mouse = {widget, *local, true};
+      } else if (local) {
+        const int packet = PacketAt(selection.bank, *local, base);
+        if (packet >= 0) Write(base, primary + 0xBC, packet);
+      }
+      return true;
+    }
+    return false;
+  }
+  bool ConsoleWhackClick() {
+    if (!PcMouseMode() && mini_mode == kModeWhackAZombie && PlantMouse(primary, base)) {
+      const auto local = pvz::MapBoardPointer(event.point);
+      if (!event.down || !local || BoardPaused(base, widget)) return true;
+      const int packet = PacketAt(selection.bank, *local, base);
+      if (packet >= 0 && event.click == 1) Write(base, primary + 0xBC, packet);
+      else if (event.click == 1) Call(sub_82153018, Read(base, widget + 0x1D4), int(local->x), int(local->y), 0);
+      else {
+        const auto cursor = MouseCursor(widget, base);
+        const auto selected = Read(base, primary + 0xBC);
+        if (cursor && selected < Read(base, selection.bank + 0x40) && selected < 10) {
+          Call(sub_82190D80, primary, 1, 0, 0);
+          Write(base, cursor + 0x44, Read(base, selection.bank + 0x50 + selected * 0x7C + 0x50));
+          Write(base, cursor + 0x4C, 1);
+          Call(sub_8214CDC0, widget, 6, 0, 0);
+          Write(base, cursor + 0x4C, 7);
+        }
+      }
+      return true;
+    }
+    return false;
+  }
+  bool HeavyWeaponClick() {
+    if (GameMode(base, app) == kModeHeavyWeapon) {
+      if (event.down) captured_board = widget;
+      // A packet buys an upgrade immediately in this mode; it must never
+      // also become a lawn A press or begin a firing gesture.
+      if (event.down && (event.click > 0 || !PcMouseMode()) && !BoardPaused(base, widget) && GameScene(base, app) == kScenePlaying) {
+        const auto local = pvz::MapBoardPointer(event.point);
+        const auto bank = MouseSeedBank(widget, primary, base);
+        if (local && bank && Read(base, bank) == kSeedBank) {
+          const int packet = PacketAt(bank, *local, base);
+          const bool in_bank = pvz::InRect(*local, int32_t(Read(base, bank + 0x24)),
+              int32_t(Read(base, bank + 0x28)), Read(base, bank + 0x2C), Read(base, bank + 0x30));
+          heavy_weapon_mouse = {widget, event.click == 1 && !in_bank};
+          const int upgrade = !PcMouseMode() && event.click < 0 ? int(Read(base, primary + 0xBC)) : packet;
+          if (upgrade >= 0 && upgrade < int(Read(base, bank + 0x40)) && (PcMouseMode() || event.click < 0)) {
+            heavy_weapon_mouse.firing = false;
+            const auto sun = Read(base, widget + 0x55F4);
             const auto challenge = Read(base, widget + 0x1D4);
-            if (PcMouseMode()) call(sub_821538D8, challenge, 9, 0, 0);
-            else {
-              const auto bank = Read(base, widget + 0x1A4);
-              const auto selected = Read(base, primary + 0xBC);
-              if (bank && selected < Read(base, bank + 0x40) && selected < 10)
-                call(sub_8220F510, bank + 0x50 + selected * 0x7C, 0, 0, 0);
-            }
+            Write(base, primary + 0xBC, uint32_t(upgrade));
+            Call(sub_8220F510, bank + 0x50 + uint32_t(upgrade) * 0x7C, 0, 0, 0);
+            PVZ_TRACE("PvZ Heavy Weapon buy packet {} sun {} -> {} weapon {} missiles {}",
+                upgrade, sun, Read(base, widget + 0x55F4), Read(base, challenge + 0x130), Read(base, challenge + 0x12C));
           }
-          continue;
+          else if (!PcMouseMode() && packet >= 0) Write(base, primary + 0xBC, packet);
+          PVZ_TRACE("PvZ Heavy Weapon LMB firing {}", heavy_weapon_mouse.firing);
         }
-        if (!PcMouseMode() && (mini_mode == kModeBeghouled || mini_mode == kModeBeghouledTwist) && PlantMouse(primary, base)) {
-          const auto challenge = Read(base, widget + 0x1D4);
-          const auto local = pvz::MapBoardPointer(event.point);
-          if (!event.down) {
-            if (mini_mode == kModeBeghouled) { base[challenge + 0x28] = 0; beghouled_mouse.held = false; }
-            continue;
-          }
-          if (event.click < 0) {
-            const auto selected = Read(base, primary + 0xBC);
-            if (selected < Read(base, selection.bank + 0x40) && selected < 10)
-              call(sub_8220F510, selection.bank + 0x50 + selected * 0x7C, 0, 0, 0);
-          } else if (local && PacketAt(selection.bank, *local, base) < 0) {
+      } else if (!event.down && event.click > 0 && REXCVAR_GET(pvz_input_trace))
+        REXLOG_INFO("PvZ Heavy Weapon LMB released");
+      return true;
+    }
+    return false;
+  }
+  bool PcBoardClick() {
+    const int game_mode = int(GameMode(base, app));
+    const auto challenge = Read(base, widget + 0x1D4);
+    if (!event.down && game_mode == kModeBeghouled && beghouled_mouse.board == widget) {
+      base[challenge + 0x28] = 0;
+      beghouled_mouse.held = false;
+    }
+    if (event.down) {
+      if (event.click < 0) {
+        const bool carried = selection.packet >= 0 || selection.usable_seed || selection.shovel;
+        CancelItemDrag("right click");
+        PlaySample(app, 0x82D0A43C);
+        if (!carried && Call(sub_821A8770, app, 0, 0, 0)) {
+          if (auto local = pvz::MapBoardPointer(event.point)) {
             const auto hit = ctx.r1.u32 - 0x80;
             Write(base, hit, 0); Write(base, hit + 4, 0);
-            call(sub_82139238, widget, int(local->x), int(local->y), int(hit));
-            call(sub_82153300, challenge, int(local->x), int(local->y), int(hit));
-            if (mini_mode == kModeBeghouled && base[challenge + 0x28]) beghouled_mouse = {widget, *local, true};
-          } else if (local) {
-            const int packet = PacketAt(selection.bank, *local, base);
-            if (packet >= 0) Write(base, primary + 0xBC, packet);
-          }
-          continue;
-        }
-        if (!PcMouseMode() && mini_mode == kModeWhackAZombie && PlantMouse(primary, base)) {
-          const auto local = pvz::MapBoardPointer(event.point);
-          if (!event.down || !local || BoardPaused(base, widget)) continue;
-          const int packet = PacketAt(selection.bank, *local, base);
-          if (packet >= 0 && event.click == 1) Write(base, primary + 0xBC, packet);
-          else if (event.click == 1) call(sub_82153018, Read(base, widget + 0x1D4), int(local->x), int(local->y), 0);
-          else {
-            const auto cursor = MouseCursor(widget, base);
-            const auto selected = Read(base, primary + 0xBC);
-            if (cursor && selected < Read(base, selection.bank + 0x40) && selected < 10) {
-              call(sub_82190D80, primary, 1, 0, 0);
-              Write(base, cursor + 0x44, Read(base, selection.bank + 0x50 + selected * 0x7C + 0x50));
-              Write(base, cursor + 0x4C, 1);
-              call(sub_8214CDC0, widget, 6, 0, 0);
-              Write(base, cursor + 0x4C, 7);
-            }
-          }
-          continue;
-        }
-        if (GameMode(base, app) == kModeHeavyWeapon) {
-          if (event.down) captured_board = widget;
-          // A packet buys an upgrade immediately in this mode; it must never
-          // also become a lawn A press or begin a firing gesture.
-          if (event.down && (event.click > 0 || !PcMouseMode()) && !BoardPaused(base, widget) && GameScene(base, app) == kScenePlaying) {
-            const auto local = pvz::MapBoardPointer(event.point);
-            const auto bank = MouseSeedBank(widget, primary, base);
-            if (local && bank && Read(base, bank) == kSeedBank) {
-              const int packet = PacketAt(bank, *local, base);
-              const bool in_bank = pvz::InRect(*local, int32_t(Read(base, bank + 0x24)),
-                  int32_t(Read(base, bank + 0x28)), Read(base, bank + 0x2C), Read(base, bank + 0x30));
-              heavy_weapon_mouse = {widget, event.click == 1 && !in_bank};
-              const int upgrade = !PcMouseMode() && event.click < 0 ? int(Read(base, primary + 0xBC)) : packet;
-              if (upgrade >= 0 && upgrade < int(Read(base, bank + 0x40)) && (PcMouseMode() || event.click < 0)) {
-                heavy_weapon_mouse.firing = false;
-                const auto sun = Read(base, widget + 0x55F4);
-                const auto challenge = Read(base, widget + 0x1D4);
-                Write(base, primary + 0xBC, uint32_t(upgrade));
-                call(sub_8220F510, bank + 0x50 + uint32_t(upgrade) * 0x7C, 0, 0, 0);
-                PVZ_TRACE("PvZ Heavy Weapon buy packet {} sun {} -> {} weapon {} missiles {}",
-                    upgrade, sun, Read(base, widget + 0x55F4), Read(base, challenge + 0x130), Read(base, challenge + 0x12C));
-              }
-              else if (!PcMouseMode() && packet >= 0) Write(base, primary + 0xBC, packet);
-              PVZ_TRACE("PvZ Heavy Weapon LMB firing {}", heavy_weapon_mouse.firing);
-            }
-          } else if (!event.down && event.click > 0 && REXCVAR_GET(pvz_input_trace))
-            REXLOG_INFO("PvZ Heavy Weapon LMB released");
-          continue;
-        }
-        if (PcMouseMode() && PlantMouse(primary, base)) {
-          const int game_mode = int(GameMode(base, app));
-          const auto challenge = Read(base, widget + 0x1D4);
-          if (!event.down && game_mode == kModeBeghouled && beghouled_mouse.board == widget) {
-            base[challenge + 0x28] = 0;
-            beghouled_mouse.held = false;
-          }
-          if (event.down) {
-            if (event.click < 0) {
-              const bool carried = selection.packet >= 0 || selection.usable_seed || selection.shovel;
-              cancel_item_drag("right click");
-              play_sample(app, 0x82D0A43C);
-              if (!carried && call(sub_821A8770, app, 0, 0, 0)) {
-                if (auto local = pvz::MapBoardPointer(event.point)) {
-                  const auto hit = ctx.r1.u32 - 0x80;
-                  Write(base, hit, 0); Write(base, hit + 4, 0);
-                  call(sub_82139238, widget, int(local->x), int(local->y), int(hit));
-                  call(sub_82153300, challenge, int(local->x), int(local->y), int(hit));
-                }
-              }
-              if (game_mode == kModeBeghouled) { base[challenge + 0x28] = 0; beghouled_mouse = {}; }
-              PVZ_TRACE("PvZ mouse cancel seed");
-            } else if (const auto local = pvz::MapBoardPointer(event.point)) {
-              // HitResult lives in this nested call's reserved caller frame.
-              const uint32_t hit = ctx.r1.u32 - 0x80;
-              Write(base, hit, 0);
-              Write(base, hit + 4, 0);
-              call(sub_82139238, widget, int(local->x), int(local->y), int(hit));
-              if (Read(base, hit + 4) == 5) {
-                selection.packet = -1;
-                selection.packets.clear();
-                selection.usable_seed = false;
-                selection.shovel = !selection.shovel && call(sub_82139808, widget, 5, 0, 0);
-                HideUnselectedCursor(primary, base);
-                item_drag = {};
-                PVZ_TRACE("PvZ PC shovel selected {}", selection.shovel);
-                continue;
-              }
-              if (selection.shovel) {
-                const auto count = Read(base, widget + 0x583C);
-                call(sub_821388A0, widget, int(local->x), int(local->y), 6);
-                selection.shovel = false;
-                HideUnselectedCursor(primary, base);
-                PVZ_TRACE("PvZ PC shovel dug {}", Read(base, widget + 0x583C) != count);
-                continue;
-              }
-              const auto coin = Read(base, hit + 4) == 3 ? Read(base, hit) : 0;
-              const auto type = coin ? Read(base, coin + 0x80) : 0;
-              if (coin && ((type >= 1 && type <= 7) || type == 16)) {
-                const auto before = Read(base, coin + 0x84);
-                call(sub_8216EF50, coin, 0, 0, 0);
-                if (type == 16) {
-                  selection.packet = -1;
-                  selection.usable_seed = MouseCursorType(widget, base) == 2;
-                  PVZ_TRACE("PvZ mouse dropped seed picked {}", selection.usable_seed);
-                }
-                if (REXCVAR_GET(pvz_input_trace) && before != 7 && Read(base, coin + 0x84) == 7)
-                  REXLOG_INFO("PvZ mouse collect coin type {} at {},{}", type, local->x, local->y);
-                // Collection is a discrete click. Native Board MouseDown starts
-                // a held drag collector, so it must not also receive this click.
-                continue;
-              }
-              const auto index = game_mode == kModeSlotMachine ? -1 : PacketAt(selection.bank, *local, base);
-              if (index >= 0) {
-                const auto packet = selection.bank + 0x50 + uint32_t(index) * 0x7C;
-                if (game_mode == kModeBeghouled || game_mode == kModeZombiquarium || game_mode == kModeBeghouledTwist) {
-                  if (game_mode == kModeBeghouled) { base[challenge + 0x28] = 0; beghouled_mouse = {}; }
-                  const auto sun = Read(base, widget + 0x55F4);
-                  call(sub_8220F510, packet, 0, 0, 0);
-                  PVZ_TRACE("PvZ minigame {} buy packet {} type {} active {} sun {} -> {} upgrades {}/{}/{}", game_mode, index, Read(base, packet + 0x50), base[packet + 0x64], sun, Read(base, widget + 0x55F4), base[challenge + 0x6A], base[challenge + 0x6B], base[challenge + 0x6C]);
-                  continue;
-                }
-                if (selection.packet == index) {
-                  clear_item();
-                  PVZ_TRACE("PvZ mouse toggle packet {} off", index);
-                  continue;
-                }
-                const bool allowed = call(sub_8220F370, packet, 0, 0, 0) != 0;
-                if (allowed) {
-                  selection.shovel = false;
-                  selection.usable_seed = false;
-                  play_sample(app, 0x82D0A630); // SOUND_SEEDLIFT, verified Xbox resource assignment.
-                  Write(base, primary + 0xBC, uint32_t(index));
-                  Write(base, packet + 0x70, 0); // Restart native selection scale animation.
-                  selection.packet = index;
-                  call(sub_82190D80, primary, 1, 0, 0);
-                  ApplyPointer(ctx, primary, base, event.point);
-                  RememberPackets(base);
-                  item_drag = {widget, primary, selection.bank, index, false, false, event.point};
-                  PVZ_TRACE("PvZ item drag seed begin packet {}", index);
-                } else play_sample(app, 0x82D0AA24);
-                PVZ_TRACE("PvZ mouse pick packet {} allowed {}", index, allowed);
-              } else if (game_mode == kModeBeghouled || game_mode == kModeZombiquarium || game_mode == kModeBeghouledTwist ||
-                  (game_mode == kModeSlotMachine && Read(base, hit + 4) == 22) ||
-                  (game_mode == kModeWhackAZombie && selection.packet < 0 && !selection.usable_seed)) {
-                const auto previous = beghouled_mouse.selected;
-                if (game_mode == kModeBeghouled) {
-                  if (beghouled_mouse.board != widget) beghouled_mouse = {widget};
-                  const auto grid = [&](pvz::Point p) {
-                    return std::pair(int(call(sub_82149538, widget, int(p.x), int(p.y), 0)),
-                        int(call(sub_821495B0, widget, int(p.x), int(p.y), 0)));
-                  };
-                  const auto current_cell = grid(*local);
-                  const auto previous_cell = previous ? grid(*previous) : std::pair(-99, -99);
-                  if (previous && Read(base, hit + 4) == 1 && std::abs(current_cell.first - previous_cell.first) +
-                      std::abs(current_cell.second - previous_cell.second) == 1) {
-                    Write(base, challenge + 0x2C, uint32_t(int(previous->x)));
-                    Write(base, challenge + 0x30, uint32_t(int(previous->y)));
-                    base[challenge + 0x28] = 1;
-                    call(sub_821516D8, challenge, int(local->x), int(local->y), 0);
-                    beghouled_mouse.selected.reset();
-                    beghouled_mouse.held = false;
-                    continue;
-                  }
-                }
-                call(sub_82153300, challenge, int(local->x), int(local->y), int(hit));
-                if (game_mode == kModeBeghouled && base[challenge + 0x28]) {
-                  beghouled_mouse = {widget, *local, true};
-                }
-                PVZ_TRACE("PvZ minigame {} field click {},{} hit {} state {}", game_mode, local->x, local->y, Read(base, hit + 4), Read(base, challenge + 0x74));
-              } else if (Read(base, hit + 4) == 23) {
-                // All Vasebreaker variants share Challenge's native vase hit
-                // handler. Picking its dropped seed remains a separate click.
-                const auto handled = call(sub_82153300, challenge, int(local->x), int(local->y), int(hit));
-                PVZ_TRACE("PvZ Vasebreaker click mode {} handled {}", game_mode, handled);
-              } else if (selection.usable_seed) {
-                call(sub_8214CDC0, widget, 6, 0, 0);
-                selection.usable_seed = MouseCursorType(widget, base) == 2;
-                PVZ_TRACE("PvZ mouse dropped seed placed {}", !selection.usable_seed);
-                HideUnselectedCursor(primary, base);
-              } else if (selection.packet >= 0 &&
-                  uint32_t(selection.packet) < Read(base, selection.bank + 0x40)) {
-                plant_packet(widget, primary);
-              }
-            }
-          }
-        } else {
-          // Card clicks change the console's persistent selection without
-          // also firing A on the lawn. Selection need not be affordable yet.
-          const auto local = pvz::MapBoardPointer(event.point);
-          const auto packet = GameMode(base, app) != kModeSlotMachine && PlantMouse(primary, base) && local ?
-              PacketAt(selection.bank, *local, base) : -1;
-          if (!PcMouseMode() && GameMode(base, app) == kModeSlotMachine && event.click > 0 && local) {
-            if (event.down) {
-              const auto hit = ctx.r1.u32 - 0x80;
-              call(sub_82139238, widget, int(local->x), int(local->y), int(hit));
-              if (Read(base, hit + 4) == 22) {
-                call(sub_82153300, Read(base, widget + 0x1D4), int(local->x), int(local->y), int(hit));
-                continue;
-              }
-            } else if (local->y < 80) continue;
-          }
-          if (!PcMouseMode() && event.click > 0 && packet >= 0) {
-            if (event.down) {
-              const auto game_mode = GameMode(base, app);
-              if (game_mode == kModeBeghouled || game_mode == kModeZombiquarium || game_mode == kModeBeghouledTwist) {
-                call(sub_8220F510, selection.bank + 0x50 + uint32_t(packet) * 0x7C, 0, 0, 0);
-                continue;
-              }
-              if (call(sub_8220F370, selection.bank + 0x50 + uint32_t(packet) * 0x7C, 0, 0, 0))
-                play_sample(app, 0x82D0A630);
-              else play_sample(app, 0x82D0AA24);
-              Write(base, primary + 0xBC, uint32_t(packet));
-              Write(base, selection.bank + 0x50 + uint32_t(packet) * 0x7C + 0x70, 0);
-              call(sub_82190D80, primary, 1, 0, 0);
-              PVZ_TRACE("PvZ console select packet {}", packet);
-            }
-          } else if (event.click < 0 && PlantMouse(primary, base) &&
-              MouseCursorType(widget, base) == 2) {
-            if (event.down) { call(sub_82139AC0, widget, 0, 0, 0); play_sample(app, 0x82D0A43C); }
-          } else if (event.click < 0 && PlantMouse(primary, base) && base[widget + 0x5691]) {
-            if (event.down && local && !BoardPaused(base, widget) &&
-                (GameScene(base, app) == kScenePlaying || shovel_lesson)) {
-              const auto count = Read(base, widget + 0x583C);
-              // Mouse digging uses the preserved native tool action on press.
-              call(sub_821388A0, widget, int(local->x), int(local->y), 6);
-              console_shovel = {};
-              if (shovel_lesson && call(sub_82134748, widget, 0, 0, 0) == 0)
-                call(sub_8213D0F0, widget, 18, 0, 0);
-              PVZ_TRACE("PvZ console shovel press completed {} tutorial {} -> {}",
-                  Read(base, widget + 0x583C) != count, tutorial, Read(base, widget + 0x5620));
-            }
-          } else {
-            const auto bank = Read(base, widget + 0x1A4);
-            const auto selected = Read(base, primary + 0xBC);
-            const auto packet_address = bank && Read(base, bank) == kSeedBank &&
-                selected < Read(base, bank + 0x40) && selected < 10 ?
-                bank + 0x50 + selected * 0x7C : 0;
-            const auto uses = packet_address ? Read(base, packet_address + 0x68) : 0;
-            call(event.down ? sub_8214CDC0 : sub_8214D1B8, widget,
-                event.click > 0 ? 6 : 7, 0, 0);
-            if (REXCVAR_GET(pvz_input_trace) && packet_address &&
-                Read(base, packet_address + 0x68) != uses)
-              REXLOG_INFO("PvZ console planted seed");
+            Call(sub_82139238, widget, int(local->x), int(local->y), int(hit));
+            Call(sub_82153300, challenge, int(local->x), int(local->y), int(hit));
           }
         }
-        // Planting and collection are handled above. Do not start Board mouse drag
-        // as well: it collects sun continuously and can swallow UI clicks.
-        if (PlantMouse(primary, base)) {
-          if (event.down) captured_board = widget;
-          continue;
+        if (game_mode == kModeBeghouled) { base[challenge + 0x28] = 0; beghouled_mouse = {}; }
+        PVZ_TRACE("PvZ mouse cancel seed");
+      } else if (const auto local = pvz::MapBoardPointer(event.point)) {
+        // HitResult lives in this nested call's reserved caller frame.
+        const uint32_t hit = ctx.r1.u32 - 0x80;
+        Write(base, hit, 0);
+        Write(base, hit + 4, 0);
+        Call(sub_82139238, widget, int(local->x), int(local->y), int(hit));
+        if (Read(base, hit + 4) == 5) {
+          selection.packet = -1;
+          selection.packets.clear();
+          selection.usable_seed = false;
+          selection.shovel = !selection.shovel && Call(sub_82139808, widget, 5, 0, 0);
+          HideUnselectedCursor(primary, base);
+          item_drag = {};
+          PVZ_TRACE("PvZ PC shovel selected {}", selection.shovel);
+          return true;
+        }
+        if (selection.shovel) {
+          const auto count = Read(base, widget + 0x583C);
+          Call(sub_821388A0, widget, int(local->x), int(local->y), 6);
+          selection.shovel = false;
+          HideUnselectedCursor(primary, base);
+          PVZ_TRACE("PvZ PC shovel dug {}", Read(base, widget + 0x583C) != count);
+          return true;
+        }
+        const auto coin = Read(base, hit + 4) == 3 ? Read(base, hit) : 0;
+        const auto type = coin ? Read(base, coin + 0x80) : 0;
+        if (coin && ((type >= 1 && type <= 7) || type == 16)) {
+          const auto before = Read(base, coin + 0x84);
+          Call(sub_8216EF50, coin, 0, 0, 0);
+          if (type == 16) {
+            selection.packet = -1;
+            selection.usable_seed = MouseCursorType(widget, base) == 2;
+            PVZ_TRACE("PvZ mouse dropped seed picked {}", selection.usable_seed);
+          }
+          if (REXCVAR_GET(pvz_input_trace) && before != 7 && Read(base, coin + 0x84) == 7)
+            REXLOG_INFO("PvZ mouse collect coin type {} at {},{}", type, local->x, local->y);
+          // Collection is a discrete click. Native Board MouseDown starts
+          // a held drag collector, so it must not also receive this click.
+          return true;
+        }
+        const auto index = game_mode == kModeSlotMachine ? -1 : PacketAt(selection.bank, *local, base);
+        if (index >= 0) {
+          const auto packet = selection.bank + 0x50 + uint32_t(index) * 0x7C;
+          if (game_mode == kModeBeghouled || game_mode == kModeZombiquarium || game_mode == kModeBeghouledTwist) {
+            if (game_mode == kModeBeghouled) { base[challenge + 0x28] = 0; beghouled_mouse = {}; }
+            const auto sun = Read(base, widget + 0x55F4);
+            Call(sub_8220F510, packet, 0, 0, 0);
+            PVZ_TRACE("PvZ minigame {} buy packet {} type {} active {} sun {} -> {} upgrades {}/{}/{}", game_mode, index, Read(base, packet + 0x50), base[packet + 0x64], sun, Read(base, widget + 0x55F4), base[challenge + 0x6A], base[challenge + 0x6B], base[challenge + 0x6C]);
+            return true;
+          }
+          if (selection.packet == index) {
+            ClearItem();
+            PVZ_TRACE("PvZ mouse toggle packet {} off", index);
+            return true;
+          }
+          const bool allowed = Call(sub_8220F370, packet, 0, 0, 0) != 0;
+          if (allowed) {
+            selection.shovel = false;
+            selection.usable_seed = false;
+            PlaySample(app, 0x82D0A630); // SOUND_SEEDLIFT, verified Xbox resource assignment.
+            Write(base, primary + 0xBC, uint32_t(index));
+            Write(base, packet + 0x70, 0); // Restart native selection scale animation.
+            selection.packet = index;
+            Call(sub_82190D80, primary, 1, 0, 0);
+            ApplyPointer(ctx, primary, base, event.point);
+            RememberPackets(base);
+            item_drag = {widget, primary, selection.bank, index, false, false, event.point};
+            PVZ_TRACE("PvZ item drag seed begin packet {}", index);
+          } else PlaySample(app, 0x82D0AA24);
+          PVZ_TRACE("PvZ mouse pick packet {} allowed {}", index, allowed);
+        } else if (game_mode == kModeBeghouled || game_mode == kModeZombiquarium || game_mode == kModeBeghouledTwist ||
+            (game_mode == kModeSlotMachine && Read(base, hit + 4) == 22) ||
+            (game_mode == kModeWhackAZombie && selection.packet < 0 && !selection.usable_seed)) {
+          const auto previous = beghouled_mouse.selected;
+          if (game_mode == kModeBeghouled) {
+            if (beghouled_mouse.board != widget) beghouled_mouse = {widget};
+            const auto grid = [&](pvz::Point p) {
+              return std::pair(int(Call(sub_82149538, widget, int(p.x), int(p.y), 0)),
+                  int(Call(sub_821495B0, widget, int(p.x), int(p.y), 0)));
+            };
+            const auto current_cell = grid(*local);
+            const auto previous_cell = previous ? grid(*previous) : std::pair(-99, -99);
+            if (previous && Read(base, hit + 4) == 1 && std::abs(current_cell.first - previous_cell.first) +
+                std::abs(current_cell.second - previous_cell.second) == 1) {
+              Write(base, challenge + 0x2C, uint32_t(int(previous->x)));
+              Write(base, challenge + 0x30, uint32_t(int(previous->y)));
+              base[challenge + 0x28] = 1;
+              Call(sub_821516D8, challenge, int(local->x), int(local->y), 0);
+              beghouled_mouse.selected.reset();
+              beghouled_mouse.held = false;
+              return true;
+            }
+          }
+          Call(sub_82153300, challenge, int(local->x), int(local->y), int(hit));
+          if (game_mode == kModeBeghouled && base[challenge + 0x28]) {
+            beghouled_mouse = {widget, *local, true};
+          }
+          PVZ_TRACE("PvZ minigame {} field click {},{} hit {} state {}", game_mode, local->x, local->y, Read(base, hit + 4), Read(base, challenge + 0x74));
+        } else if (Read(base, hit + 4) == 23) {
+          // All Vasebreaker variants share Challenge's native vase hit
+          // handler. Picking its dropped seed remains a separate click.
+          const auto handled = Call(sub_82153300, challenge, int(local->x), int(local->y), int(hit));
+          PVZ_TRACE("PvZ Vasebreaker click mode {} handled {}", game_mode, handled);
+        } else if (selection.usable_seed) {
+          Call(sub_8214CDC0, widget, 6, 0, 0);
+          selection.usable_seed = MouseCursorType(widget, base) == 2;
+          PVZ_TRACE("PvZ mouse dropped seed placed {}", !selection.usable_seed);
+          HideUnselectedCursor(primary, base);
+        } else if (selection.packet >= 0 &&
+            uint32_t(selection.packet) < Read(base, selection.bank + 0x40)) {
+          PlantPacket(widget, primary);
         }
       }
     }
+    return false;
+  }
+  bool ConsoleBoardClick() {
+    // Card clicks change the console's persistent selection without
+    // also firing A on the lawn. Selection need not be affordable yet.
+    const auto local = pvz::MapBoardPointer(event.point);
+    const auto packet = GameMode(base, app) != kModeSlotMachine && PlantMouse(primary, base) && local ?
+        PacketAt(selection.bank, *local, base) : -1;
+    if (!PcMouseMode() && GameMode(base, app) == kModeSlotMachine && event.click > 0 && local) {
+      if (event.down) {
+        const auto hit = ctx.r1.u32 - 0x80;
+        Call(sub_82139238, widget, int(local->x), int(local->y), int(hit));
+        if (Read(base, hit + 4) == 22) {
+          Call(sub_82153300, Read(base, widget + 0x1D4), int(local->x), int(local->y), int(hit));
+          return true;
+        }
+      } else if (local->y < 80) return true;
+    }
+    if (!PcMouseMode() && event.click > 0 && packet >= 0) {
+      if (event.down) {
+        const auto game_mode = GameMode(base, app);
+        if (game_mode == kModeBeghouled || game_mode == kModeZombiquarium || game_mode == kModeBeghouledTwist) {
+          Call(sub_8220F510, selection.bank + 0x50 + uint32_t(packet) * 0x7C, 0, 0, 0);
+          return true;
+        }
+        if (Call(sub_8220F370, selection.bank + 0x50 + uint32_t(packet) * 0x7C, 0, 0, 0))
+          PlaySample(app, 0x82D0A630);
+        else PlaySample(app, 0x82D0AA24);
+        Write(base, primary + 0xBC, uint32_t(packet));
+        Write(base, selection.bank + 0x50 + uint32_t(packet) * 0x7C + 0x70, 0);
+        Call(sub_82190D80, primary, 1, 0, 0);
+        PVZ_TRACE("PvZ console select packet {}", packet);
+      }
+    } else if (event.click < 0 && PlantMouse(primary, base) &&
+        MouseCursorType(widget, base) == 2) {
+      if (event.down) { Call(sub_82139AC0, widget, 0, 0, 0); PlaySample(app, 0x82D0A43C); }
+    } else if (event.click < 0 && PlantMouse(primary, base) && base[widget + 0x5691]) {
+      if (event.down && local && !BoardPaused(base, widget) &&
+          (GameScene(base, app) == kScenePlaying || shovel_lesson)) {
+        const auto count = Read(base, widget + 0x583C);
+        // Mouse digging uses the preserved native tool action on press.
+        Call(sub_821388A0, widget, int(local->x), int(local->y), 6);
+        console_shovel = {};
+        if (shovel_lesson && Call(sub_82134748, widget, 0, 0, 0) == 0)
+          Call(sub_8213D0F0, widget, 18, 0, 0);
+        PVZ_TRACE("PvZ console shovel press completed {} tutorial {} -> {}",
+            Read(base, widget + 0x583C) != count, tutorial, Read(base, widget + 0x5620));
+      }
+    } else {
+      const auto bank = Read(base, widget + 0x1A4);
+      const auto selected = Read(base, primary + 0xBC);
+      const auto packet_address = bank && Read(base, bank) == kSeedBank &&
+          selected < Read(base, bank + 0x40) && selected < 10 ?
+          bank + 0x50 + selected * 0x7C : 0;
+      const auto uses = packet_address ? Read(base, packet_address + 0x68) : 0;
+      Call(event.down ? sub_8214CDC0 : sub_8214D1B8, widget,
+          event.click > 0 ? 6 : 7, 0, 0);
+      if (REXCVAR_GET(pvz_input_trace) && packet_address &&
+          Read(base, packet_address + 0x68) != uses)
+        REXLOG_INFO("PvZ console planted seed");
+    }
+    return false;
+  }
+  void NativeMouseDown() {
     const auto local = pvz::MapUiPointer(event.point);
     if (event.down && local)
-      call(sub_824A6428, manager, int(local->x), int(local->y), event.click);
+      Call(sub_824A6428, manager, int(local->x), int(local->y), event.click);
     PVZ_TRACE("PvZ mouse {} ({}, {}) button {} widget {:08X} vtable {:08X}",
           event.down ? "down" : "up", event.point.x, event.point.y, event.click, widget,
           widget_vtable);
   }
+};
+
+void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
+    const pvz::MouseInputEvent* input, bool lost_focus) {
+  MouseDispatch(ctx, base, input, lost_focus).Run();
 }
 
 void DispatchWidgets(PPCContext& ctx, uint8_t* base) {
