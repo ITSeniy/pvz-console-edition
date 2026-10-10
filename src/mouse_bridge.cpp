@@ -86,6 +86,7 @@ REX_EXTERN(__imp__sub_821667C0); // Challenge::FireHeavyWeapon
 REX_EXTERN(sub_8220F510); // SeedPacket::PickUp; Heavy Weapon purchases its upgrade directly.
 REX_EXTERN(sub_82153300); // Challenge::MouseDown(x,y,HitResult*,player)
 REX_EXTERN(sub_821538D8); // Challenge::GamepadButtonDown
+REX_EXTERN(sub_82153CC8); // Challenge::GamepadButtonUp
 REX_EXTERN(sub_82153018); // Challenge::MouseDownWhackAZombie(x,y,player)
 REX_EXTERN(sub_821A8770); // LawnApp::IsScaryPotterLevel
 REX_EXTERN(sub_82152F20); // Challenge::MouseMove(x,y)
@@ -150,6 +151,8 @@ struct BeghouledMouse {
   bool held = false;
 } beghouled_mouse;
 std::vector<uint32_t> puzzle_highlights;
+// Console Beghouled: LMB holds the native grab button (8) on this Board.
+struct ConsoleBeghouled { uint32_t board = 0, controls = 0; } console_beghouled;
 uint32_t captured_dialog = 0;
 int captured_dialog_id = -1;
 uint32_t captured_board = 0;
@@ -543,6 +546,13 @@ void DropMouseItem(PPCContext& ctx, uint8_t* base, uint32_t board) {
   } else MouseGuestCall(ctx, base, sub_82139AC0, board);
 }
 
+// Releases the console Beghouled grab button, as the pad's own release would.
+void ReleaseConsoleBeghouled(PPCContext& ctx, uint8_t* base) {
+  const auto board = std::exchange(console_beghouled, {}).board;
+  if (const auto challenge = board ? Read(base, board + 0x1D4) : 0)
+    GuestCall(ctx, base, sub_82153CC8, challenge, 8, 0);
+}
+
 bool PlantMouse(uint32_t controls, uint8_t* base) {
   if (!MouseActive() || !controls ||
       Read(base, controls) != kGamepadControls || int32_t(Read(base, controls + 0xA0)) != pvz::MouseUserIndex())
@@ -636,6 +646,8 @@ void CancelMouseGestures(PPCContext& ctx, uint8_t* base, uint32_t manager) {
   if (LiveWidget(manager, old_dialog, base))
     if (auto button = FindMenuButton(old_dialog, old_dialog_id, base, false)) base[button + 0x74] = 0;
   auto board = FindRootWidget(manager, kBoard, base, true);
+  if (console_beghouled.board == board && board) ReleaseConsoleBeghouled(ctx, base);
+  else console_beghouled = {};
   if (board && board == old_beghouled.board)
     if (const auto challenge = Read(base, board + 0x1D4)) base[challenge + 0x28] = 0;
   if (board && board == old_shovel.board && MouseControls(board, base) == old_shovel.controls && old_shovel.held) {
@@ -1403,6 +1415,18 @@ class MouseDispatch {
     if (!PcMouseMode() && (mini_mode == kModeBeghouled || mini_mode == kModeBeghouledTwist) && PlantMouse(primary, base)) {
       const auto challenge = Read(base, widget + 0x1D4);
       const auto local = pvz::MapBoardPointer(event.point);
+      // Beghouled keeps the Xbox controls: LMB holds the grab button (8) on
+      // a plant, and moving the native cell cursor drags it into a swap.
+      const bool native_field = mini_mode == kModeBeghouled && event.click > 0 &&
+          (!local || PacketAt(selection.bank, *local, base) < 0);
+      if (native_field) {
+        if (event.down) {
+          console_beghouled = {widget, primary};
+          Call(sub_821538D8, challenge, 8, 0, 0);
+          PVZ_TRACE("PvZ console Beghouled grab {} state {}", base[challenge + 0xE0], Read(base, primary + 0x68));
+        } else ReleaseConsoleBeghouled(ctx, base);
+        return true;
+      }
       if (!event.down) {
         if (mini_mode == kModeBeghouled) { base[challenge + 0x28] = 0; beghouled_mouse.held = false; }
         return true;
@@ -1842,7 +1866,8 @@ void ApplyPointer(PPCContext& ctx, uint32_t controls, uint8_t* base, std::option
     const auto app = Read(base, controls + 0x20);
     if (PlantMouse(controls, base) && app && GameScene(base, app) == kScenePlaying &&
         int32_t(Read(base, board + 0x56A0)) < 0 && !BoardPaused(base, board) &&
-        Read(base, controls + 0x68) >= 1 && Read(base, controls + 0x68) <= 4) {
+        Read(base, controls + 0x68) >= 1 && Read(base, controls + 0x68) <= 4 &&
+        Read(base, controls + 0x68) != 3) { // 3: Beghouled grab follows the raw cursor.
       const auto bank = MouseSeedBank(board, controls, base);
       const bool lawn = snapshot->y >= int32_t(Read(base, bank + 0x28)) + int32_t(Read(base, bank + 0x30));
       // Native release-to-grid attraction re-targets on every lawn move; the
@@ -2836,6 +2861,11 @@ REX_HOOK_RAW(sub_82580A78) {
   // Other pad queries and the physical controller remain unchanged.
   if (ctx.lr == 0x8218B8EC && ctx.r4.u32 == 7 && MouseActive() && !PcMouseMode() &&
       console_shovel.held && ctx.r31.u32 == console_shovel.controls) {
+    ctx.r3.u64 = 1; return;
+  }
+  // Console Beghouled: LMB stands in for the held grab button (8).
+  if (ctx.lr == 0x8218B944 && ctx.r4.u32 == 8 && MouseActive() && !PcMouseMode() &&
+      console_beghouled.controls && ctx.r31.u32 == console_beghouled.controls) {
     ctx.r3.u64 = 1; return;
   }
   __imp__sub_82580A78(ctx, base);

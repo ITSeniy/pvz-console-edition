@@ -10,6 +10,9 @@
 #include <rex/ppc/func.h>
 #include <algorithm>
 #include <array>
+#include <chrono>
+#include <span>
+#include <vector>
 #include <atomic>
 #include <mutex>
 #include <optional>
@@ -44,6 +47,12 @@ std::atomic_bool test_beghouled_swipe{false};
 constexpr std::array kFixtureModes{144, 151, 51, 52, 53, 37, 90, 19, 20, 21, 23, 24, 25, 31, 32};
 constexpr std::array kSunModes{kModeSlotMachine, kModeHeavyWeapon, kModeBeghouled, kModeSeeingStars,
     kModeZombiquarium, kModeBeghouledTwist, kModeWhackAZombie, kModeLastStand};
+
+struct PendingSwipe {
+  std::vector<pvz::MouseInputEvent> steps;
+  size_t next = 0;
+  std::chrono::steady_clock::time_point due;
+} pending_swipe;
 
 bool Contains(const auto& values, auto value) {
   return std::find(values.begin(), values.end(), value) != values.end();
@@ -104,10 +113,15 @@ void SwipeBeghouled(PPCContext& ctx, uint8_t* base, uint32_t board) {
         const int y = int32_t(GuestCall<0x800>(ctx, base, sub_82149848, board, col, row));
         const pvz::Point start{200.f + col * 50, (float(y) + 110) / 1.2f};
         const pvz::Point end{start.x + direction.x * 25, start.y + direction.y * 25};
-        const std::array events{pvz::MouseInputEvent{pvz::MouseEventKind::Button, start, 1, true},
-            pvz::MouseInputEvent{pvz::MouseEventKind::Move, end},
-            pvz::MouseInputEvent{pvz::MouseEventKind::Button, end, 1, false}};
-        pvz::PublishReplayMouseBatch(events);
+        // Publish the drag over several updates, like a real mouse: Console
+        // Beghouled follows the grabbed plant's cursor between updates.
+        pending_swipe = {};
+        pending_swipe.steps.push_back({pvz::MouseEventKind::Button, start, 1, true});
+        for (int step = 1; step <= 5; ++step)
+          pending_swipe.steps.push_back({pvz::MouseEventKind::Move, pvz::Point{start.x + (end.x - start.x) * step / 5,
+              start.y + (end.y - start.y) * step / 5}});
+        pending_swipe.steps.push_back({pvz::MouseEventKind::Button, end, 1, false});
+        pending_swipe.due = std::chrono::steady_clock::now();
         REXLOG_INFO("PvZ replay Beghouled swipe {},{} to {},{}", col, row,
             col + int(direction.x), row + int(direction.y));
         return;
@@ -133,6 +147,10 @@ void ClickTwist(PPCContext& ctx, uint8_t* base, uint32_t board) {
 // Requests are always consumed, so a stale one cannot fire on a later screen.
 bool pvz::ApplyReplayFixtures(PPCContext& ctx, uint8_t* base, uint32_t focused_root, uint32_t main_menu) {
   const bool replay = !rex::cvar::Query<std::string>("pvz_input_replay").empty();
+  if (pending_swipe.next < pending_swipe.steps.size() && std::chrono::steady_clock::now() >= pending_swipe.due) {
+    pvz::PublishReplayMouseBatch(std::span(&pending_swipe.steps[pending_swipe.next++], 1));
+    pending_swipe.due = std::chrono::steady_clock::now() + std::chrono::milliseconds(60);
+  }
   const bool on_menu = focused_root && Read(base, focused_root) == kMainMenu;
   if (const int mode = test_mode.exchange(-1); replay && on_menu && Contains(kFixtureModes, mode)) {
     StartFixtureMode(ctx, base, focused_root, mode);
