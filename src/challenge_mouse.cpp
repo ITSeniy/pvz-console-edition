@@ -2,6 +2,9 @@
 #include "mouse_bridge.h"
 #include "game_settings.h"
 #include "guest_memory.h"
+#include "guest_call.h"
+#include "guest_layout.h"
+#include "input_trace.h"
 #include <rex/hook.h>
 #include <rex/cvar.h>
 #include <rex/logging.h>
@@ -11,7 +14,6 @@
 #include <bit>
 #include <cstring>
 
-REXCVAR_DECLARE(bool, pvz_input_trace);
 REX_EXTERN(sub_82169968); // ChallengeScreen::GamepadButtonDown
 REX_EXTERN(sub_82169CD8); // ChallengeScreen::ScrollTo
 REX_EXTERN(__imp__sub_82167958); // ChallengeScreen::DrawChallenge
@@ -20,10 +22,13 @@ REX_EXTERN(__imp__sub_82169058); // ChallengeScreen::Update
 REX_EXTERN(__imp__sub_82166FB0); // ChallengeScreen deleting destructor
 REX_EXTERN(__imp__sub_8249C6A8); // Graphics::ClipRect
 
+using namespace pvz::layout;
+using pvz::GuestCall;
+
 namespace {
 using pvz::guest::Read;
 using pvz::guest::Write;
-float Float(uint8_t* b, uint32_t a) { return std::bit_cast<float>(Read(b, a)); }
+using pvz::guest::Float;
 struct Rect {
   float x = 0, y = 0, w = 0, h = 0;
   bool Contains(pvz::Point p) const { return p.x >= x && p.x < x + w && p.y >= y && p.y < y + h; }
@@ -42,7 +47,7 @@ struct State {
 uint32_t drawing_screen = 0;
 int drawing_row = -1, drawing_id = -1;
 float row_origin_x = 0, row_origin_y = 0;
-bool IsScreen(uint8_t* b, uint32_t s) { return s && Read(b, s) == 0x820B899C; }
+bool IsScreen(uint8_t* b, uint32_t s) { return s && Read(b, s) == kChallengeScreen; }
 uint32_t Button(uint8_t* b, uint32_t s, int id) {
   return id >= 0 && id < 94 ? Read(b, s + 0xD8 + id * 4) : 0;
 }
@@ -58,11 +63,6 @@ int Hit(uint8_t* b, uint32_t s, std::optional<pvz::Point> point) {
 }
 void Press(uint8_t* b, uint32_t s, int id, bool pressed) {
   if (auto button = Button(b, s, id)) b[button + 0x74] = pressed;
-}
-void Call(PPCContext& ctx, uint8_t* b, PPCFunc* fn, uint32_t s, int a, int user = 0) {
-  PPCContext work = ctx; work.r1.u32 -= 0x100;
-  work.r3.u32 = s; work.r4.s64 = a; work.r5.s64 = user; work.r6.u64 = 0;
-  fn(work, b);
 }
 }
 
@@ -103,14 +103,14 @@ void pvz::ScrollChallenge(PPCContext& ctx, uint8_t* b, uint32_t screen, int step
     if (Read(b, screen + 0x2C4 + i * 4) == Read(b, screen + 0x5BC)) selected = i;
   if (count && (selected < after || selected >= after + 4))
     Write(b, screen + 0x5BC, Read(b, screen + 0x2C4 + after * 4));
-  if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ challenge scroll {} -> {} ({} rows)", before, after, count);
+  PVZ_TRACE("PvZ challenge scroll {} -> {} ({} rows)", before, after, count);
 }
 bool pvz::ChallengeMouseButton(PPCContext& ctx, uint8_t* b, uint32_t screen, Point point, int button, bool down) {
   if (!IsScreen(b, screen)) return false;
   if (button == 2) return true;
   if (button < 0) {
     CancelChallengeMouse(b, screen);
-    if (down) Call(ctx, b, sub_82169968, screen, 7, int(Read(b, screen + 0xC0)));
+    if (down) GuestCall(ctx, b, sub_82169968, screen, 7, int(Read(b, screen + 0xC0)), 0);
     return true;
   }
   const Point pixel{point.x * 1.6f, point.y * 1.2f};
@@ -127,15 +127,15 @@ bool pvz::ChallengeMouseButton(PPCContext& ctx, uint8_t* b, uint32_t screen, Poi
   if (down) {
     state.pressed = id;
     Press(b, screen, id, true);
-    if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ challenge pressed {}", id);
+    PVZ_TRACE("PvZ challenge pressed {}", id);
   } else {
     const int pressed = state.pressed;
     CancelChallengeMouse(b, screen);
     if (id >= 0 && pressed == id) {
       Write(b, screen + 0x5BC, id);
-      if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ challenge activate {} locked {}", id, b[Button(b, screen, id) + 0x72] != 0);
-      Call(ctx, b, sub_82169968, screen, 6, int(Read(b, screen + 0xC0)));
-    } else if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ challenge click cancelled");
+      PVZ_TRACE("PvZ challenge activate {} locked {}", id, b[Button(b, screen, id) + 0x72] != 0);
+      GuestCall(ctx, b, sub_82169968, screen, 6, int(Read(b, screen + 0xC0)), 0);
+    } else PVZ_TRACE("PvZ challenge click cancelled");
   }
   return true;
 }
@@ -207,7 +207,7 @@ REX_HOOK_RAW(sub_82169058) {
     if (current != state.wheel_target) {
       if (state.dragging && REXCVAR_GET(pvz_input_trace))
         REXLOG_INFO("PvZ challenge scrollbar page {} target {}", current, state.wheel_target);
-      Call(ctx, base, sub_82169CD8, screen, current + (state.wheel_target > current ? 1 : -1));
+      GuestCall(ctx, base, sub_82169CD8, screen, current + (state.wheel_target > current ? 1 : -1), 0, 0);
     } else state.wheel_target = -1;
   }
   if (mouse && state.hover < 0) {

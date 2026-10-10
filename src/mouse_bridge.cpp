@@ -13,6 +13,9 @@
 #include "heavy_weapon_pointer.h"
 #include "input_backend.h"
 #include "replay_fixtures.h"
+#include "guest_call.h"
+#include "guest_layout.h"
+#include "input_trace.h"
 #include <rex/hook.h>
 #include <rex/cvar.h>
 #include <bit>
@@ -97,6 +100,13 @@ REX_EXTERN(sub_8214F5E8); // LoadBeghouledBoardState (scratch copy)
 REX_EXTERN(sub_82151600); // BeghouledMoveCausesMatch (scratch copy)
 REX_EXTERN(sub_82150EB8); // BeghouledTwistMoveCausesMatch (scratch copy)
 
+using pvz::guest::Float;
+using pvz::guest::Read;
+using pvz::guest::Write;
+using namespace pvz::layout;
+using pvz::GuestCall;
+using pvz::GuestFrame;
+
 namespace {
 std::mutex pointer_mutex;
 std::optional<pvz::Point> pointer;
@@ -169,24 +179,20 @@ uint32_t MouseCursor(uint32_t board, uint8_t* base);
 bool PcMouseMode() { return MouseActive() && REXCVAR_GET(pvz_cursor_mode) == "pc"; }
 
 bool IsGameButton(uint32_t vtable) {
-  return vtable == 0x820BA0AC || vtable == 0x820BA21C || vtable == 0x820BA38C;
+  return vtable == kGameButton || vtable == kLawnStoneButton || vtable == kStretchableGameButton;
 }
 
 uint32_t FindMenuButton(uint32_t menu, int id, uint8_t* base, bool enabled_only = true) {
-  const auto head = __builtin_bswap32(*reinterpret_cast<uint32_t*>(base + menu + 0x18));
-  const auto read = [&](uint32_t a) { return __builtin_bswap32(*reinterpret_cast<uint32_t*>(base + a)); };
+  const auto head = Read(base, menu + 0x18);
   if (!head) return 0;
-  auto node = read(head);
-  for (int i = 0; node && node != head && i < 128; ++i, node = read(node)) {
-    const auto child = read(node + 8);
-    if (child && IsGameButton(read(child)) && read(child + 0x6C) == uint32_t(id) &&
+  auto node = Read(base, head);
+  for (int i = 0; node && node != head && i < 128; ++i, node = Read(base, node)) {
+    const auto child = Read(base, node + 8);
+    if (child && IsGameButton(Read(base, child)) && Read(base, child + 0x6C) == uint32_t(id) &&
         (!enabled_only || (base[child + 0x70] && !base[child + 0x72] && !base[child + 0x149]))) return child;
   }
   return 0;
 }
-
-using pvz::guest::Read;
-using pvz::guest::Write;
 
 bool LiveWidget(uint32_t manager, uint32_t widget, uint8_t* base) {
   return pvz::guest::LiveWidget(base, manager, widget);
@@ -223,16 +229,15 @@ uint32_t FindRootWidget(uint32_t manager, uint32_t vtable, uint8_t* base, bool i
 }
 
 bool InactiveSeedChooser(uint32_t widget, uint8_t* base) {
-  if (!widget || Read(base, widget) != 0x820CA94C) return false;
+  if (!widget || Read(base, widget) != kSeedChooser) return false;
   const auto app = Read(base, widget + 0xE60);
   if (!app) return false;
   // Intro keeps this widget attached after selection ends. Slot Machine,
   // Zen and Tree never choose seeds; their native tutorials own Board input.
-  const auto mode = Read(base, app + 0x9CC);
-  if (mode == 19 || mode == 44 || mode == 51 || Read(base, app + 0x9D0) == 3) return true;
+  const auto mode = GameMode(base, app);
+  if (mode == kModeSlotMachine || mode == kModeZenGarden || mode == kModeTreeOfWisdom || GameScene(base, app) == kScenePlaying) return true;
   const auto board = Read(base, app + 0x900);
-  return mode == 0 && board && Read(base, board) == 0x820B728C &&
-      Read(base, board + 0x5620) >= 15 && Read(base, board + 0x5620) <= 17;
+  return mode == kModeAdventure && board && Read(base, board) == kBoard && InShovelLesson(base, board);
 }
 
 uint32_t TopRootWidget(uint32_t manager, uint8_t* base) {
@@ -242,7 +247,7 @@ uint32_t TopRootWidget(uint32_t manager, uint8_t* base) {
   auto node = Read(base, head);
   for (int i = 0; node && node != head && i < 64; ++i, node = Read(base, node)) {
     const auto child = Read(base, node + 8);
-    if (child && base[child + 0x70] && Read(base, child) != 0x820BA804 && !InactiveSeedChooser(child, base)) top = child;
+    if (child && base[child + 0x70] && Read(base, child) != kHelpBar && !InactiveSeedChooser(child, base)) top = child;
   }
   return top;
 }
@@ -259,7 +264,7 @@ uint32_t VisibleDescendant(uint32_t container, uint32_t vtable, uint8_t* base) {
 uint32_t MouseMenu(uint32_t manager, uint8_t* base) {
   auto over = Read(base, manager + 0xB0);
   if (over && IsGameButton(Read(base, over))) over = Read(base, over + 0x24);
-  return over && TopRootWidget(manager, base) == over && Read(base, over) == 0x820C2784 && base[over + 0x70] && !base[over + 0x72] ? over : 0;
+  return over && TopRootWidget(manager, base) == over && Read(base, over) == kMainMenu && base[over + 0x70] && !base[over + 0x72] ? over : 0;
 }
 
 bool StableMenu(uint32_t menu, uint8_t* base) {
@@ -289,12 +294,12 @@ int MenuButtonAt(uint32_t menu, pvz::Point position, uint8_t* base) {
     const auto child = FindMenuButton(menu, id, base);
     if (!child) continue;
     const double x = base[child + 0x198] ?
-        std::bit_cast<float>(Read(base, child + 0x19C)) : int32_t(Read(base, child + 0x190));
+        Float(base, child + 0x19C) : int32_t(Read(base, child + 0x190));
     const double y = base[child + 0x198] ?
-        std::bit_cast<float>(Read(base, child + 0x1A0)) : int32_t(Read(base, child + 0x194));
+        Float(base, child + 0x1A0) : int32_t(Read(base, child + 0x194));
     const double width = Read(base, child + 0x1A4), height = Read(base, child + 0x1A8);
-    const double sx = std::bit_cast<float>(Read(base, child + 0x1C4));
-    const double sy = std::bit_cast<float>(Read(base, child + 0x1C8));
+    const double sx = Float(base, child + 0x1C4);
+    const double sy = Float(base, child + 0x1C8);
     if (sx > 0 && sy > 0 && pixel.x >= x + width * (1 - sx) * 0.5 &&
         pixel.y >= y + height * (1 - sy) * 0.5 &&
         pixel.x < x + width * (1 + sx) * 0.5 &&
@@ -305,7 +310,7 @@ int MenuButtonAt(uint32_t menu, pvz::Point position, uint8_t* base) {
 
 uint32_t DialogParent(uint32_t over, uint8_t* base) {
   if (over && IsGameButton(Read(base, over))) over = Read(base, over + 0x24);
-  if (!over || Read(base, over) == 0x820C2784 || Read(base, over) == 0x820B728C)
+  if (!over || Read(base, over) == kMainMenu || Read(base, over) == kBoard)
     return 0;
   return over;
 }
@@ -341,15 +346,15 @@ uint32_t DrawnDialogButtonAt(uint32_t parent, pvz::Point local, uint8_t* base) {
     if (!child || !IsGameButton(Read(base, child)) ||
         !base[child + 0x70] || base[child + 0x72] || base[child + 0x149]) continue;
     double bx = x + (base[child + 0x198] ?
-        std::bit_cast<float>(Read(base, child + 0x19C)) : int32_t(Read(base, child + 0x190)));
+        Float(base, child + 0x19C) : int32_t(Read(base, child + 0x190)));
     double by = y + (base[child + 0x198] ?
-        std::bit_cast<float>(Read(base, child + 0x1A0)) : int32_t(Read(base, child + 0x194)));
+        Float(base, child + 0x1A0) : int32_t(Read(base, child + 0x194)));
     double width = Read(base, child + 0x1A4);
     double height = Read(base, child + 0x1A8);
     // GameButton::Draw scales about the image center. Use its base scale,
     // not the animated hover pulse, so entering/leaving has stable bounds.
-    const double sx = std::bit_cast<float>(Read(base, child + 0x1C4));
-    const double sy = std::bit_cast<float>(Read(base, child + 0x1C8));
+    const double sx = Float(base, child + 0x1C4);
+    const double sy = Float(base, child + 0x1C8);
     if (!std::isfinite(sx) || !std::isfinite(sy) || sx <= 0 || sy <= 0) continue;
     bx += width * (1 - sx) * 0.5;
     by += height * (1 - sy) * 0.5;
@@ -375,26 +380,26 @@ uint32_t HoveredButton(uint32_t manager, std::optional<pvz::Point> position, uin
   auto over = Read(base, manager + 0xB0);
   if (over && IsGameButton(Read(base, over))) over = Read(base, over + 0x24);
   if (over && !base[over + 0x70]) over = 0;
-  if (over && Read(base, over) == 0x820C2784) {
+  if (over && Read(base, over) == kMainMenu) {
     return FindMenuButton(over, MenuButtonAt(over, *position, base), base);
   }
   const auto local = pvz::MapUiPointer(*position);
   const auto foreground = TopRootWidget(manager, base);
   // The chooser is a child of the full-screen intro widget, whose own
   // rectangle otherwise masks the chooser's painted buttons.
-  if (local && foreground && Read(base, foreground) == 0x820BA804)
-    if (auto chooser = VisibleDescendant(manager, 0x820CA94C, base))
-      if (!VisibleDescendant(manager, 0x820CAAC4, base))
+  if (local && foreground && Read(base, foreground) == kHelpBar)
+    if (auto chooser = VisibleDescendant(manager, kSeedChooser, base))
+      if (!VisibleDescendant(manager, kImitaterDialog, base))
         if (auto button = DrawnDialogButtonAt(chooser, *local, base)) return button;
   // Native modal rectangles can leave the underlying screen in mOverWidget.
   // Hit the top screen's painted buttons before any background screen.
-  if (foreground && Read(base, foreground) != 0x820C2784 && Read(base, foreground) != 0x820B728C)
+  if (foreground && Read(base, foreground) != kMainMenu && Read(base, foreground) != kBoard)
     return local ? DrawnDialogButtonAt(foreground, *local, base) : 0;
-  if (local) if (auto award = VisibleDescendant(manager, 0x820B4F44, base))
+  if (local) if (auto award = VisibleDescendant(manager, kAwardScreen, base))
     if (auto button = DrawnDialogButtonAt(award, *local, base)) return button;
-  if (local) if (auto chooser = VisibleDescendant(manager, 0x820CA94C, base))
+  if (local) if (auto chooser = VisibleDescendant(manager, kSeedChooser, base))
     if (auto button = DrawnDialogButtonAt(chooser, *local, base)) return button;
-  if (local) for (const auto vt : {0x820BB22Cu, 0x820C1D24u, 0x820BBF94u})
+  if (local) for (const auto vt : {kHelpTextScreen, kLeaderboardMenu, kHouseMenu})
     if (auto help = VisibleDescendant(manager, vt, base))
       if (auto button = DrawnDialogButtonAt(help, *local, base)) return button;
   if (local) {
@@ -407,7 +412,7 @@ uint32_t HoveredButton(uint32_t manager, std::optional<pvz::Point> position, uin
 void SyncMouseHover(PPCContext& ctx, uint32_t manager, std::optional<pvz::Point> position,
     uint8_t* base) {
   if (!MouseActive() ||
-      Read(base, manager) != 0x8206404C) return;
+      Read(base, manager) != kWidgetManager) return;
   if (pvz::LocalPlayersActive() && native_pad_button_press.manager == manager &&
       native_pad_button_press.widget == Read(base, manager + 0xA8) &&
       native_pad_button_press.widget && base[native_pad_button_press.widget + 0x74]) return;
@@ -415,22 +420,19 @@ void SyncMouseHover(PPCContext& ctx, uint32_t manager, std::optional<pvz::Point>
   const auto focused = Read(base, manager + 0xA8);
   const bool pc = PcMouseMode();
   const auto root = TopRootWidget(manager, base);
-  const auto app = root && Read(base, root) == 0x820B728C ? Read(base, root + 0xF4) : 0;
-  const bool garden = app && (Read(base, app + 0x9CC) == 44 || Read(base, app + 0x9CC) == 51);
+  const auto app = root && Read(base, root) == kBoard ? BoardApp(base, root) : 0;
+  const bool garden = app && (GameMode(base, app) == kModeZenGarden || GameMode(base, app) == kModeTreeOfWisdom);
   const auto cursor = app ? MouseCursor(root, base) : 0;
   if (pc && app && ((garden && cursor && Read(base, cursor + 0x4C)) ||
       (selection.board == root && (selection.packet >= 0 || selection.shovel || selection.usable_seed)))) hovered = 0;
   if ((hovered || (focused && IsGameButton(Read(base, focused)))) ||
       (garden && !hovered && focused != root)) {
-    PPCContext work = ctx;
-    work.r1.u32 -= 0x100;
-    work.r3.u32 = manager;
     // Zen's native Update requires Board focus, including while a tool is
     // selected. Leaving a Menu/Shop button must return focus to the Board.
-    work.r4.u32 = !hovered && root && Read(base, root) == 0x820B728C ? root : hovered;
     // Use this event's position; the published snapshot can already contain
     // the next queued event. The hook below filters guest-initiated focus.
-    __imp__sub_824A5F48(work, base);
+    GuestCall(ctx, base, __imp__sub_824A5F48, manager,
+        !hovered && root && Read(base, root) == kBoard ? root : hovered);
   }
   // Native Widget rects at 0,0 can set mIsOver independently of focus.
   // Clear those false positives, including default flags on newly opened UI.
@@ -444,19 +446,10 @@ void SyncMouseHover(PPCContext& ctx, uint32_t manager, std::optional<pvz::Point>
     return true;
   });
   if (hovered != mouse_hovered_button) {
-    PPCContext work = ctx;
-    work.r1.u32 -= 0x100;
-    if (previous_live) {
-      work.r3.u32 = mouse_hovered_button;
-      sub_824AE610(work, base);
-    }
+    if (previous_live) GuestCall(ctx, base, sub_824AE610, mouse_hovered_button);
     mouse_hovered_button = hovered;
     if (hovered) {
-      work = ctx;
-      work.r1.u32 -= 0x100;
-      work.r3.u32 = hovered;
-      work.r4.u32 = work.r5.u32 = 0;
-      __imp__sub_824AE518(work, base);
+      GuestCall(ctx, base, __imp__sub_824AE518, hovered, 0, 0);
       const auto listener = Read(base, hovered + 0x14C);
       const auto enter = listener ? Read(base, Read(base, listener) + 0x10) : 0;
       // Xbox MainMenu/standard dialog listeners have an empty MouseEnter.
@@ -466,15 +459,9 @@ void SyncMouseHover(PPCContext& ctx, uint32_t manager, std::optional<pvz::Point>
         const auto sound = Read(base, 0x82D0A4F8);
         if (app && int32_t(sound) >= 0) {
           const auto play = Read(base, Read(base, app) + 0xE0);
-          work = ctx;
-          work.r1.u32 -= 0x100;
-          work.r3.u32 = app;
-          work.r4.u32 = sound;
-          work.r5.u32 = 1;
-          rex::runtime::ResolveIndirectFunction(play)(work, base);
-          if (REXCVAR_GET(pvz_input_trace))
-            REXLOG_INFO("PvZ mouse hover sound button {} sample {} playback {:08X} instance {:08X}",
-                Read(base, hovered + 0x6C), sound, play, work.r3.u32);
+          const auto instance = GuestCall(ctx, base, rex::runtime::ResolveIndirectFunction(play), app, sound, 1);
+          PVZ_TRACE("PvZ mouse hover sound button {} sample {} playback {:08X} instance {:08X}",
+                Read(base, hovered + 0x6C), sound, play, instance);
         }
       }
     }
@@ -491,8 +478,8 @@ uint32_t MouseSeedBank(uint32_t board, uint32_t controls, uint8_t* base) {
   // alternate bank when present. I, Zombie must not select plant packets.
   if (board && controls && base[controls + 0xC4])
     if (const auto bank = Read(base, board + 0x1A8)) return bank;
-  const auto app = board ? Read(base, board + 0xF4) : 0;
-  const auto mode = app ? Read(base, app + 0x9CC) : 0;
+  const auto app = board ? BoardApp(base, board) : 0;
+  const auto mode = app ? GameMode(base, app) : 0;
   return board ? Read(base, board + 0x1A4 + (controls && mode >= 77 && mode <= 89 ? Read(base, controls + 0x9C) * 4 : 0)) : 0;
 }
 uint32_t MouseControls(uint32_t board, uint8_t* base) {
@@ -527,26 +514,38 @@ void RouteMouseGuestCall(PPCFunc* fn, PPCContext& work, uint8_t* base) {
   if (fn == sub_82153300 || fn == sub_821388A0 || fn == sub_82139238) work.r7.u32 = uint32_t(user);
   if (fn == sub_82139808) work.r5.u32 = uint32_t(user);
 }
+// Native input call on behalf of the mouse's player. A Coin::Collect made
+// here is an explicit click, unlike the console Update's automatic pickup.
+uint32_t MouseGuestCall(PPCContext& ctx, uint8_t* base, PPCFunc* fn, uint32_t self,
+    int a = 0, int b = 0, int c = 0) {
+  auto work = GuestFrame(ctx, self, a, b, c, 0);
+  RouteMouseGuestCall(fn, work, base);
+  const bool previous_collect = explicit_mouse_collect;
+  if (fn == sub_8216EF50) explicit_mouse_collect = true;
+  fn(work, base);
+  explicit_mouse_collect = previous_collect;
+  return work.r3.u32;
+}
 
 bool PlantMouse(uint32_t controls, uint8_t* base) {
   if (!MouseActive() || !controls ||
-      Read(base, controls) != 0x820BA5E8 || int32_t(Read(base, controls + 0xA0)) != pvz::MouseUserIndex())
+      Read(base, controls) != kGamepadControls || int32_t(Read(base, controls + 0xA0)) != pvz::MouseUserIndex())
     return false;
   const auto board = Read(base, controls + 0x44);
   const auto app = Read(base, controls + 0x20);
   const auto bank = MouseSeedBank(board, controls, base);
-  const auto mode = app ? Read(base, app + 0x9CC) : uint32_t(-1);
+  const auto mode = app ? GameMode(base, app) : uint32_t(-1);
   // Xbox/Android's shared challenge table includes puzzles at 52-71 and
   // bonus single-player boards at 37-50/90. They use the same native bank
   // and primary controls. Keep cinematic/service/multiplayer modes outside
   // this route, along with Heavy Weapon's separate input model.
-  const bool single_player = mode == 0 || mode == 90 ||
-      (mode >= 2 && mode <= 71 && mode != 20 && mode != 44 && mode != 51);
+  const bool single_player = mode == kModeAdventure || mode == 90 ||
+      (mode >= 2 && mode <= 71 && mode != kModeHeavyWeapon && mode != kModeZenGarden && mode != kModeTreeOfWisdom);
   const bool izombie = (mode >= 53 && mode <= 69 && (mode & 1)) || mode == 71;
   const bool multiplayer = pvz::LocalPlayersActive() && (mode >= 73 && mode <= 89);
-  if (!board || Read(base, board) != 0x820B728C || !app ||
+  if (!board || Read(base, board) != kBoard || !app ||
       (!single_player && !multiplayer) ||
-      !bank || Read(base, bank) != 0x820CAED8 ||
+      !bank || Read(base, bank) != kSeedBank ||
       (base[controls + 0xC4] && !izombie && !multiplayer)) return false;
   const auto secondary = Read(base, board + 0x1B4);
   if (!multiplayer && secondary && Read(base, secondary + 0xA0) != uint32_t(-1)) return false;
@@ -589,8 +588,8 @@ void HideUnselectedCursor(uint32_t controls, uint8_t* base) {
   selection.usable_seed = false;
   // The console Update rebuilds this preview every frame. Mouse mode needs
   // an empty hand until a card is picked. Costs/cooldowns stay in guest code.
-  const auto app = Read(base, selection.board + 0xF4);
-  if (cursor) { Write(base, cursor + 0x44, uint32_t(-1)); Write(base, cursor + 0x4C, selection.shovel ? 6 : Read(base, app + 0x9CC) == 31 ? 7 : 0); }
+  const auto app = BoardApp(base, selection.board);
+  if (cursor) { Write(base, cursor + 0x44, uint32_t(-1)); Write(base, cursor + 0x4C, selection.shovel ? 6 : GameMode(base, app) == kModeWhackAZombie ? 7 : 0); }
   Write(base, controls + 0xC0, uint32_t(-1));
   base[controls + 0xC5] = 0;
 }
@@ -606,7 +605,7 @@ void CancelMouseGestures(PPCContext& ctx, uint8_t* base, uint32_t manager) {
   const int old_button = captured_button, old_dialog_id = captured_dialog_id;
   if (item_drag.board) {
     discard_item_release = true;
-    if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ item drag cancelled input or screen changed");
+    PVZ_TRACE("PvZ item drag cancelled input or screen changed");
   }
   // Withdraw all custom capture before callbacks can enter a nested modal loop.
   selection = {}; item_drag = {}; console_shovel = {}; beghouled_mouse = {};
@@ -614,15 +613,13 @@ void CancelMouseGestures(PPCContext& ctx, uint8_t* base, uint32_t manager) {
   captured_menu = captured_dialog = 0; captured_button = captured_dialog_id = -1;
   mouse_buttons.Cancel(); mouse_wheel.Cancel();
   auto call = [&](PPCFunc* fn, uint32_t self, int a = 0, int b = 0, int c = 0) {
-    PPCContext work = ctx; work.r1.u32 -= 0x100;
-    work.r3.u32 = self; work.r4.s64 = a; work.r5.s64 = b; work.r6.s64 = c;
-    work.r7.u32 = 0; RouteMouseGuestCall(fn, work, base); fn(work, base);
+    MouseGuestCall(ctx, base, fn, self, a, b, c);
   };
   if (LiveWidget(manager, old_menu, base))
     if (auto button = FindMenuButton(old_menu, old_button, base, false)) base[button + 0x74] = 0;
   if (LiveWidget(manager, old_dialog, base))
     if (auto button = FindMenuButton(old_dialog, old_dialog_id, base, false)) base[button + 0x74] = 0;
-  auto board = FindRootWidget(manager, 0x820B728C, base, true);
+  auto board = FindRootWidget(manager, kBoard, base, true);
   if (board && board == old_beghouled.board)
     if (const auto challenge = Read(base, board + 0x1D4)) base[challenge + 0x28] = 0;
   if (board && board == old_shovel.board && MouseControls(board, base) == old_shovel.controls && old_shovel.held) {
@@ -630,7 +627,7 @@ void CancelMouseGestures(PPCContext& ctx, uint8_t* base, uint32_t manager) {
     Write(base, old_shovel.controls + 0x70, 0);
     call(sub_82190D80, old_shovel.controls, 1);
   }
-  board = FindRootWidget(manager, 0x820B728C, base, true);
+  board = FindRootWidget(manager, kBoard, base, true);
   if (board && board == old_selection.board && MouseControls(board, base) == old_selection.controls &&
       MouseSeedBank(board, old_selection.controls, base) == old_selection.bank)
     call(sub_82139AC0, board);
@@ -653,7 +650,7 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
         Read(base, manager), Read(base, manager + 0x48), Read(base, manager + 0x4C));
     logged = true;
   }
-  if (Read(base, manager) != 0x8206404C) return;
+  if (Read(base, manager) != kWidgetManager) return;
   static bool previous_owner = true;
   const bool active_mouse = MouseActive();
   const bool changed_owner = previous_owner != active_mouse;
@@ -678,27 +675,13 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
     pending = {&button_event, 1};
   }
   if (cancel) CancelMouseGestures(ctx, base, manager);
-  // Give nested guest calls their own caller frame and leave this hook's
-  // incoming context intact (including CR, FP registers and the return value).
-  auto call = [&](auto fn, uint32_t self, int x, int y, int click) {
-    PPCContext work = ctx;
-    work.r1.u32 -= 0x100;
-    work.r3.u32 = self;
-    work.r4.s64 = x;
-    work.r5.s64 = y;
-    work.r6.s64 = click;
-    work.r7.u32 = 0;
-    RouteMouseGuestCall(fn, work, base);
-    const bool previous_collect = explicit_mouse_collect;
-    if (fn == sub_8216EF50) explicit_mouse_collect = true;
-    fn(work, base);
-    explicit_mouse_collect = previous_collect;
-    return work.r3.u32;
+  auto call = [&](PPCFunc* fn, uint32_t self, int x, int y, int click) {
+    return MouseGuestCall(ctx, base, fn, self, x, y, click);
   };
   const auto focused_root = TopRootWidget(manager, base);
-  if (pvz::ApplyReplayFixtures(ctx, base, focused_root, FindRootWidget(manager, 0x820C2784, base))) return;
+  if (pvz::ApplyReplayFixtures(ctx, base, focused_root, FindRootWidget(manager, kMainMenu, base))) return;
   auto live_selection = [&]() {
-    const auto board = FindRootWidget(manager, 0x820B728C, base, true);
+    const auto board = FindRootWidget(manager, kBoard, base, true);
     return board && board == selection.board && MouseControls(board, base) == selection.controls &&
         MouseSeedBank(board, selection.controls, base) == selection.bank;
   };
@@ -709,10 +692,9 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
     // During the initial shovel lesson Intro keeps its SeedChooser root
     // attached above Board even though card selection has already ended.
     // Allow that specific native cutscene; actual modal dialogs still cancel.
-    const auto app = Read(base, board + 0xF4);
-    const auto tutorial = Read(base, board + 0x5620);
-    if (top && Read(base, top) == 0x820CA94C && app && Read(base, app + 0x9CC) == 0 &&
-        Read(base, app + 0x9D0) == 2 && tutorial >= 15 && tutorial <= 17) return board;
+    const auto app = BoardApp(base, board);
+    if (top && Read(base, top) == kSeedChooser && app && GameMode(base, app) == kModeAdventure &&
+        GameScene(base, app) == kSceneLevelIntro && InShovelLesson(base, board)) return board;
     return 0;
   };
   auto clear_item = [&]() {
@@ -728,20 +710,20 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
   auto cancel_item_drag = [&](const char* reason) {
     if (item_drag.board) {
       discard_item_release = true;
-      if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ item drag cancelled {}", reason);
+      PVZ_TRACE("PvZ item drag cancelled {}", reason);
     }
     item_drag = {};
     clear_item();
   };
   if (item_drag.board || (PcMouseMode() && selection.packet >= 0)) {
     if (cancel || !PcMouseMode() || !item_board() ||
-        base[selection.board + 0x1D9] || !PlantMouse(selection.controls, base) ||
+        BoardPaused(base, selection.board) || !PlantMouse(selection.controls, base) ||
         (item_drag.board && (item_drag.board != selection.board || item_drag.controls != selection.controls ||
                             item_drag.bank != selection.bank))) {
-      if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ item validity cancel {} pc {} live {} top {:08X} vt {:08X} board {:08X} paused {} controls blocked {} intro {:08X}",
+      PVZ_TRACE("PvZ item validity cancel {} pc {} live {} top {:08X} vt {:08X} board {:08X} paused {} controls blocked {} intro {:08X}",
           cancel, PcMouseMode(), live_selection(), focused_root,
           focused_root ? Read(base, focused_root) : 0, selection.board,
-          live_selection() ? base[selection.board + 0x1D9] : 0, live_selection() ? base[selection.controls + 0xC4] : 0,
+          live_selection() ? BoardPaused(base, selection.board) : 0, live_selection() ? base[selection.controls + 0xC4] : 0,
           live_selection() ? Read(base, selection.board + 0x1D0) : 0);
       cancel_item_drag("input or screen changed");
     }
@@ -755,8 +737,8 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
     const auto packet = selection.bank + 0x50 + uint32_t(selection.packet) * 0x7C;
     const auto uses = Read(base, packet + 0x68);
     Write(base, controls + 0xBC, uint32_t(selection.packet));
-    const auto app = Read(base, board + 0xF4);
-    const auto whack_cursor = Read(base, app + 0x9CC) == 31 ? MouseCursor(board, base) : 0;
+    const auto app = BoardApp(base, board);
+    const auto whack_cursor = GameMode(base, app) == kModeWhackAZombie ? MouseCursor(board, base) : 0;
     if (whack_cursor) {
       Write(base, whack_cursor + 0x44, Read(base, packet + 0x50));
       Write(base, whack_cursor + 0x4C, 1);
@@ -768,25 +750,25 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
       selection.packet = -1;
       selection.packets.clear();
       HideUnselectedCursor(controls, base);
-      if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ mouse planted seed");
+      PVZ_TRACE("PvZ mouse planted seed");
     }
     return planted;
   };
   if (beghouled_mouse.board && (cancel || !MouseActive() || focused_root != beghouled_mouse.board ||
-      base[focused_root + 0x1D9])) {
-    const auto live = FindRootWidget(manager, 0x820B728C, base, true);
+      BoardPaused(base, focused_root))) {
+    const auto live = FindRootWidget(manager, kBoard, base, true);
     if (live == beghouled_mouse.board)
       if (const auto challenge = Read(base, live + 0x1D4)) base[challenge + 0x28] = 0;
     beghouled_mouse = {};
   }
   if (cancel || !active_mouse || !heavy_weapon_mouse.board ||
-      focused_root != heavy_weapon_mouse.board || Read(base, focused_root) != 0x820B728C || base[focused_root + 0x1D9] ||
-      Read(base, Read(base, focused_root + 0xF4) + 0x9CC) != 20)
+      focused_root != heavy_weapon_mouse.board || Read(base, focused_root) != kBoard || BoardPaused(base, focused_root) ||
+      BoardMode(base, focused_root) != kModeHeavyWeapon)
     heavy_weapon_mouse = {};
   if (console_shovel.board) {
-    const auto board = FindRootWidget(manager, 0x820B728C, base, true);
+    const auto board = FindRootWidget(manager, kBoard, base, true);
     if (cancel || !active_mouse || PcMouseMode() || !snapshot || !pvz::MapBoardPointer(*snapshot) || board != console_shovel.board ||
-        !board || base[board + 0x1D9] || MouseControls(board, base) != console_shovel.controls) {
+        !board || BoardPaused(base, board) || MouseControls(board, base) != console_shovel.controls) {
       // Cancelling must not trigger StateExit's completed-hold dig.
       if (console_shovel.held && board && board == console_shovel.board && MouseControls(board, base) == console_shovel.controls) {
         Write(base, console_shovel.controls + 0x70, 0);
@@ -797,9 +779,9 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
     }
   }
   if (lost_focus && rex::cvar::Query<bool>("pvz_pause_on_focus_loss") &&
-      focused_root && Read(base, focused_root) == 0x820B728C) {
-    const auto app = Read(base, focused_root + 0xF4);
-    if (app && Read(base, app + 0x9D0) == 3 && !base[focused_root + 0x1D9])
+      focused_root && Read(base, focused_root) == kBoard) {
+    const auto app = BoardApp(base, focused_root);
+    if (app && GameScene(base, app) == kScenePlaying && !BoardPaused(base, focused_root))
       call(sub_8214CDC0, focused_root, 5, 0, 0);
   }
   if (REXCVAR_GET(pvz_mouse_cursor)) pvz::UpdateMouseNavigation(ctx, manager, base);
@@ -808,15 +790,14 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
     CancelMouseGestures(ctx, base, manager);
     return;
   }
-  if ((!focused_root || Read(base, focused_root) != 0x820B728C ||
+  if ((!focused_root || Read(base, focused_root) != kBoard ||
       (!selection.shovel && !selection.usable_seed && selection.packet < 0)) && mouse_item_cursor.exchange(false))
     pvz::RefreshHostSettings();
   auto play_sample = [&](uint32_t app, uint32_t global) {
     const auto sound = Read(base, global);
     if (app && int32_t(sound) >= 0) {
       const auto instance = call(rex::runtime::ResolveIndirectFunction(Read(base, Read(base, app) + 0xE0)), app, int(sound), 1, 0);
-      if (REXCVAR_GET(pvz_input_trace))
-        REXLOG_INFO("PvZ mouse sound {} id {} instance {:08X}", global == 0x82D0A630 ? "seed lift" : "buzzer", sound, instance);
+      PVZ_TRACE("PvZ mouse sound {} id {} instance {:08X}", global == 0x82D0A630 ? "seed lift" : "buzzer", sound, instance);
     }
   };
   if (changed_owner) {
@@ -828,7 +809,7 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
   auto move = [&](pvz::Point p) {
     // MouseMove is inlined in this build; use its two verified paths.
     const auto top = TopRootWidget(manager, base);
-    const auto local = top && Read(base, top) == 0x820C2784 ?
+    const auto local = top && Read(base, top) == kMainMenu ?
         std::optional<pvz::Point>(p) : pvz::MapUiPointer(p);
     base[manager + 0x108] = local.has_value();
     if (Read(base, manager + 0x114))
@@ -849,7 +830,7 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
     SyncMouseHover(ctx, manager, p, base);
     pvz::UpdateChallengePointer(ctx, base, top, p);
     pvz::UpdateServicePointer(ctx, base, top, p);
-    if (top == beghouled_mouse.board && beghouled_mouse.held && !base[top + 0x1D9]) {
+    if (top == beghouled_mouse.board && beghouled_mouse.held && !BoardPaused(base, top)) {
       if (auto lawn = pvz::MapBoardPointer(p)) {
         const auto challenge = Read(base, top + 0x1D4);
         call(sub_82152F20, challenge, int(lawn->x), int(lawn->y), 0);
@@ -858,12 +839,12 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
     }
     static int logged_panel = -1;
     auto over = MouseMenu(manager, base);
-    if (REXCVAR_GET(pvz_input_trace) && over && Read(base, over) == 0x820C2784 &&
+    if (REXCVAR_GET(pvz_input_trace) && over && Read(base, over) == kMainMenu &&
         Read(base, over + 0x118) == Read(base, over + 0x11C) &&
         int(Read(base, over + 0x118)) != logged_panel) {
       logged_panel = int(Read(base, over + 0x118));
       REXLOG_INFO("PvZ menu panel {} offset {}", logged_panel,
-          std::bit_cast<float>(Read(base, over + 0x108)));
+          Float(base, over + 0x108));
       const auto head = Read(base, over + 0x18);
       auto node = Read(base, head);
       for (int i = 0; node != head && i < 64; ++i, node = Read(base, node)) {
@@ -872,12 +853,12 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
             child, Read(base, child), int32_t(Read(base, child + 0x40)), int32_t(Read(base, child + 0x44)),
             Read(base, child + 0x48), Read(base, child + 0x4C), Read(base, child + 0x54),
             Read(base, child + 0x58), base[child + 0x70], base[child + 0x71], base[child + 0x72]);
-        if (Read(base, child) == 0x820BA0AC)
+        if (Read(base, child) == kGameButton)
           REXLOG_INFO("PvZ GameButton id {} draw {},{} float {} {},{} scale {},{} inset {},{},{},{} size {},{}",
               Read(base, child + 0x6C), int32_t(Read(base, child + 0x190)), int32_t(Read(base, child + 0x194)),
-              base[child + 0x198], std::bit_cast<float>(Read(base, child + 0x19C)),
-              std::bit_cast<float>(Read(base, child + 0x1A0)),
-              std::bit_cast<float>(Read(base, child + 0x1CC)), std::bit_cast<float>(Read(base, child + 0x1D0)),
+              base[child + 0x198], Float(base, child + 0x19C),
+              Float(base, child + 0x1A0),
+              Float(base, child + 0x1CC), Float(base, child + 0x1D0),
               int32_t(Read(base, child + 0x90)), int32_t(Read(base, child + 0x94)),
               int32_t(Read(base, child + 0x98)), int32_t(Read(base, child + 0x9C)),
               Read(base, child + 0x1A4), Read(base, child + 0x1A8));
@@ -905,7 +886,7 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
       clear(clear, root, 0);
       // MainMenu keeps off-screen panel buttons visible in its widget tree.
       // Pick a button from the current panel when PC hover left no focus.
-      if (root && Read(base, root) == 0x820C2784 && StableMenu(root, base)) {
+      if (root && Read(base, root) == kMainMenu && StableMenu(root, base)) {
         const auto panel = Read(base, root + 0x118);
         const auto id = panel == 0 ? 9 : panel == 2 ? 15 : AdventureButtonId(root, base);
         first = FindMenuButton(root, id, base);
@@ -917,8 +898,8 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
             first = mouse_hovered_button;
         }
       }
-      if (root && (Read(base, root) == 0x820B728C || Read(base, root) == 0x820B899C ||
-          Read(base, root) == 0x820CB23C || Read(base, root) == 0x820BB58C)) first = root;
+      if (root && (Read(base, root) == kBoard || Read(base, root) == kChallengeScreen ||
+          Read(base, root) == kStoreScreen || Read(base, root) == kHouseChooser)) first = root;
       if (first) call(sub_824A5F48, manager, int(first), 0, 0);
       mouse_hovered_button = 0;
       captured_dialog = 0;
@@ -932,7 +913,7 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
     pvz::UpdateChallengePointer(ctx, base, TopRootWidget(manager, base), std::nullopt);
     pvz::UpdateServicePointer(ctx, base, TopRootWidget(manager, base), std::nullopt);
   }
-  const auto title = FindRootWidget(manager, 0x820CB6BC, base);
+  const auto title = FindRootWidget(manager, kTitleScreen, base);
   title_ready.store(title && base[title + 0xED] &&
       Read(base, title + 0xDC) == Read(base, title + 0xE0), std::memory_order_relaxed);
   const auto over = MouseMenu(manager, base);
@@ -951,69 +932,69 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
         input->sequence, input->delta, wheel, root ? Read(base, root) : 0);
   pvz::ScrollChallenge(ctx, base, root, wheel);
   pvz::ScrollService(ctx, base, root, wheel);
-  if (root && Read(base, root) == 0x820B728C) {
-    const auto app = Read(base, root + 0xF4);
+  if (root && Read(base, root) == kBoard) {
+    const auto app = BoardApp(base, root);
     const auto controls = MouseControls(root, base);
-    if (!PcMouseMode() && app && controls && (PlantMouse(controls, base) || Read(base, app + 0x9CC) == 20) &&
-        Read(base, app + 0x9D0) == 3 && !base[root + 0x1D9]) {
+    if (!PcMouseMode() && app && controls && (PlantMouse(controls, base) || GameMode(base, app) == kModeHeavyWeapon) &&
+        GameScene(base, app) == kScenePlaying && !BoardPaused(base, root)) {
       for (int i = 0; i < std::min(10, std::abs(wheel)); ++i)
-        if (Read(base, app + 0x9CC) == 19)
+        if (GameMode(base, app) == kModeSlotMachine)
           call(sub_821538D8, Read(base, root + 0x1D4), 8, 0, 0);
         else call(sub_8214CDC0, root, wheel > 0 ? 10 : 11, 0, 0);
     }
   }
   for (const auto& event : pending) {
     if (event.click == 2) {
-      if (event.down && !PcMouseMode() && root && Read(base, root) == 0x820B728C &&
-          Read(base, Read(base, root + 0xF4) + 0x9CC) == 24 && !base[root + 0x1D9])
+      if (event.down && !PcMouseMode() && root && Read(base, root) == kBoard &&
+          BoardMode(base, root) == kModeZombiquarium && !BoardPaused(base, root))
         call(sub_821538D8, Read(base, root + 0x1D4), 9, 0, 0);
       continue;
     }
     if (event.click > 0 && !event.down) heavy_weapon_mouse = {};
     move(event.point);
     if (event.click == 1 && event.down && pvz::LocalPlayersActive()) {
-      if (const auto waiting = VisibleDescendant(manager, 0x820C0A8C, base)) {
+      if (const auto waiting = VisibleDescendant(manager, kWaitForSecondPlayer, base)) {
         const auto user = pvz::MouseUserIndex();
         if (user >= 0) call(rex::runtime::ResolveIndirectFunction(Read(base, Read(base, waiting) + 0xC0)),
             waiting, 6, user, 0);
         continue;
       }
     }
-    auto help = VisibleDescendant(manager, 0x820BB22C, base);
-    if (!help) help = VisibleDescendant(manager, 0x820C1D24, base);
-    if (!help) help = VisibleDescendant(manager, 0x820BBF94, base);
-    if (!help) help = VisibleDescendant(manager, 0x820C21A4, base);
-    if (!help) help = VisibleDescendant(manager, 0x820B96EC, base);
-    if (!help) help = VisibleDescendant(manager, 0x820CC2EC, base);
-    if (!help) help = VisibleDescendant(manager, 0x820CC0AC, base);
-    if (!help) help = VisibleDescendant(manager, 0x820CB23C, base);
-    if (!help) help = VisibleDescendant(manager, 0x820B466C, base);
+    auto help = VisibleDescendant(manager, kHelpTextScreen, base);
+    if (!help) help = VisibleDescendant(manager, kLeaderboardMenu, base);
+    if (!help) help = VisibleDescendant(manager, kHouseMenu, base);
+    if (!help) help = VisibleDescendant(manager, kMailScreen, base);
+    if (!help) help = VisibleDescendant(manager, kCreditScreen, base);
+    if (!help) help = VisibleDescendant(manager, kVSSetupMenu, base);
+    if (!help) help = VisibleDescendant(manager, kVSResultsMenu, base);
+    if (!help) help = VisibleDescendant(manager, kStoreScreen, base);
+    if (!help) help = VisibleDescendant(manager, kAlmanac, base);
     if (help && TopRootWidget(manager, base) != help) help = 0;
     if (event.click < 0 && help) {
       if (event.down) pvz::CloseMouseHelp(ctx, help, base);
       continue;
     }
     if (event.click < 0 && !event.down && console_shovel.board) {
-      const auto board = FindRootWidget(manager, 0x820B728C, base, true);
+      const auto board = FindRootWidget(manager, kBoard, base, true);
       if (board && board == console_shovel.board && MouseControls(board, base) == console_shovel.controls) {
         const auto controls = console_shovel.controls, count = Read(base, board + 0x583C);
         const auto before = Read(base, board + 0x5620);
-        const auto elapsed = console_shovel.held ? std::bit_cast<float>(Read(base, controls + 0x70)) : 0.0f;
+        const auto elapsed = console_shovel.held ? Float(base, controls + 0x70) : 0.0f;
         if (console_shovel.held) {
           call(sub_82190D80, controls, 1, 0, 0);
           call(sub_82139AC0, board, 0, 0, 0);
         }
-        if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ console shovel released after {} dug {} tutorial {} -> {}",
+        PVZ_TRACE("PvZ console shovel released after {} dug {} tutorial {} -> {}",
             elapsed, Read(base, board + 0x583C) != count, before, Read(base, board + 0x5620));
       }
       console_shovel = {};
       continue;
     }
-    const auto active_title = FindRootWidget(manager, 0x820CB6BC, base);
+    const auto active_title = FindRootWidget(manager, kTitleScreen, base);
     if (active_title && event.click > 0) {
       if (event.down) {
         call(sub_82219690, active_title, 6, 0, 0);
-        if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ mouse title start");
+        PVZ_TRACE("PvZ mouse title start");
       }
       continue;
     }
@@ -1027,12 +1008,12 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
       const auto release_root = TopRootWidget(manager, base);
       const auto local = pvz::MapUiPointer(event.point);
       call(sub_824A6358, manager, local ? int(local->x) : -1, local ? int(local->y) : -1, event.click);
-      if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ framework release held {}", Read(base, manager + 0x114));
+      PVZ_TRACE("PvZ framework release held {}", Read(base, manager + 0x114));
       if (TopRootWidget(manager, base) != release_root) {
         CancelMouseGestures(ctx, base, manager);
         return;
       }
-      const auto live_board = FindRootWidget(manager, 0x820B728C, base, true);
+      const auto live_board = FindRootWidget(manager, kBoard, base, true);
       if (captured_board && captured_board == live_board) widget = live_board;
       else widget = Read(base, manager + 0xB0);
       captured_board = 0;
@@ -1052,7 +1033,7 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
       item_drag = {};
       const auto board = item_board();
       if (!PcMouseMode() || !live_selection() || board != drag.board ||
-          base[board + 0x1D9] || drag.controls != selection.controls || drag.bank != selection.bank ||
+          BoardPaused(base, board) || drag.controls != selection.controls || drag.bank != selection.bank ||
           (drag.shovel ? !selection.shovel : selection.packet != drag.packet || !SamePackets(base))) {
         clear_item();
         continue;
@@ -1067,12 +1048,12 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
         const auto count = Read(base, board + 0x583C);
         call(sub_821388A0, board, int(local->x), int(local->y), 6);
         clear_item();
-        if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ item drag shovel dug {}", Read(base, board + 0x583C) != count);
+        PVZ_TRACE("PvZ item drag shovel dug {}", Read(base, board + 0x583C) != count);
       } else {
         const auto packet = drag.bank + 0x50 + uint32_t(drag.packet) * 0x7C;
         const bool allowed = call(sub_8220F370, packet, 0, 0, 0) != 0;
         const bool planted = allowed && plant_packet(board, drag.controls);
-        if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ item drag seed release planted {} at {},{}", planted, local->x, local->y);
+        PVZ_TRACE("PvZ item drag seed release planted {} at {},{}", planted, local->x, local->y);
       }
       continue;
     }
@@ -1080,13 +1061,13 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
     // is empty. Route both halves of LMB to the live cutscene, independently
     // of those widget hit fields and GamepadControls' gameplay A handling.
     if (event.click > 0) {
-      const auto board = FindRootWidget(manager, 0x820B728C, base, true);
-      const auto app = board ? Read(base, board + 0xF4) : 0;
-      if (app && Read(base, board + 0x5620) == 18 && Read(base, app + 0x9D0) == 2 && int32_t(Read(base, app + 0xA24)) != -1 &&
-          !base[board + 0x1D9]) {
+      const auto board = FindRootWidget(manager, kBoard, base, true);
+      const auto app = board ? BoardApp(base, board) : 0;
+      if (app && Read(base, board + 0x5620) == 18 && GameScene(base, app) == kSceneLevelIntro && int32_t(Read(base, app + 0xA24)) != -1 &&
+          !BoardPaused(base, board)) {
         if (event.down) {
           const auto message = Read(base, app + 0xA24);
-          if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ mouse Dave cutscene click message {}", message);
+          PVZ_TRACE("PvZ mouse Dave cutscene click message {}", message);
           call(sub_8217D798, Read(base, board + 0x1D0), 0, 0, 0);
         }
         continue;
@@ -1094,7 +1075,7 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
     }
     const uint32_t widget_vtable = widget ? Read(base, widget) : 0;
     auto menu = MouseMenu(manager, base);
-    if (menu && Read(base, menu) == 0x820C2784) selection = {};
+    if (menu && Read(base, menu) == kMainMenu) selection = {};
     if (menu && event.click > 0) {
       const auto id = MenuButtonAt(menu, event.point, base);
       if (event.down) {
@@ -1109,14 +1090,14 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
         captured_menu = 0;
         captured_button = -1;
         if (activate) {
-          if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ menu activate button {}", id);
+          PVZ_TRACE("PvZ menu activate button {}", id);
           call(sub_824AE488, pressed, 6, 0, 0);
         } else if (pressed) base[pressed + 0x74] = 0;
       }
       continue;
     }
     auto chooser = TopRootWidget(manager, base);
-    if (const auto imitater = VisibleDescendant(manager, 0x820CAAC4, base)) {
+    if (const auto imitater = VisibleDescendant(manager, kImitaterDialog, base)) {
       if (event.down) {
         if (event.click < 0) call(sub_822074F0, imitater, 7, int(Read(base, imitater + 0x1CC)), 0);
         else if (auto local = pvz::MapBoardPointer(event.point)) {
@@ -1127,25 +1108,25 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
           if (seed >= 0) {
             Write(base, imitater + 0x1C8, uint32_t(seed));
             call(sub_822074F0, imitater, 6, int(Read(base, imitater + 0x1CC)), 0);
-            if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ imitater copy seed {}", seed);
+            PVZ_TRACE("PvZ imitater copy seed {}", seed);
           }
         }
       }
       continue;
     }
-    if (auto award = VisibleDescendant(manager, 0x820B4F44, base)) chooser = award;
-    else if (auto choices = VisibleDescendant(manager, 0x820CA94C, base)) chooser = choices;
+    if (auto award = VisibleDescendant(manager, kAwardScreen, base)) chooser = award;
+    else if (auto choices = VisibleDescendant(manager, kSeedChooser, base)) chooser = choices;
     for (auto ancestor = widget, depth = 0u; ancestor && depth < 16; ++depth) {
       const auto vt = Read(base, ancestor);
-      if (vt == 0x820CA94C || vt == 0x820B4F44) { chooser = ancestor; break; }
+      if (vt == kSeedChooser || vt == kAwardScreen) { chooser = ancestor; break; }
       ancestor = Read(base, ancestor + 0x24);
     }
     const auto chooser_top = TopRootWidget(manager, base);
     if (InactiveSeedChooser(chooser, base)) chooser = 0;
-    if (VisibleDescendant(manager, 0x820CAAC4, base) || (chooser_top &&
-        Read(base, chooser_top) != 0x820BA804 && Read(base, chooser_top) != 0x820CA94C &&
-        Read(base, chooser_top) != 0x820B728C && Read(base, chooser_top) != 0x820B4F44)) chooser = 0;
-    if (chooser && Read(base, chooser) == 0x820B4F44 && event.click > 0) {
+    if (VisibleDescendant(manager, kImitaterDialog, base) || (chooser_top &&
+        Read(base, chooser_top) != kHelpBar && Read(base, chooser_top) != kSeedChooser &&
+        Read(base, chooser_top) != kBoard && Read(base, chooser_top) != kAwardScreen)) chooser = 0;
+    if (chooser && Read(base, chooser) == kAwardScreen && event.click > 0) {
       const auto button = Read(base, chooser + 0xD8);
       const auto local = pvz::MapBoardPointer(event.point);
       const bool over = button && local && AwardButtonAt(chooser, *local, base);
@@ -1154,7 +1135,7 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
         const bool activate = captured_dialog == chooser && captured_dialog_id == -2 && over;
         captured_dialog = 0; captured_dialog_id = -1;
         if (activate) {
-          if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ mouse NEXT LEVEL");
+          PVZ_TRACE("PvZ mouse NEXT LEVEL");
           call(sub_8212C4D0, chooser, 6, 0, 0);
         }
       }
@@ -1162,7 +1143,7 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
     }
     const auto chooser_ui = pvz::MapUiPointer(event.point);
     const bool chooser_button = chooser && chooser_ui && DrawnDialogButtonAt(chooser, *chooser_ui, base);
-    if (chooser && Read(base, chooser) == 0x820CA94C && event.click != 2 && event.down && !chooser_button) {
+    if (chooser && Read(base, chooser) == kSeedChooser && event.click != 2 && event.down && !chooser_button) {
       if (Read(base, chooser + 0xE9C) != 0 && event.click == 1) {
         call(sub_8220C280, chooser, 6, 0, 0); continue;
       }
@@ -1185,7 +1166,7 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
               call(sub_8220C280, chooser, 6, int(Read(base, chooser + 0xEA8)), 0);
             }
             else if (state == 3) call(sub_8220B440, chooser, int(chosen), 0, 0);
-            if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ chooser click seed {} state {}", seed, state);
+            PVZ_TRACE("PvZ chooser click seed {} state {}", seed, state);
             Write(base, chooser + 0xE84, uint32_t(-1));
           }
           continue;
@@ -1194,21 +1175,21 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
     }
     auto dialog = DialogParent(Read(base, manager + 0xB0), base);
     const auto active_screen = TopRootWidget(manager, base);
-    if (active_screen && Read(base, active_screen) != 0x820C2784 && Read(base, active_screen) != 0x820B728C)
+    if (active_screen && Read(base, active_screen) != kMainMenu && Read(base, active_screen) != kBoard)
       dialog = active_screen;
     const auto dialog_local = pvz::MapUiPointer(event.point);
     if (help && dialog_local && DrawnDialogButtonAt(help, *dialog_local, base)) dialog = help;
     if (dialog_local && DrawnDialogButtonAt(TopRootWidget(manager, base), *dialog_local, base))
       dialog = TopRootWidget(manager, base);
-    if (chooser && Read(base, chooser) == 0x820CA94C && dialog_local &&
+    if (chooser && Read(base, chooser) == kSeedChooser && dialog_local &&
         DrawnDialogButtonAt(chooser, *dialog_local, base)) dialog = chooser;
     const auto dialog_button = dialog_local ? DrawnDialogButtonAt(dialog, *dialog_local, base) : 0;
-    if (PcMouseMode() && event.click == 1 && event.down && dialog_button && Read(base, dialog) == 0x820B728C) {
+    if (PcMouseMode() && event.click == 1 && event.down && dialog_button && Read(base, dialog) == kBoard) {
       const bool carried = selection.board == dialog && (selection.packet >= 0 || selection.shovel || selection.usable_seed);
       if (pvz::CancelCarriedGardenTool(ctx, base, dialog) || carried) {
         if (carried) cancel_item_drag("button click");
         discard_item_release = true;
-        play_sample(Read(base, dialog + 0xF4), 0x82D0A43C); // SOUND_GRAVEBUTTON.
+        play_sample(BoardApp(base, dialog), 0x82D0A43C); // SOUND_GRAVEBUTTON.
         continue;
       }
     }
@@ -1225,8 +1206,7 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
         if (dialog == pressed_dialog) {
           if (auto child = FindMenuButton(dialog, pressed_id, base)) {
             if (child == dialog_button) {
-              if (REXCVAR_GET(pvz_input_trace))
-                REXLOG_INFO("PvZ dialog activate button {}", pressed_id);
+              PVZ_TRACE("PvZ dialog activate button {}", pressed_id);
               call(sub_824AE488, child, 6, 0, 0);
             } else base[child + 0x74] = 0;
           }
@@ -1239,13 +1219,13 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
     if (pvz::ServiceMouseButton(ctx, base, TopRootWidget(manager, base), event.point, event.click, event.down)) continue;
     // visible lawn clicks after painted buttons and modal screens were hit.
     const auto live_field = TopRootWidget(manager, base);
-    if (live_field && Read(base, live_field) == 0x820B728C && !base[live_field + 0x1D9] &&
+    if (live_field && Read(base, live_field) == kBoard && !BoardPaused(base, live_field) &&
         pvz::MapBoardPointer(event.point)) widget = live_field;
-    if (widget && Read(base, widget) == 0x820B728C) {
+    if (widget && Read(base, widget) == kBoard) {
       // Board's mouse methods mostly serve Zen Garden in the console build.
       // Its gamepad button methods own planting/cancelling and player routing.
       const uint32_t primary = MouseControls(widget, base);
-      const uint32_t app = Read(base, widget + 0xF4);
+      const uint32_t app = BoardApp(base, widget);
       if (pvz::LocalPlayersActive() && event.down && primary &&
           Read(base, primary + 0xA0) == uint32_t(-1)) {
         // Start joins/reconnects through Board's own two-player controller
@@ -1257,22 +1237,23 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
         }
       }
       // Zen Garden has its own native mouse actions; avoid dispatching twice.
-      if (app && Read(base, app + 0x9CC) != 44 && primary &&
-          Read(base, primary) == 0x820BA5E8 && int32_t(Read(base, primary + 0xA0)) == pvz::MouseUserIndex()) {
+      if (app && GameMode(base, app) != kModeZenGarden && primary &&
+          Read(base, primary) == kGamepadControls && int32_t(Read(base, primary + 0xA0)) == pvz::MouseUserIndex()) {
         ApplyPointer(ctx, primary, base, event.point);
         // Dave and scripted introductions own A. Card picking must not eat
         // that input while the native cutscene is waiting for a click.
         const int tutorial = int32_t(Read(base, widget + 0x5620));
-        if (event.click > 0 && ((Read(base, app + 0x9CC) == 0 && Read(base, app + 0x9D0) == 2 && (tutorial < 15 || tutorial > 17)) ||
+        const bool shovel_lesson = InShovelLesson(base, widget);
+        if (event.click > 0 && ((GameMode(base, app) == kModeAdventure && GameScene(base, app) == kSceneLevelIntro && !shovel_lesson) ||
             int32_t(Read(base, app + 0xA24)) != -1)) {
           if (event.down) call(sub_8214CDC0, widget, 6, 0, 0);
           continue;
         }
-        const int mini_mode = int(Read(base, app + 0x9CC));
-        if (!PcMouseMode() && mini_mode == 24 && event.click == 1) {
+        const int mini_mode = int(GameMode(base, app));
+        if (!PcMouseMode() && mini_mode == kModeZombiquarium && event.click == 1) {
           const auto local = pvz::MapBoardPointer(event.point);
           const auto bank = Read(base, widget + 0x1A4);
-          if (local && bank && event.down && !base[widget + 0x1D9]) {
+          if (local && bank && event.down && !BoardPaused(base, widget)) {
             const int packet = PacketAt(bank, *local, base);
             if (packet >= 0) Write(base, primary + 0xBC, packet);
             else {
@@ -1284,8 +1265,8 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
           }
           continue;
         }
-        if (mini_mode == 24 && event.click < 0) {
-          if (event.down && !base[widget + 0x1D9]) {
+        if (mini_mode == kModeZombiquarium && event.click < 0) {
+          if (event.down && !BoardPaused(base, widget)) {
             const auto challenge = Read(base, widget + 0x1D4);
             if (PcMouseMode()) call(sub_821538D8, challenge, 9, 0, 0);
             else {
@@ -1297,11 +1278,11 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
           }
           continue;
         }
-        if (!PcMouseMode() && (mini_mode == 21 || mini_mode == 25) && PlantMouse(primary, base)) {
+        if (!PcMouseMode() && (mini_mode == kModeBeghouled || mini_mode == kModeBeghouledTwist) && PlantMouse(primary, base)) {
           const auto challenge = Read(base, widget + 0x1D4);
           const auto local = pvz::MapBoardPointer(event.point);
           if (!event.down) {
-            if (mini_mode == 21) { base[challenge + 0x28] = 0; beghouled_mouse.held = false; }
+            if (mini_mode == kModeBeghouled) { base[challenge + 0x28] = 0; beghouled_mouse.held = false; }
             continue;
           }
           if (event.click < 0) {
@@ -1313,16 +1294,16 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
             Write(base, hit, 0); Write(base, hit + 4, 0);
             call(sub_82139238, widget, int(local->x), int(local->y), int(hit));
             call(sub_82153300, challenge, int(local->x), int(local->y), int(hit));
-            if (mini_mode == 21 && base[challenge + 0x28]) beghouled_mouse = {widget, *local, true};
+            if (mini_mode == kModeBeghouled && base[challenge + 0x28]) beghouled_mouse = {widget, *local, true};
           } else if (local) {
             const int packet = PacketAt(selection.bank, *local, base);
             if (packet >= 0) Write(base, primary + 0xBC, packet);
           }
           continue;
         }
-        if (!PcMouseMode() && mini_mode == 31 && PlantMouse(primary, base)) {
+        if (!PcMouseMode() && mini_mode == kModeWhackAZombie && PlantMouse(primary, base)) {
           const auto local = pvz::MapBoardPointer(event.point);
-          if (!event.down || !local || base[widget + 0x1D9]) continue;
+          if (!event.down || !local || BoardPaused(base, widget)) continue;
           const int packet = PacketAt(selection.bank, *local, base);
           if (packet >= 0 && event.click == 1) Write(base, primary + 0xBC, packet);
           else if (event.click == 1) call(sub_82153018, Read(base, widget + 0x1D4), int(local->x), int(local->y), 0);
@@ -1339,14 +1320,14 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
           }
           continue;
         }
-        if (Read(base, app + 0x9CC) == 20) {
+        if (GameMode(base, app) == kModeHeavyWeapon) {
           if (event.down) captured_board = widget;
           // A packet buys an upgrade immediately in this mode; it must never
           // also become a lawn A press or begin a firing gesture.
-          if (event.down && (event.click > 0 || !PcMouseMode()) && !base[widget + 0x1D9] && Read(base, app + 0x9D0) == 3) {
+          if (event.down && (event.click > 0 || !PcMouseMode()) && !BoardPaused(base, widget) && GameScene(base, app) == kScenePlaying) {
             const auto local = pvz::MapBoardPointer(event.point);
             const auto bank = MouseSeedBank(widget, primary, base);
-            if (local && bank && Read(base, bank) == 0x820CAED8) {
+            if (local && bank && Read(base, bank) == kSeedBank) {
               const int packet = PacketAt(bank, *local, base);
               const bool in_bank = pvz::InRect(*local, int32_t(Read(base, bank + 0x24)),
                   int32_t(Read(base, bank + 0x28)), Read(base, bank + 0x2C), Read(base, bank + 0x30));
@@ -1358,20 +1339,20 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
                 const auto challenge = Read(base, widget + 0x1D4);
                 Write(base, primary + 0xBC, uint32_t(upgrade));
                 call(sub_8220F510, bank + 0x50 + uint32_t(upgrade) * 0x7C, 0, 0, 0);
-                if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ Heavy Weapon buy packet {} sun {} -> {} weapon {} missiles {}",
+                PVZ_TRACE("PvZ Heavy Weapon buy packet {} sun {} -> {} weapon {} missiles {}",
                     upgrade, sun, Read(base, widget + 0x55F4), Read(base, challenge + 0x130), Read(base, challenge + 0x12C));
               }
               else if (!PcMouseMode() && packet >= 0) Write(base, primary + 0xBC, packet);
-              if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ Heavy Weapon LMB firing {}", heavy_weapon_mouse.firing);
+              PVZ_TRACE("PvZ Heavy Weapon LMB firing {}", heavy_weapon_mouse.firing);
             }
           } else if (!event.down && event.click > 0 && REXCVAR_GET(pvz_input_trace))
             REXLOG_INFO("PvZ Heavy Weapon LMB released");
           continue;
         }
         if (PcMouseMode() && PlantMouse(primary, base)) {
-          const int game_mode = int(Read(base, app + 0x9CC));
+          const int game_mode = int(GameMode(base, app));
           const auto challenge = Read(base, widget + 0x1D4);
-          if (!event.down && game_mode == 21 && beghouled_mouse.board == widget) {
+          if (!event.down && game_mode == kModeBeghouled && beghouled_mouse.board == widget) {
             base[challenge + 0x28] = 0;
             beghouled_mouse.held = false;
           }
@@ -1388,8 +1369,8 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
                   call(sub_82153300, challenge, int(local->x), int(local->y), int(hit));
                 }
               }
-              if (game_mode == 21) { base[challenge + 0x28] = 0; beghouled_mouse = {}; }
-              if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ mouse cancel seed");
+              if (game_mode == kModeBeghouled) { base[challenge + 0x28] = 0; beghouled_mouse = {}; }
+              PVZ_TRACE("PvZ mouse cancel seed");
             } else if (const auto local = pvz::MapBoardPointer(event.point)) {
               // HitResult lives in this nested call's reserved caller frame.
               const uint32_t hit = ctx.r1.u32 - 0x80;
@@ -1403,7 +1384,7 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
                 selection.shovel = !selection.shovel && call(sub_82139808, widget, 5, 0, 0);
                 HideUnselectedCursor(primary, base);
                 item_drag = {};
-                if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ PC shovel selected {}", selection.shovel);
+                PVZ_TRACE("PvZ PC shovel selected {}", selection.shovel);
                 continue;
               }
               if (selection.shovel) {
@@ -1411,7 +1392,7 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
                 call(sub_821388A0, widget, int(local->x), int(local->y), 6);
                 selection.shovel = false;
                 HideUnselectedCursor(primary, base);
-                if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ PC shovel dug {}", Read(base, widget + 0x583C) != count);
+                PVZ_TRACE("PvZ PC shovel dug {}", Read(base, widget + 0x583C) != count);
                 continue;
               }
               const auto coin = Read(base, hit + 4) == 3 ? Read(base, hit) : 0;
@@ -1422,7 +1403,7 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
                 if (type == 16) {
                   selection.packet = -1;
                   selection.usable_seed = MouseCursorType(widget, base) == 2;
-                  if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ mouse dropped seed picked {}", selection.usable_seed);
+                  PVZ_TRACE("PvZ mouse dropped seed picked {}", selection.usable_seed);
                 }
                 if (REXCVAR_GET(pvz_input_trace) && before != 7 && Read(base, coin + 0x84) == 7)
                   REXLOG_INFO("PvZ mouse collect coin type {} at {},{}", type, local->x, local->y);
@@ -1430,19 +1411,19 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
                 // a held drag collector, so it must not also receive this click.
                 continue;
               }
-              const auto index = game_mode == 19 ? -1 : PacketAt(selection.bank, *local, base);
+              const auto index = game_mode == kModeSlotMachine ? -1 : PacketAt(selection.bank, *local, base);
               if (index >= 0) {
                 const auto packet = selection.bank + 0x50 + uint32_t(index) * 0x7C;
-                if (game_mode == 21 || game_mode == 24 || game_mode == 25) {
-                  if (game_mode == 21) { base[challenge + 0x28] = 0; beghouled_mouse = {}; }
+                if (game_mode == kModeBeghouled || game_mode == kModeZombiquarium || game_mode == kModeBeghouledTwist) {
+                  if (game_mode == kModeBeghouled) { base[challenge + 0x28] = 0; beghouled_mouse = {}; }
                   const auto sun = Read(base, widget + 0x55F4);
                   call(sub_8220F510, packet, 0, 0, 0);
-                  if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ minigame {} buy packet {} type {} active {} sun {} -> {} upgrades {}/{}/{}", game_mode, index, Read(base, packet + 0x50), base[packet + 0x64], sun, Read(base, widget + 0x55F4), base[challenge + 0x6A], base[challenge + 0x6B], base[challenge + 0x6C]);
+                  PVZ_TRACE("PvZ minigame {} buy packet {} type {} active {} sun {} -> {} upgrades {}/{}/{}", game_mode, index, Read(base, packet + 0x50), base[packet + 0x64], sun, Read(base, widget + 0x55F4), base[challenge + 0x6A], base[challenge + 0x6B], base[challenge + 0x6C]);
                   continue;
                 }
                 if (selection.packet == index) {
                   clear_item();
-                  if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ mouse toggle packet {} off", index);
+                  PVZ_TRACE("PvZ mouse toggle packet {} off", index);
                   continue;
                 }
                 const bool allowed = call(sub_8220F370, packet, 0, 0, 0) != 0;
@@ -1457,15 +1438,14 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
                   ApplyPointer(ctx, primary, base, event.point);
                   RememberPackets(base);
                   item_drag = {widget, primary, selection.bank, index, false, false, event.point};
-                  if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ item drag seed begin packet {}", index);
+                  PVZ_TRACE("PvZ item drag seed begin packet {}", index);
                 } else play_sample(app, 0x82D0AA24);
-                if (REXCVAR_GET(pvz_input_trace))
-                  REXLOG_INFO("PvZ mouse pick packet {} allowed {}", index, allowed);
-              } else if (game_mode == 21 || game_mode == 24 || game_mode == 25 ||
-                  (game_mode == 19 && Read(base, hit + 4) == 22) ||
-                  (game_mode == 31 && selection.packet < 0 && !selection.usable_seed)) {
+                PVZ_TRACE("PvZ mouse pick packet {} allowed {}", index, allowed);
+              } else if (game_mode == kModeBeghouled || game_mode == kModeZombiquarium || game_mode == kModeBeghouledTwist ||
+                  (game_mode == kModeSlotMachine && Read(base, hit + 4) == 22) ||
+                  (game_mode == kModeWhackAZombie && selection.packet < 0 && !selection.usable_seed)) {
                 const auto previous = beghouled_mouse.selected;
-                if (game_mode == 21) {
+                if (game_mode == kModeBeghouled) {
                   if (beghouled_mouse.board != widget) beghouled_mouse = {widget};
                   const auto grid = [&](pvz::Point p) {
                     return std::pair(int(call(sub_82149538, widget, int(p.x), int(p.y), 0)),
@@ -1485,19 +1465,19 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
                   }
                 }
                 call(sub_82153300, challenge, int(local->x), int(local->y), int(hit));
-                if (game_mode == 21 && base[challenge + 0x28]) {
+                if (game_mode == kModeBeghouled && base[challenge + 0x28]) {
                   beghouled_mouse = {widget, *local, true};
                 }
-                if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ minigame {} field click {},{} hit {} state {}", game_mode, local->x, local->y, Read(base, hit + 4), Read(base, challenge + 0x74));
+                PVZ_TRACE("PvZ minigame {} field click {},{} hit {} state {}", game_mode, local->x, local->y, Read(base, hit + 4), Read(base, challenge + 0x74));
               } else if (Read(base, hit + 4) == 23) {
                 // All Vasebreaker variants share Challenge's native vase hit
                 // handler. Picking its dropped seed remains a separate click.
                 const auto handled = call(sub_82153300, challenge, int(local->x), int(local->y), int(hit));
-                if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ Vasebreaker click mode {} handled {}", game_mode, handled);
+                PVZ_TRACE("PvZ Vasebreaker click mode {} handled {}", game_mode, handled);
               } else if (selection.usable_seed) {
                 call(sub_8214CDC0, widget, 6, 0, 0);
                 selection.usable_seed = MouseCursorType(widget, base) == 2;
-                if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ mouse dropped seed placed {}", !selection.usable_seed);
+                PVZ_TRACE("PvZ mouse dropped seed placed {}", !selection.usable_seed);
                 HideUnselectedCursor(primary, base);
               } else if (selection.packet >= 0 &&
                   uint32_t(selection.packet) < Read(base, selection.bank + 0x40)) {
@@ -1509,9 +1489,9 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
           // Card clicks change the console's persistent selection without
           // also firing A on the lawn. Selection need not be affordable yet.
           const auto local = pvz::MapBoardPointer(event.point);
-          const auto packet = Read(base, app + 0x9CC) != 19 && PlantMouse(primary, base) && local ?
+          const auto packet = GameMode(base, app) != kModeSlotMachine && PlantMouse(primary, base) && local ?
               PacketAt(selection.bank, *local, base) : -1;
-          if (!PcMouseMode() && Read(base, app + 0x9CC) == 19 && event.click > 0 && local) {
+          if (!PcMouseMode() && GameMode(base, app) == kModeSlotMachine && event.click > 0 && local) {
             if (event.down) {
               const auto hit = ctx.r1.u32 - 0x80;
               call(sub_82139238, widget, int(local->x), int(local->y), int(hit));
@@ -1523,8 +1503,8 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
           }
           if (!PcMouseMode() && event.click > 0 && packet >= 0) {
             if (event.down) {
-              const auto game_mode = Read(base, app + 0x9CC);
-              if (game_mode == 21 || game_mode == 24 || game_mode == 25) {
+              const auto game_mode = GameMode(base, app);
+              if (game_mode == kModeBeghouled || game_mode == kModeZombiquarium || game_mode == kModeBeghouledTwist) {
                 call(sub_8220F510, selection.bank + 0x50 + uint32_t(packet) * 0x7C, 0, 0, 0);
                 continue;
               }
@@ -1534,28 +1514,27 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
               Write(base, primary + 0xBC, uint32_t(packet));
               Write(base, selection.bank + 0x50 + uint32_t(packet) * 0x7C + 0x70, 0);
               call(sub_82190D80, primary, 1, 0, 0);
-              if (REXCVAR_GET(pvz_input_trace))
-                REXLOG_INFO("PvZ console select packet {}", packet);
+              PVZ_TRACE("PvZ console select packet {}", packet);
             }
           } else if (event.click < 0 && PlantMouse(primary, base) &&
               MouseCursorType(widget, base) == 2) {
             if (event.down) { call(sub_82139AC0, widget, 0, 0, 0); play_sample(app, 0x82D0A43C); }
           } else if (event.click < 0 && PlantMouse(primary, base) && base[widget + 0x5691]) {
-            if (event.down && local && !base[widget + 0x1D9] &&
-                (Read(base, app + 0x9D0) == 3 || (tutorial >= 15 && tutorial <= 17))) {
+            if (event.down && local && !BoardPaused(base, widget) &&
+                (GameScene(base, app) == kScenePlaying || shovel_lesson)) {
               const auto count = Read(base, widget + 0x583C);
               // Mouse digging uses the preserved native tool action on press.
               call(sub_821388A0, widget, int(local->x), int(local->y), 6);
               console_shovel = {};
-              if (tutorial >= 15 && tutorial <= 17 && call(sub_82134748, widget, 0, 0, 0) == 0)
+              if (shovel_lesson && call(sub_82134748, widget, 0, 0, 0) == 0)
                 call(sub_8213D0F0, widget, 18, 0, 0);
-              if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ console shovel press completed {} tutorial {} -> {}",
+              PVZ_TRACE("PvZ console shovel press completed {} tutorial {} -> {}",
                   Read(base, widget + 0x583C) != count, tutorial, Read(base, widget + 0x5620));
             }
           } else {
             const auto bank = Read(base, widget + 0x1A4);
             const auto selected = Read(base, primary + 0xBC);
-            const auto packet_address = bank && Read(base, bank) == 0x820CAED8 &&
+            const auto packet_address = bank && Read(base, bank) == kSeedBank &&
                 selected < Read(base, bank + 0x40) && selected < 10 ?
                 bank + 0x50 + selected * 0x7C : 0;
             const auto uses = packet_address ? Read(base, packet_address + 0x68) : 0;
@@ -1577,15 +1556,14 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
     const auto local = pvz::MapUiPointer(event.point);
     if (event.down && local)
       call(sub_824A6428, manager, int(local->x), int(local->y), event.click);
-    if (REXCVAR_GET(pvz_input_trace))
-      REXLOG_INFO("PvZ mouse {} ({}, {}) button {} widget {:08X} vtable {:08X}",
+    PVZ_TRACE("PvZ mouse {} ({}, {}) button {} widget {:08X} vtable {:08X}",
           event.down ? "down" : "up", event.point.x, event.point.y, event.click, widget,
           widget_vtable);
   }
 }
 
 void DispatchWidgets(PPCContext& ctx, uint8_t* base) {
-  if (Read(base, ctx.r3.u32) != 0x8206404C) return;
+  if (Read(base, ctx.r3.u32) != kWidgetManager) return;
   static bool enabled_before = false;
   const bool enabled = REXCVAR_GET(pvz_mouse_cursor);
   {
@@ -1621,12 +1599,10 @@ void DispatchWidgets(PPCContext& ctx, uint8_t* base) {
     track_root();
     if (event->kind == pvz::MouseEventKind::Button &&
         !mouse_buttons.Accept(event->click, event->down)) {
-      if (REXCVAR_GET(pvz_input_trace))
-        REXLOG_INFO("PvZ mouse unmatched button {} generation {} ignored", event->sequence, event->generation);
+      PVZ_TRACE("PvZ mouse unmatched button {} generation {} ignored", event->sequence, event->generation);
       continue;
     }
-    if (REXCVAR_GET(pvz_input_trace))
-      REXLOG_INFO("PvZ mouse event {} generation {} kind {} point {},{} click {} down {} delta {} cancel {}",
+    PVZ_TRACE("PvZ mouse event {} generation {} kind {} point {},{} click {} down {} delta {} cancel {}",
           event->sequence, event->generation, int(event->kind),
           event->point ? event->point->x : -1, event->point ? event->point->y : -1,
           event->click, event->down, event->delta, int(event->reason));
@@ -1649,10 +1625,9 @@ void DispatchWidgets(PPCContext& ctx, uint8_t* base) {
 
 void ApplyPointer(PPCContext& ctx, uint32_t controls, uint8_t* base, std::optional<pvz::Point> position) {
   if (!MouseActive()) return;
-  const auto read = [&](uint32_t at) { return __builtin_bswap32(*reinterpret_cast<uint32_t*>(base + at)); };
   // Verified against this XEX's RTTI and GamepadControls::Update disassembly.
   // No guessed or PC-version offsets: primary player, matching concrete class.
-  if (read(controls) != 0x820BA5E8 || int32_t(read(controls + 0xA0)) != pvz::MouseUserIndex()) return;
+  if (Read(base, controls) != kGamepadControls || int32_t(Read(base, controls + 0xA0)) != pvz::MouseUserIndex()) return;
   std::optional<pvz::Point> snapshot;
   if (position) snapshot = position;
   else { std::lock_guard lock(pointer_mutex); snapshot = pointer; }
@@ -1663,18 +1638,11 @@ void ApplyPointer(PPCContext& ctx, uint32_t controls, uint8_t* base, std::option
   if (!pc && console_pointer.controls == controls &&
       console_pointer.raw.x == snapshot->x && console_pointer.raw.y == snapshot->y) return;
   auto write_float = [&](uint32_t offset, float value) {
-    *reinterpret_cast<uint32_t*>(base + controls + offset) =
-        __builtin_bswap32(std::bit_cast<uint32_t>(value));
+    Write(base, controls + offset, std::bit_cast<uint32_t>(value));
   };
-  auto state = [&](int value) {
-    PPCContext work = ctx;
-    work.r1.u32 -= 0x100;
-    work.r3.u32 = controls;
-    work.r4.s64 = value;
-    sub_82190D80(work, base);
-  };
-  const auto app = read(controls + 0x20);
-  if (app && read(app + 0x9CC) == 20) {
+  auto state = [&](int value) { GuestCall(ctx, base, sub_82190D80, controls, value); };
+  const auto app = Read(base, controls + 0x20);
+  if (app && GameMode(base, app) == kModeHeavyWeapon) {
     // Keep ordinary hit tests working; Heavy Weapon applies velocity itself.
     write_float(0x74, snapshot->x);
     write_float(0x78, snapshot->y);
@@ -1694,17 +1662,17 @@ void ApplyPointer(PPCContext& ctx, uint32_t controls, uint8_t* base, std::option
   write_float(0x80, 0);
   if (!pc) {
     console_pointer = {controls, *snapshot};
-    const auto board = read(controls + 0x44);
-    const auto app = read(controls + 0x20);
-    if (PlantMouse(controls, base) && app && read(app + 0x9D0) == 3 &&
-        int32_t(read(board + 0x56A0)) < 0 && !base[board + 0x1D9] &&
-        read(controls + 0x68) >= 1 && read(controls + 0x68) <= 4) {
+    const auto board = Read(base, controls + 0x44);
+    const auto app = Read(base, controls + 0x20);
+    if (PlantMouse(controls, base) && app && GameScene(base, app) == kScenePlaying &&
+        int32_t(Read(base, board + 0x56A0)) < 0 && !BoardPaused(base, board) &&
+        Read(base, controls + 0x68) >= 1 && Read(base, controls + 0x68) <= 4) {
       const auto bank = MouseSeedBank(board, controls, base);
-      const bool lawn = snapshot->y >= int32_t(read(bank + 0x28)) + int32_t(read(bank + 0x30));
+      const bool lawn = snapshot->y >= int32_t(Read(base, bank + 0x28)) + int32_t(Read(base, bank + 0x30));
       state(lawn ? 4 : 1); // Native release-to-grid attraction; bank stays free.
       if (REXCVAR_GET(pvz_input_trace) && lawn)
         REXLOG_INFO("PvZ console pointer {},{} target {},{}", snapshot->x, snapshot->y,
-            std::bit_cast<float>(read(controls + 0x58)), std::bit_cast<float>(read(controls + 0x5C)));
+            Float(base, controls + 0x58), Float(base, controls + 0x5C));
     }
   }
 }
@@ -1819,7 +1787,7 @@ REX_HOOK_RAW(sub_824A5F48) {
       native_pad_button_press.widget == Read(base, manager + 0xA8) &&
       native_pad_button_press.widget && base[native_pad_button_press.widget + 0x74] &&
       ctx.r4.u32 != native_pad_button_press.widget) return;
-  if (REXCVAR_GET(pvz_mouse_cursor) && PcMouseMode() && Read(base, manager) == 0x8206404C) {
+  if (REXCVAR_GET(pvz_mouse_cursor) && PcMouseMode() && Read(base, manager) == kWidgetManager) {
     const auto requested = ctx.r4.u32;
     const auto current = Read(base, manager + 0xA8);
     if ((requested && IsGameButton(Read(base, requested))) ||
@@ -1828,12 +1796,12 @@ REX_HOOK_RAW(sub_824A5F48) {
       { std::lock_guard lock(pointer_mutex); snapshot = pointer; }
       ctx.r4.u32 = HoveredButton(manager, snapshot, base);
       const auto root = TopRootWidget(manager, base);
-      if (root && Read(base, root) == 0x820B728C) {
+      if (root && Read(base, root) == kBoard) {
         const auto cursor = MouseCursor(root, base);
         if ((selection.board == root && (selection.packet >= 0 || selection.shovel || selection.usable_seed)) ||
             (cursor && Read(base, cursor + 0x4C) != 0 &&
-             (Read(base, Read(base, root + 0xF4) + 0x9CC) == 44 ||
-              Read(base, Read(base, root + 0xF4) + 0x9CC) == 51))) ctx.r4.u32 = root;
+             (BoardMode(base, root) == kModeZenGarden ||
+              BoardMode(base, root) == kModeTreeOfWisdom))) ctx.r4.u32 = root;
       }
     }
   }
@@ -1848,14 +1816,14 @@ REX_HOOK_RAW(sub_8216EF50) {
   const auto board = Read(base, ctx.r3.u32 + 0x20);
   const auto primary = board ? MouseControls(board, base) : 0;
   const auto type = Read(base, ctx.r3.u32 + 0x80);
-  const auto app = board ? Read(base, board + 0xF4) : 0;
-  const bool slot_seed = app && Read(base, app + 0x9CC) == 19 && type == 16;
+  const auto app = board ? BoardApp(base, board) : 0;
+  const bool slot_seed = app && GameMode(base, app) == kModeSlotMachine && type == 16;
   if (PcMouseMode() && slot_seed && !explicit_mouse_collect &&
       std::find(slot_auto_attempted.begin(), slot_auto_attempted.end(), ctx.r3.u32) != slot_auto_attempted.end()) return;
   if (REXCVAR_GET(pvz_mouse_cursor) && PcMouseMode() &&
       ((type == 16 && !explicit_mouse_collect) || ctx.lr == 0x8218C1C4 || ctx.lr == 0x821922F8) && ctx.r4.u32 == 0 &&
       !slot_seed && ((type >= 1 && type <= 7) || type == 16) && (PlantMouse(primary, base) ||
-       (primary && Read(base, primary) == 0x820BA670 && int32_t(Read(base, primary + 0xA0)) == pvz::MouseUserIndex() && MouseActive()))) return;
+       (primary && Read(base, primary) == kZenControls && int32_t(Read(base, primary + 0xA0)) == pvz::MouseUserIndex() && MouseActive()))) return;
   const auto coin = ctx.r3.u32;
   const bool trace_auto = REXCVAR_GET(pvz_input_trace) && REXCVAR_GET(pvz_mouse_cursor) &&
       !PcMouseMode() && (ctx.lr == 0x8218C1C4 || ctx.lr == 0x821922F8) && Read(base, coin + 0x84) != 7;
@@ -1863,7 +1831,7 @@ REX_HOOK_RAW(sub_8216EF50) {
   if (slot_seed && PcMouseMode() && PlantMouse(primary, base)) {
     if (MouseCursorType(board, base) == 2) {
       selection.packet = -1; selection.packets.clear(); selection.usable_seed = true;
-      if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ Slot Machine auto picked dropped seed {}", Read(base, MouseCursor(board, base) + 0x44));
+      PVZ_TRACE("PvZ Slot Machine auto picked dropped seed {}", Read(base, MouseCursor(board, base) + 0x44));
     }
   }
   if (trace_auto && Read(base, coin + 0x84) == 7)
@@ -1878,13 +1846,12 @@ REX_HOOK_RAW(sub_82133968) {
 REX_EXTERN(__imp__sub_8216B330);
 REX_HOOK_RAW(sub_8216B330) {
   const auto coin = ctx.r3.u32, board = Read(base, coin + 0x20);
-  const auto app = board ? Read(base, board + 0xF4) : 0;
-  if (PcMouseMode() && app && Read(base, app + 0x9CC) == 19 && Read(base, app + 0x9D0) == 3 &&
-      !base[board + 0x1D9] && Read(base, coin + 0x80) == 16 && !base[coin + 0x5C] && !base[coin + 0x74] &&
+  const auto app = board ? BoardApp(base, board) : 0;
+  if (PcMouseMode() && app && GameMode(base, app) == kModeSlotMachine && GameScene(base, app) == kScenePlaying &&
+      !BoardPaused(base, board) && Read(base, coin + 0x80) == 16 && !base[coin + 0x5C] && !base[coin + 0x74] &&
       PlantMouse(MouseControls(board, base), base) && MouseCursor(board, base) && MouseCursorType(board, base) == 0 &&
       std::find(slot_auto_attempted.begin(), slot_auto_attempted.end(), coin) == slot_auto_attempted.end()) {
-    PPCContext work = ctx; work.r1.u32 -= 0x100; work.r3.u32 = coin; work.r4.u32 = 0;
-    sub_8216EF50(work, base);
+    GuestCall(ctx, base, sub_8216EF50, coin, 0);
     if (MouseCursorType(board, base) == 2) slot_auto_attempted.push_back(coin);
   }
   __imp__sub_8216B330(ctx, base);
@@ -1897,7 +1864,7 @@ REX_HOOK_RAW(sub_821ABDE8) {
   const auto board = MouseActive() && ctx.lr == 0x82210034 ? Read(base, ctx.r3.u32 + 0x900) : 0;
   if (board && PlantMouse(MouseControls(board, base), base) &&
       ctx.r4.u32 == Read(base, 0x82D0A630)) {
-    if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ mouse deferred seed lift suppressed");
+    PVZ_TRACE("PvZ mouse deferred seed lift suppressed");
     ctx.r3.u64 = 0;
     return;
   }
@@ -1918,10 +1885,7 @@ REX_HOOK_RAW(sub_824A85F0) {
       -60, std::max(-60, 660 - int(Read(base, dialog + 0x4C))));
   Write(base, dialog + 0x184, uint32_t(old_x + ctx.r4.s32 - x));
   Write(base, dialog + 0x188, uint32_t(old_y + ctx.r5.s32 - y));
-  PPCContext work = ctx;
-  work.r1.u32 -= 0x100;
-  work.r4.s64 = x; work.r5.s64 = y;
-  rex::runtime::ResolveIndirectFunction(Read(base, Read(base, dialog) + 0x80))(work, base);
+  GuestCall(ctx, base, rex::runtime::ResolveIndirectFunction(Read(base, Read(base, dialog) + 0x80)), dialog, x, y);
   if (REXCVAR_GET(pvz_input_trace) && (old_x != x || old_y != y))
     REXLOG_INFO("PvZ dialog drag {},{} -> {},{}", old_x, old_y, x, y);
 }
@@ -1932,9 +1896,9 @@ REX_HOOK_RAW(sub_82146A60) {
       int32_t(Read(base, ctx.r3.u32 + 0x56A0)) < 0) {
     const auto g = ctx.r4.u32;
     REXLOG_INFO("PvZ board draw translate {},{} scale {},{} origin {},{}",
-        std::bit_cast<float>(Read(base, g + 8)), std::bit_cast<float>(Read(base, g + 12)),
-        std::bit_cast<float>(Read(base, g + 16)), std::bit_cast<float>(Read(base, g + 20)),
-        std::bit_cast<float>(Read(base, g + 24)), std::bit_cast<float>(Read(base, g + 28)));
+        Float(base, g + 8), Float(base, g + 12),
+        Float(base, g + 16), Float(base, g + 20),
+        Float(base, g + 24), Float(base, g + 28));
     traced = true;
   }
   __imp__sub_82146A60(ctx, base);
@@ -1948,7 +1912,7 @@ REX_HOOK_RAW(sub_82188310) {
   const auto button = ctx.r3.u32;
   const auto graphics = ctx.r4.u32;
   const auto parent = Read(base, button + 0x24);
-  if (REXCVAR_GET(pvz_input_trace) && parent && Read(base, parent) == 0x820C2784) {
+  if (REXCVAR_GET(pvz_input_trace) && parent && Read(base, parent) == kMainMenu) {
     const auto id = Read(base, button + 0x6C);
     if ((id == 0 || id == 1 || id == 5) && !pvz::MouseOwnsInput()) {
       static std::array<int, 6> last_focus{-1, -1, -1, -1, -1, -1};
@@ -1964,24 +1928,24 @@ REX_HOOK_RAW(sub_82188310) {
     } else if (pressed_draw == button) pressed_draw = 0;
   }
   if (REXCVAR_GET(pvz_input_trace) && IsGameButton(Read(base, button)) && parent &&
-      Read(base, parent) != 0x820C2784 && traced_dialogs.size() < 64 &&
+      Read(base, parent) != kMainMenu && traced_dialogs.size() < 64 &&
       std::find(traced_dialogs.begin(), traced_dialogs.end(), parent) == traced_dialogs.end()) {
     REXLOG_INFO("PvZ dialog button id {} parent {},{} draw {},{} size {},{} base scale {},{} graphics {},{} scale {},{} origin {},{}",
         Read(base, button + 0x6C), int32_t(Read(base, parent + 0x40)), int32_t(Read(base, parent + 0x44)),
         int32_t(Read(base, button + 0x190)), int32_t(Read(base, button + 0x194)),
         Read(base, button + 0x1A4), Read(base, button + 0x1A8),
-        std::bit_cast<float>(Read(base, button + 0x1C4)), std::bit_cast<float>(Read(base, button + 0x1C8)),
-        std::bit_cast<float>(Read(base, graphics + 8)), std::bit_cast<float>(Read(base, graphics + 12)),
-        std::bit_cast<float>(Read(base, graphics + 16)), std::bit_cast<float>(Read(base, graphics + 20)),
-        std::bit_cast<float>(Read(base, graphics + 24)), std::bit_cast<float>(Read(base, graphics + 28)));
+        Float(base, button + 0x1C4), Float(base, button + 0x1C8),
+        Float(base, graphics + 8), Float(base, graphics + 12),
+        Float(base, graphics + 16), Float(base, graphics + 20),
+        Float(base, graphics + 24), Float(base, graphics + 28));
     traced_dialogs.push_back(parent);
   }
-  if (REXCVAR_GET(pvz_input_trace) && traced < 20 && Read(base, button) == 0x820BA0AC) {
+  if (REXCVAR_GET(pvz_input_trace) && traced < 20 && Read(base, button) == kGameButton) {
     REXLOG_INFO("PvZ button draw id {} graphics {},{} scale {},{} origin {},{}",
-        Read(base, button + 0x6C), std::bit_cast<float>(Read(base, graphics + 8)),
-        std::bit_cast<float>(Read(base, graphics + 12)), std::bit_cast<float>(Read(base, graphics + 16)),
-        std::bit_cast<float>(Read(base, graphics + 20)), std::bit_cast<float>(Read(base, graphics + 24)),
-        std::bit_cast<float>(Read(base, graphics + 28)));
+        Read(base, button + 0x6C), Float(base, graphics + 8),
+        Float(base, graphics + 12), Float(base, graphics + 16),
+        Float(base, graphics + 20), Float(base, graphics + 24),
+        Float(base, graphics + 28));
     ++traced;
   }
   __imp__sub_82188310(ctx, base);
@@ -2022,7 +1986,7 @@ REX_HOOK_RAW(sub_8216DC40) {
   // a click. Update calls this function again when the coin reaches the
   // cursor; that completion must run to collect/credit it. Only reject
   // unsolicited pickup of a coin still falling or resting on the lawn.
-  const bool slot_seed = type == 16 && board && Read(base, Read(base, board + 0xF4) + 0x9CC) == 19;
+  const bool slot_seed = type == 16 && board && BoardMode(base, board) == kModeSlotMachine;
   if (PcMouseMode() && automatic && slot_seed && state != 7 && !base[coin + 0x74] &&
       std::find(slot_auto_attempted.begin(), slot_auto_attempted.end(), coin) != slot_auto_attempted.end()) return;
   if (PcMouseMode() && automatic && !slot_seed && state != 7 && !base[coin + 0x74] &&
@@ -2048,15 +2012,15 @@ REX_HOOK_RAW(sub_8216F3D0) {
   // cell, stealing clicks from nearby plants. Use PC image bounds, with a
   // small margin for sun and the original PC hammer collection allowance.
   const pvz::Point point{float(ctx.r4.s32), float(ctx.r5.s32)};
-  const auto mode = Read(base, Read(base, board + 0xF4) + 0x9CC);
-  const int margin = type == 4 || mode == 31 ? 15 : 0;
-  const int extra_height = mode == 31 ? 30 : 0;
+  const auto mode = BoardMode(base, board);
+  const int margin = type == 4 || mode == kModeWhackAZombie ? 15 : 0;
+  const int extra_height = mode == kModeWhackAZombie ? 30 : 0;
   const auto cursor = MouseCursor(board, base);
-  const bool hand_free = type != 16 || mode == 31 ||
+  const bool hand_free = type != 16 || mode == kModeWhackAZombie ||
       (cursor && (Read(base, cursor + 0x4C) == 0 || Read(base, cursor + 0x4C) == 7) && selection.packet < 0 && !selection.shovel);
   const bool hit = !base[coin + 0x5C] && !base[coin + 0x74] && Read(base, coin + 0x84) != 7 &&
-      hand_free && pvz::InRect(point, std::bit_cast<float>(Read(base, coin + 0x40)) - margin,
-          std::bit_cast<float>(Read(base, coin + 0x44)) - margin,
+      hand_free && pvz::InRect(point, Float(base, coin + 0x40) - margin,
+          Float(base, coin + 0x44) - margin,
           Read(base, coin + 0x2C) + 2 * margin, Read(base, coin + 0x30) + 2 * margin + extra_height);
   Write(base, ctx.r6.u32, hit ? coin : 0);
   Write(base, ctx.r6.u32 + 4, hit ? 3 : 0);
@@ -2065,7 +2029,7 @@ REX_HOOK_RAW(sub_8216F3D0) {
     static std::array<uint32_t, 3> previous{};
     const std::array state{uint32_t(ctx.r4.s32), uint32_t(ctx.r5.s32), Read(base, coin + 0x84)};
     if (state != previous) REXLOG_INFO("PvZ garden coin hit {},{} rect {},{},{},{} state {} hit {}",
-        point.x, point.y, std::bit_cast<float>(Read(base, coin + 0x40)), std::bit_cast<float>(Read(base, coin + 0x44)),
+        point.x, point.y, Float(base, coin + 0x40), Float(base, coin + 0x44),
         Read(base, coin + 0x2C), Read(base, coin + 0x30), state[2], hit);
     previous = state;
   }
@@ -2091,7 +2055,7 @@ REX_HOOK_RAW(sub_82154930) {
     static std::tuple<uint32_t, uint32_t, uint32_t> previous{};
     const auto current = std::tuple(challenge, Read(base, challenge + 0x74), Read(base, challenge + 0x84));
     if (current != previous) {
-      REXLOG_INFO("PvZ puzzle mode {} state {} matches {}", Read(base, Read(base, board + 0xF4) + 0x9CC), Read(base, challenge + 0x74), Read(base, challenge + 0x84));
+      REXLOG_INFO("PvZ puzzle mode {} state {} matches {}", BoardMode(base, board), Read(base, challenge + 0x74), Read(base, challenge + 0x84));
       previous = current;
     }
   }
@@ -2100,7 +2064,7 @@ bool MouseTwistOverlay(uint32_t challenge, uint8_t* base) {
   if (!MouseActive() || !challenge) return false;
   const auto board = Read(base, challenge + 0x20);
   return board && PlantMouse(MouseControls(board, base), base) &&
-      Read(base, Read(base, board + 0xF4) + 0x9CC) == 25;
+      BoardMode(base, board) == kModeBeghouledTwist;
 }
 REX_EXTERN(__imp__sub_8227C190);
 REX_HOOK_RAW(sub_8227C190) {
@@ -2110,14 +2074,12 @@ REX_HOOK_RAW(sub_8227C190) {
     const auto challenge = ctx.r24.u32;
     const int col = int32_t(Read(base, challenge + 0xCC)), row = int32_t(Read(base, challenge + 0xD0));
     if (col >= 0 && col <= 6 && row >= 0 && row <= 3) {
-      PPCContext work = ctx; work.r1.u32 -= 0x100;
-      work.r3.u32 = Read(base, challenge + 0x20); work.r4.s64 = col; work.r5.s64 = row;
-      sub_82149848(work, base);
+      const int row_y = int32_t(GuestCall(ctx, base, sub_82149848, Read(base, challenge + 0x20), col, row));
       // TodBltMatrix consumes framebuffer coordinates, bypassing the
       // Graphics translation used by ordinary plant/image draws.
       const auto graphics = ctx.r26.u32;
-      ctx.f1.f64 = std::bit_cast<float>(Read(base, graphics + 8)) + 120 + col * 80;
-      ctx.f2.f64 = std::bit_cast<float>(Read(base, graphics + 12)) + work.r3.s32 + 100;
+      ctx.f1.f64 = Float(base, graphics + 8) + 120 + col * 80;
+      ctx.f2.f64 = Float(base, graphics + 12) + row_y + 100;
     }
   }
   __imp__sub_8227C190(ctx, base);
@@ -2147,25 +2109,25 @@ REX_HOOK_RAW(sub_82165B58) {
   const auto challenge = ctx.r3.u32;
   const auto app = Read(base, challenge + 0x1C), board = Read(base, challenge + 0x20);
   const auto controls = board ? MouseControls(board, base) : 0;
-  const bool mouse = MouseActive() && app && Read(base, app + 0x9CC) == 20 &&
-      Read(base, app + 0x9D0) == 3 && board && Read(base, board) == 0x820B728C &&
-      !base[board + 0x1D9] && controls && Read(base, controls) == 0x820BA5E8 &&
+  const bool mouse = MouseActive() && app && GameMode(base, app) == kModeHeavyWeapon &&
+      GameScene(base, app) == kScenePlaying && board && Read(base, board) == kBoard &&
+      !BoardPaused(base, board) && controls && Read(base, controls) == kGamepadControls &&
       Read(base, controls + 0x9C) == 0 && int32_t(Read(base, controls + 0xA0)) == pvz::MouseUserIndex();
   if (!mouse) {
     __imp__sub_82165B58(ctx, base);
     static int native_traced = 0;
     if (REXCVAR_GET(pvz_input_trace) && native_traced++ % 30 == 0)
       REXLOG_INFO("PvZ Heavy Weapon native carriage {} y {} angle {}",
-          std::bit_cast<float>(Read(base, challenge + 0x118)),
-          std::bit_cast<float>(Read(base, challenge + 0x11C)),
-          std::bit_cast<float>(Read(base, challenge + 0x120)));
+          Float(base, challenge + 0x118),
+          Float(base, challenge + 0x11C),
+          Float(base, challenge + 0x120));
     return;
   }
   std::optional<pvz::Point> position;
   { std::lock_guard lock(pointer_mutex); position = pointer; }
   position = position ? pvz::MapBoardPointer(*position) : std::nullopt;
-  const float x = std::bit_cast<float>(Read(base, challenge + 0x118));
-  const float y = std::bit_cast<float>(Read(base, challenge + 0x11C));
+  const float x = Float(base, challenge + 0x118);
+  const float y = Float(base, challenge + 0x11C);
   const auto mapped = position ? pvz::MapHeavyWeaponPointer(*position, x, y) :
       pvz::HeavyWeaponPointer{x, {0, 0}};
   const auto bank = Read(base, board + 0x1A4);
@@ -2193,36 +2155,36 @@ REX_HOOK_RAW(sub_82165B58) {
   if (REXCVAR_GET(pvz_input_trace) && traced++ % 30 == 0)
     REXLOG_INFO("PvZ Heavy Weapon mouse cursor {},{} carriage {} -> {} y {} aim {},{} angle {}",
         position ? position->x : -999, position ? position->y : -999, x,
-        std::bit_cast<float>(Read(base, challenge + 0x118)), y, mapped.aim.x, mapped.aim.y,
-        std::bit_cast<float>(Read(base, challenge + 0x120)));
+        Float(base, challenge + 0x118), y, mapped.aim.x, mapped.aim.y,
+        Float(base, challenge + 0x120));
 }
 
 // UI thread only publishes a snapshot. Guest memory is touched on the guest
 // thread, before hit testing / button actions and again before cursor drawing.
 REX_HOOK_RAW(sub_8218B8A0) {
   const uint32_t controls = ctx.r3.u32;
-  if (REXCVAR_GET(pvz_input_trace) && pvz::LocalPlayersActive() && Read(base, controls) == 0x820BA5E8) {
+  if (REXCVAR_GET(pvz_input_trace) && pvz::LocalPlayersActive() && Read(base, controls) == kGamepadControls) {
     const auto board = Read(base, controls + 0x44), app = Read(base, controls + 0x20);
     static std::array<uint32_t, 6> previous{};
     const auto c0 = Read(base, board + 0x1B0), c1 = Read(base, board + 0x1B4);
-    const std::array state{board, Read(base, app + 0x9D0), Read(base, c0 + 0xA0), Read(base, c1 + 0xA0),
+    const std::array state{board, GameScene(base, app), Read(base, c0 + 0xA0), Read(base, c1 + 0xA0),
         Read(base, board + 0x55F4), Read(base, board + 0x55F8)};
     if (state != previous) {
-      REXLOG_INFO("PvZ local board mode {} scene {} users {},{} resources {},{}", Read(base, app + 0x9CC),
+      REXLOG_INFO("PvZ local board mode {} scene {} users {},{} resources {},{}", GameMode(base, app),
           state[1], int32_t(state[2]), int32_t(state[3]), state[4], state[5]);
       previous = state;
     }
   }
   if (selection.controls == controls && int32_t(Read(base, controls + 0xA0)) != pvz::MouseUserIndex()) selection = {};
-  if (REXCVAR_GET(pvz_mouse_cursor) && Read(base, controls) == 0x820BA5E8 &&
+  if (REXCVAR_GET(pvz_mouse_cursor) && Read(base, controls) == kGamepadControls &&
       int32_t(Read(base, controls + 0xA0)) == pvz::MouseUserIndex()) {
     const auto board = Read(base, controls + 0x44);
     const auto app = Read(base, controls + 0x20);
     board_ready.store(board && app && int32_t(Read(base, board + 0x56A0)) < 0 &&
-        Read(base, app + 0x9D0) == 3 && !base[board + 0x1D9], std::memory_order_relaxed);
+        GameScene(base, app) == kScenePlaying && !BoardPaused(base, board), std::memory_order_relaxed);
   }
   static int traced_controls = 0;
-  if (REXCVAR_GET(pvz_input_trace) && Read(base, controls) == 0x820BA5E8 &&
+  if (REXCVAR_GET(pvz_input_trace) && Read(base, controls) == kGamepadControls &&
       int32_t(Read(base, controls + 0xA0)) == pvz::MouseUserIndex() && traced_controls++ % 100 == 0) {
     const auto board = Read(base, controls + 0x44);
     const auto bank = Read(base, board + 0x1A4);
@@ -2240,9 +2202,9 @@ REX_HOOK_RAW(sub_8218B8A0) {
         bank, bank ? int32_t(Read(base, bank + 0x24)) : 0, bank ? int32_t(Read(base, bank + 0x28)) : 0,
         bank ? Read(base, bank + 0x2C) : 0, bank ? Read(base, bank + 0x30) : 0, bank ? Read(base, bank + 0x40) : 0,
         int32_t(Read(base, board + 0x56A0)), Read(base, board + 0x55F4),
-        std::bit_cast<float>(Read(base, controls + 0x74)), std::bit_cast<float>(Read(base, controls + 0x78)));
+        Float(base, controls + 0x74), Float(base, controls + 0x78));
     REXLOG_INFO("PvZ mouse state adventure {} mode {} alternate {} tutorial {} Dave index {} Dave state {}",
-        PlantMouse(controls, base), Read(base, Read(base, controls + 0x20) + 0x9CC), base[controls + 0xC4],
+        PlantMouse(controls, base), GameMode(base, Read(base, controls + 0x20)), base[controls + 0xC4],
         Read(base, board + 0x5620), Read(base, Read(base, controls + 0x20) + 0xA24), Read(base, Read(base, controls + 0x20) + 0xA18));
   }
   ApplyPointer(ctx, controls, base);
@@ -2250,28 +2212,23 @@ REX_HOOK_RAW(sub_8218B8A0) {
   if (PcMouseMode()) ApplyPointer(ctx, controls, base);
   HideUnselectedCursor(controls, base);
   if (MouseActive() && PlantMouse(controls, base)) {
-    const auto game_mode = Read(base, Read(base, controls + 0x20) + 0x9CC);
+    const auto game_mode = GameMode(base, Read(base, controls + 0x20));
     puzzle_highlights.clear();
-    if (game_mode == 21 || game_mode == 25) {
+    if (game_mode == kModeBeghouled || game_mode == kModeBeghouledTwist) {
       static uint32_t traced_puzzle = 0;
-      if (REXCVAR_GET(pvz_input_trace) && traced_puzzle != selection.board && !base[selection.board + 0x1D9]) {
+      if (REXCVAR_GET(pvz_input_trace) && traced_puzzle != selection.board && !BoardPaused(base, selection.board)) {
         traced_puzzle = selection.board;
         const auto state = ctx.r1.u32 - 0x400, challenge = Read(base, selection.board + 0x1D4);
-        PPCContext probe = ctx; probe.r1.u32 -= 0x800; probe.r3.u32 = challenge; probe.r4.u32 = state;
-        sub_8214F5E8(probe, base);
+        GuestCall<0x800>(ctx, base, sub_8214F5E8, challenge, state);
         int found = 0;
         for (int col = 0; col < 8 && found < 4; ++col) for (int row = 0; row < 5 && found < 4; ++row) {
-          if (game_mode == 25) {
+          if (game_mode == kModeBeghouledTwist) {
             if (col > 6 || row > 3) continue;
-            probe = ctx; probe.r1.u32 -= 0x800; probe.r3.s64 = col; probe.r4.s64 = row; probe.r5.u32 = state;
-            sub_82150EB8(probe, base);
-            if (probe.r3.u32) { REXLOG_INFO("PvZ replay valid Twist block {},{} pointer {},{}", col, row, 225 + col * 50, 200 + row * 100 / 1.2f); ++found; }
+            if (GuestCall<0x800>(ctx, base, sub_82150EB8, col, row, state)) { REXLOG_INFO("PvZ replay valid Twist block {},{} pointer {},{}", col, row, 225 + col * 50, 200 + row * 100 / 1.2f); ++found; }
           } else for (const auto delta : {std::pair(1, 0), std::pair(0, 1)}) {
             if (col + delta.first >= 8 || row + delta.second >= 5) continue;
-            probe = ctx; probe.r1.u32 -= 0x800; probe.r3.u32 = challenge; probe.r4.s64 = col; probe.r5.s64 = row;
-            probe.r6.s64 = col + delta.first; probe.r7.s64 = row + delta.second; probe.r8.u32 = state;
-            sub_82151600(probe, base);
-            if (probe.r3.u32) { REXLOG_INFO("PvZ replay valid Beghouled pair {},{} -> {},{}", col, row, col + delta.first, row + delta.second); ++found; }
+            if (GuestCall<0x800>(ctx, base, sub_82151600, challenge, col, row,
+                col + delta.first, row + delta.second, state)) { REXLOG_INFO("PvZ replay valid Beghouled pair {},{} -> {},{}", col, row, col + delta.first, row + delta.second); ++found; }
           }
         }
       }
@@ -2279,27 +2236,19 @@ REX_HOOK_RAW(sub_8218B8A0) {
       { std::lock_guard lock(pointer_mutex); position = pointer; }
       const auto local = position ? pvz::MapBoardPointer(*position) : std::nullopt;
       auto highlight = [&](pvz::Point p) {
-        PPCContext work = ctx; work.r1.u32 -= 0x180;
-        work.r3.u32 = selection.board; work.r4.s64 = int(p.x); work.r5.s64 = int(p.y);
-        sub_82149538(work, base); const int col = work.r3.s32;
-        work = ctx; work.r1.u32 -= 0x180; work.r3.u32 = selection.board; work.r4.s64 = int(p.x); work.r5.s64 = int(p.y);
-        sub_821495B0(work, base); const int row = work.r3.s32;
+        const int col = int32_t(GuestCall<0x180>(ctx, base, sub_82149538, selection.board, int(p.x), int(p.y)));
+        const int row = int32_t(GuestCall<0x180>(ctx, base, sub_821495B0, selection.board, int(p.x), int(p.y)));
         if (col < 0 || col >= 9 || row < 0 || row >= 6 || p.y < 90) return;
         const auto out = ctx.r1.u32 - 0x80;
         for (int i = 0; i < 4; ++i) Write(base, out + i * 4, 0);
-        work = ctx; work.r1.u32 -= 0x180; work.r3.u32 = selection.board; work.r4.s64 = col; work.r5.s64 = row; work.r6.u32 = out;
-        sub_82134340(work, base);
+        GuestCall<0x180>(ctx, base, sub_82134340, selection.board, col, row, out);
         for (int i = 0; i < 4; ++i) if (auto plant = Read(base, out + i * 4)) puzzle_highlights.push_back(plant);
       };
       if (local) highlight(*local);
-      if (local && game_mode == 25) {
+      if (local && game_mode == kModeBeghouledTwist) {
         puzzle_highlights.clear();
-        PPCContext work = ctx; work.r1.u32 -= 0x180;
-        work.r3.u32 = Read(base, selection.board + 0x1D4);
-        work.r4.s64 = int(local->x); work.r5.s64 = int(local->y);
-        work.r6.u32 = ctx.r1.u32 - 0x88; work.r7.u32 = ctx.r1.u32 - 0x84;
-        sub_82150F60(work, base);
-        if (work.r3.u32) {
+        if (GuestCall<0x180>(ctx, base, sub_82150F60, Read(base, selection.board + 0x1D4),
+            int(local->x), int(local->y), ctx.r1.u32 - 0x88, ctx.r1.u32 - 0x84)) {
           const int col = int32_t(Read(base, ctx.r1.u32 - 0x88)), row = int32_t(Read(base, ctx.r1.u32 - 0x84));
           const auto challenge = Read(base, selection.board + 0x1D4);
           if (Read(base, challenge + 0x74) == 0) {
@@ -2308,43 +2257,34 @@ REX_HOOK_RAW(sub_8218B8A0) {
           for (int dx = 0; dx < 2; ++dx) for (int dy = 0; dy < 2; ++dy) {
             const auto out = ctx.r1.u32 - 0x80;
             for (int i = 0; i < 4; ++i) Write(base, out + i * 4, 0);
-            work = ctx; work.r1.u32 -= 0x180; work.r3.u32 = selection.board;
-            work.r4.s64 = col + dx; work.r5.s64 = row + dy; work.r6.u32 = out;
-            sub_82134340(work, base);
+            GuestCall<0x180>(ctx, base, sub_82134340, selection.board, col + dx, row + dy, out);
             for (int i = 0; i < 4; ++i) if (auto plant = Read(base, out + i * 4)) puzzle_highlights.push_back(plant);
           }
         }
       }
-      if (game_mode == 21 && beghouled_mouse.board == selection.board && beghouled_mouse.selected) highlight(*beghouled_mouse.selected);
+      if (game_mode == kModeBeghouled && beghouled_mouse.board == selection.board && beghouled_mouse.selected) highlight(*beghouled_mouse.selected);
     }
   }
   if (int32_t(Read(base, controls + 0xA0)) == pvz::MouseUserIndex()) {
     const auto board = Read(base, controls + 0x44), app = Read(base, controls + 0x20);
     bool inside = false;
     { std::lock_guard lock(pointer_mutex); inside = pointer && pvz::MapUiPointer(*pointer).has_value(); }
-    const int tutorial = board ? int32_t(Read(base, board + 0x5620)) : -1;
     const bool holding = inside && PcMouseMode() && selection.controls == controls &&
         (selection.shovel || selection.usable_seed || selection.packet >= 0) && board && app &&
-        (Read(base, app + 0x9D0) == 3 || (tutorial >= 15 && tutorial <= 17)) && !base[board + 0x1D9];
+        (GameScene(base, app) == kScenePlaying || InShovelLesson(base, board)) && !BoardPaused(base, board);
     if (mouse_item_cursor.exchange(holding) != holding) pvz::RefreshHostSettings();
   }
   if (selection.controls == controls) selection.shovel_plant = 0;
   if (PcMouseMode() && PlantMouse(controls, base) && selection.shovel) {
     const auto board = selection.board;
-    PPCContext work = ctx;
-    auto call = [&](PPCFunc* fn, uint32_t self, uint32_t a, uint32_t b, uint32_t c = 0) {
-      work = ctx; work.r1.u32 -= 0x100;
-      work.r3.u32 = self; work.r4.u32 = a; work.r5.u32 = b; work.r6.u32 = c;
-      fn(work, base); return work.r3.u32;
-    };
-    const int x = int(std::bit_cast<float>(Read(base, controls + 0x74)));
-    const int y = int(std::bit_cast<float>(Read(base, controls + 0x78)));
-    const int col = int(call(sub_82149538, board, x, y));
-    const int row = int(call(sub_82149728, board, x, y));
+    const int x = int(Float(base, controls + 0x74));
+    const int y = int(Float(base, controls + 0x78));
+    const int col = int(GuestCall(ctx, base, sub_82149538, board, x, y, 0));
+    const int row = int(GuestCall(ctx, base, sub_82149728, board, x, y, 0));
     if (col >= 0 && col < 9 && row >= 0 && row < 6) {
       const auto result = ctx.r1.u32 - 0x80;
       for (int i = 0; i < 4; ++i) Write(base, result + i * 4, 0);
-      call(sub_82134340, board, col, row, result);
+      GuestCall(ctx, base, sub_82134340, board, col, row, result);
       // Match MouseDownWithTool's native digging order, including overlays.
       for (const int i : {2, 3, 1, 0})
         if (auto plant = Read(base, result + i * 4)) { selection.shovel_plant = plant; break; }
@@ -2359,8 +2299,8 @@ REX_HOOK_RAW(sub_821D22C0) {
   if (PcMouseMode() && selection.shovel && Read(base, plant + 0x20) == selection.board)
     base[plant + 0x161] = plant == selection.shovel_plant;
   if (PcMouseMode() && Read(base, plant + 0x20) == selection.board && selection.board) {
-    const auto mode = Read(base, Read(base, selection.board + 0xF4) + 0x9CC);
-    if (mode == 21 || mode == 25) base[plant + 0x161] =
+    const auto mode = BoardMode(base, selection.board);
+    if (mode == kModeBeghouled || mode == kModeBeghouledTwist) base[plant + 0x161] =
         std::find(puzzle_highlights.begin(), puzzle_highlights.end(), plant) != puzzle_highlights.end();
   }
   __imp__sub_821D22C0(ctx, base);
@@ -2389,8 +2329,8 @@ REX_HOOK_RAW(sub_8218D0F8) {
       std::optional<pvz::Point> position;
       { std::lock_guard lock(pointer_mutex); position = pointer; }
       if (auto local = position ? pvz::MapBoardPointer(*position) : std::nullopt)
-        console_draw_offset = pvz::Point{local->x - std::bit_cast<float>(Read(base, controls + 0x74)),
-            local->y - std::bit_cast<float>(Read(base, controls + 0x78))};
+        console_draw_offset = pvz::Point{local->x - Float(base, controls + 0x74),
+            local->y - Float(base, controls + 0x78)};
     }
     __imp__sub_8218D0F8(ctx, base);
     console_draw_offset = saved; return;
@@ -2400,10 +2340,9 @@ REX_HOOK_RAW(sub_8218D0F8) {
   const auto graphics = ctx.r4.u32;
   const auto cursor = MouseCursor(selection.board, base);
   if (!cursor || (!selection.shovel && !selection.usable_seed && selection.packet < 0 && Read(base, cursor + 0x4C) != 7)) return;
-  const auto app = Read(base, selection.board + 0xF4);
-  const int tutorial = int32_t(Read(base, selection.board + 0x5620));
-  if (base[selection.board + 0x1D9] || (Read(base, app + 0x9D0) != 3 &&
-      (tutorial < 15 || tutorial > 17))) return;
+  const auto app = BoardApp(base, selection.board);
+  if (BoardPaused(base, selection.board) || (GameScene(base, app) != kScenePlaying &&
+      !InShovelLesson(base, selection.board))) return;
   std::optional<pvz::Point> position;
   { std::lock_guard lock(pointer_mutex); position = pointer; }
   const auto item_position = position ? pvz::MapUiPointer(*position) : std::nullopt;
@@ -2415,25 +2354,19 @@ REX_HOOK_RAW(sub_8218D0F8) {
       const auto gx = Read(base, graphics + 8), gy = Read(base, graphics + 12);
       const auto field = pvz::MapBoardPointer(*position);
       if (field && OverPlantingField(selection.bank, *field, base)) {
-        PPCContext ghost = ctx; ghost.r1.u32 -= 0x100;
-        ghost.r3.u32 = selection.board; ghost.r4.s64 = int(field->x); ghost.r5.s64 = int(field->y);
-        sub_82149538(ghost, base); const int col = ghost.r3.s32;
-        ghost = ctx; ghost.r1.u32 -= 0x100; ghost.r3.u32 = selection.board;
-        ghost.r4.s64 = int(field->x); ghost.r5.s64 = int(field->y);
-        sub_82149728(ghost, base); const int row = ghost.r3.s32;
+        const int col = int32_t(GuestCall(ctx, base, sub_82149538, selection.board, int(field->x), int(field->y)));
+        const int row = int32_t(GuestCall(ctx, base, sub_82149728, selection.board, int(field->x), int(field->y)));
         if (col >= 0 && col < 9 && row >= 0 && row < 6) {
-          ghost = ctx; ghost.r1.u32 -= 0x100; ghost.r3.u32 = selection.board;
-          ghost.r4.s64 = col; ghost.r5.s64 = row; sub_82149848(ghost, base);
+          const int y = int32_t(GuestCall(ctx, base, sub_82149848, selection.board, col, row));
           Write(base, graphics + 8, std::bit_cast<uint32_t>(std::bit_cast<float>(gx) + 40.f + col * 80.f));
-          Write(base, graphics + 12, std::bit_cast<uint32_t>(std::bit_cast<float>(gy) + float(ghost.r3.s32)));
-          ghost = ctx; ghost.r1.u32 -= 0x100; sub_8218F9A8(ghost, base);
+          Write(base, graphics + 12, std::bit_cast<uint32_t>(std::bit_cast<float>(gy) + float(y)));
+          GuestCall(ctx, base, sub_8218F9A8); // Controls and Graphics stay in r3/r4.
           Write(base, graphics + 8, gx); Write(base, graphics + 12, gy);
         }
       }
       Write(base, graphics + 8, std::bit_cast<uint32_t>(std::bit_cast<float>(gx) + item_position->x));
       Write(base, graphics + 12, std::bit_cast<uint32_t>(std::bit_cast<float>(gy) + item_position->y));
-      PPCContext work = ctx; work.r1.u32 -= 0x100;
-      sub_8218F9A8(work, base);
+      GuestCall(ctx, base, sub_8218F9A8);
       Write(base, graphics + 8, gx); Write(base, graphics + 12, gy);
     }
     return;
@@ -2456,18 +2389,12 @@ REX_HOOK_RAW(sub_8218D0F8) {
   const auto field_position = pvz::MapBoardPointer(*position);
   if ((selection.packet >= 0 || selection.usable_seed) && field_position &&
       OverPlantingField(selection.bank, *field_position, base)) {
-    PPCContext preview = ctx; preview.r1.u32 -= 0x100;
-    preview.r3.u32 = selection.board; preview.r4.s64 = int(item_position->x); preview.r5.s64 = int(item_position->y);
-    sub_82149538(preview, base); const int col = preview.r3.s32;
-    preview.r3.u32 = selection.board; preview.r4.s64 = int(item_position->x); preview.r5.s64 = int(item_position->y);
-    sub_82149728(preview, base); const int row = preview.r3.s32;
+    const int x = int(item_position->x), y = int(item_position->y);
+    const int col = int32_t(GuestCall(ctx, base, sub_82149538, selection.board, x, y));
+    const int row = int32_t(GuestCall(ctx, base, sub_82149728, selection.board, x, y));
     const bool cell_valid = col >= 0 && col < 9 && row >= 0 && row < 6;
-    preview.r3.u32 = 1;
-    if (cell_valid) {
-      preview.r3.u32 = selection.board; preview.r4.s64 = col; preview.r5.s64 = row;
-      preview.r6.u32 = Read(base, controls + 0xC0); sub_82135C48(preview, base);
-    }
-    if (cell_valid && preview.r3.u32 == 0) {
+    // CanPlantAt returns 0 when the seed may be planted in this cell.
+    if (cell_valid && GuestCall(ctx, base, sub_82135C48, selection.board, col, row, Read(base, controls + 0xC0)) == 0) {
       if (REXCVAR_GET(pvz_input_trace)) {
         static int last_col = -1, last_row = -1;
         if (col != last_col || row != last_row) {
@@ -2475,12 +2402,10 @@ REX_HOOK_RAW(sub_8218D0F8) {
           last_col = col; last_row = row;
         }
       }
-      preview.r3.u32 = selection.board; preview.r4.s64 = col; preview.r5.s64 = row;
-      sub_82149848(preview, base);
+      const int cell_y = int32_t(GuestCall(ctx, base, sub_82149848, selection.board, col, row));
       Write(base, graphics + 8, std::bit_cast<uint32_t>(std::bit_cast<float>(gx) + float(col * 80 + 40)));
-      Write(base, graphics + 12, std::bit_cast<uint32_t>(std::bit_cast<float>(gy) + float(preview.r3.s32)));
-      preview = ctx; preview.r1.u32 -= 0x100;
-      sub_8218F9A8(preview, base);
+      Write(base, graphics + 12, std::bit_cast<uint32_t>(std::bit_cast<float>(gy) + float(cell_y)));
+      GuestCall(ctx, base, sub_8218F9A8); // Controls and Graphics stay in r3/r4.
       Write(base, graphics + 8, gx); Write(base, graphics + 12, gy);
     }
   }
@@ -2488,8 +2413,7 @@ REX_HOOK_RAW(sub_8218D0F8) {
       item_position->x - 25));
   Write(base, graphics + 12, std::bit_cast<uint32_t>(std::bit_cast<float>(gy) +
       item_position->y - 35));
-  PPCContext work = ctx; work.r1.u32 -= 0x100; work.r3.u32 = cursor;
-  sub_821774C0(work, base);
+  GuestCall(ctx, base, sub_821774C0, cursor); // Graphics stays in r4.
   Write(base, graphics + 8, gx); Write(base, graphics + 12, gy);
   for (unsigned i = 0; i < cursor_saved.size(); ++i) Write(base, cursor + 0x40 + i * 4, cursor_saved[i]);
   Write(base, controls + 0xC0, preview_saved); base[controls + 0xC5] = preview_valid;
@@ -2546,7 +2470,7 @@ REX_HOOK_RAW(sub_82210308) {
   // Conveyor Use removes a packet and shifts its neighbours into this slot.
   // Clear the hand on use, before that slot can become a different plant.
   if (picked) {
-    if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ mouse used packet {}", selection.packet);
+    PVZ_TRACE("PvZ mouse used packet {}", selection.packet);
     selection.packet = -1;
     // Native planting still owns the cursor during Use. The update hook
     // empties the hand after that call has completed.
@@ -2557,7 +2481,7 @@ REX_EXTERN(__imp__sub_8249D388);
 REX_HOOK_RAW(sub_8220AFA8) {
   const auto chooser = ctx.r3.u32;
   const PPCContext original = ctx;
-  if (!MouseActive() || Read(base, chooser) != 0x820CA94C) { __imp__sub_8220AFA8(ctx, base); return; }
+  if (!MouseActive() || Read(base, chooser) != kSeedChooser) { __imp__sub_8220AFA8(ctx, base); return; }
   const auto visible = base[chooser + 0x71];
   base[chooser + 0x71] = 1;
   __imp__sub_8220AFA8(ctx, base);
@@ -2575,15 +2499,11 @@ REX_HOOK_RAW(sub_8220AFA8) {
   struct Card { int seed, x, y; };
   std::vector<Card> cards;
   for (int i = 0; i < 49; ++i) {
-    PPCContext work = original; work.r1.u32 -= 0x180;
-    work.r3.u32 = Read(base, chooser + 0xE60); work.r4.s64 = i + (base[chooser + 0xEB8] ? 61 : 0); work.r5.u32 = base[chooser + 0xEB8];
-    sub_821A8CE8(work, base);
+    const bool available = GuestCall<0x180>(original, base, sub_821A8CE8, Read(base, chooser + 0xE60),
+        i + (base[chooser + 0xEB8] ? 61 : 0), base[chooser + 0xEB8]);
     const auto chosen = chooser + 0xE0 + i * 0x40;
-    if (!work.r3.u32 || Read(base, chosen + 0x28) == 4) continue;
-    work = original; work.r1.u32 -= 0x180;
-    work.r3.u32 = chooser; work.r4.s64 = i;
-    work.r5.u32 = ctx.r1.u32 - 0x90; work.r6.u32 = ctx.r1.u32 - 0x8C;
-    sub_82208550(work, base);
+    if (!available || Read(base, chosen + 0x28) == 4) continue;
+    GuestCall<0x180>(original, base, sub_82208550, chooser, i, ctx.r1.u32 - 0x90, ctx.r1.u32 - 0x8C);
     cards.push_back({i, int32_t(Read(base, ctx.r1.u32 - 0x90)), int32_t(Read(base, ctx.r1.u32 - 0x8C))});
     if (Read(base, chosen + 0x28) == 1)
       cards.push_back({i, int32_t(Read(base, chosen)), int32_t(Read(base, chosen + 4))});
@@ -2614,10 +2534,9 @@ REX_HOOK_RAW(sub_82206A18) {
   int seed = -1;
   if (local) {
     const auto parent = Read(base, dialog + 0x24);
-    PPCContext work = ctx; work.r1.u32 -= 0x100;
-    work.r4.s64 = int(local->x) - int32_t(Read(base, dialog + 0x40)) - (parent ? int32_t(Read(base, parent + 0x40)) : 0);
-    work.r5.s64 = int(local->y) - int32_t(Read(base, dialog + 0x44)) - (parent ? int32_t(Read(base, parent + 0x44)) : 0);
-    sub_82206970(work, base); seed = work.r3.s32;
+    seed = int32_t(GuestCall(ctx, base, sub_82206970, dialog,
+        int(local->x) - int32_t(Read(base, dialog + 0x40)) - (parent ? int32_t(Read(base, parent + 0x40)) : 0),
+        int(local->y) - int32_t(Read(base, dialog + 0x44)) - (parent ? int32_t(Read(base, parent + 0x44)) : 0)));
   }
   Write(base, dialog + 0x1C8, uint32_t(seed));
   const auto app = Read(base, dialog + 0x1A4);
@@ -2631,12 +2550,8 @@ int HoveredChooserSeed(PPCContext& ctx, uint8_t* base, uint32_t chooser) {
   { std::lock_guard lock(pointer_mutex); position = pointer; }
   const auto local = position ? pvz::MapBoardPointer(*position) : std::nullopt;
   if (!local) return -1;
-  PPCContext work = ctx; work.r1.u32 -= 0x100;
-  work.r3.u32 = chooser;
-  work.r4.s64 = int(local->x) - int32_t(Read(base, chooser + 0x40));
-  work.r5.s64 = int(local->y) - int32_t(Read(base, chooser + 0x44));
-  sub_8220AFA8(work, base);
-  return int(work.r3.u32);
+  return int32_t(GuestCall(ctx, base, sub_8220AFA8, chooser,
+      int(local->x) - int32_t(Read(base, chooser + 0x40)), int(local->y) - int32_t(Read(base, chooser + 0x44))));
 }
 REX_EXTERN(__imp__sub_8220B7B0);
 REX_HOOK_RAW(sub_8220B7B0) {
@@ -2897,8 +2812,8 @@ REX_HOOK_RAW(sub_82210768) {
     if (selection.packet >= 0 && REXCVAR_GET(pvz_input_trace) && animation_frames++ < 16) {
       const auto packet = bank + 0x50 + uint32_t(selection.packet) * 0x7C;
       REXLOG_INFO("PvZ seed animation time {} scale {}",
-          std::bit_cast<float>(Read(base, packet + 0x70)),
-          std::bit_cast<float>(Read(base, packet + 0x78)));
+          Float(base, packet + 0x70),
+          Float(base, packet + 0x78));
     }
     return;
   }
@@ -2914,7 +2829,7 @@ REX_HOOK_RAW(sub_82492A48) {
   const auto widget = ctx.r3.u32;
   PPCContext cursor_draw = ctx;
   cursor_draw.r4.u32 = ctx.r5.u32;
-  const bool board = Read(base, widget) == 0x820B728C;
+  const bool board = Read(base, widget) == kBoard;
   const auto previous = late_cursor;
   if (board) late_cursor = {widget};
   __imp__sub_82492A48(ctx, base);
@@ -2927,9 +2842,8 @@ REX_HOOK_RAW(sub_82492A48) {
         saved[i] = Read(base, graphics + 8 + uint32_t(i * 4));
         Write(base, graphics + 8 + uint32_t(i * 4), late_cursor.graphics[i]);
       }
-      cursor_draw.r1.u32 -= 0x100; cursor_draw.r3.u32 = late_cursor.controls;
       drawing_late_cursor = true;
-      sub_8218D0F8(cursor_draw, base);
+      GuestCall(cursor_draw, base, sub_8218D0F8, late_cursor.controls);
       drawing_late_cursor = false;
       for (size_t i = 0; i < saved.size(); ++i) Write(base, graphics + 8 + uint32_t(i * 4), saved[i]);
     }
@@ -2941,7 +2855,7 @@ REX_HOOK_RAW(sub_82146678) {
   // Board::DrawOverlay renders the blinking P2_JOIN independently of the
   // shared prompt strip. Match its string key so P2_JOINED stays visible.
   const auto key = board + 0x5864;
-  if (MouseActive() && Read(base, board) == 0x820B728C && Read(base, key + 0x14) == 9) {
+  if (MouseActive() && Read(base, board) == kBoard && Read(base, key + 0x14) == 9) {
     const auto data = Read(base, key + 0x18) >= 8 ? Read(base, key + 4) : key + 4;
     constexpr std::u16string_view join = u"[P2_JOIN]";
     bool matches = data != 0;
@@ -3021,42 +2935,33 @@ REX_HOOK_RAW(sub_824A6890) {
   // focus before forwarding this first press, rather than one Update later.
   if (REXCVAR_GET(pvz_mouse_cursor) && !MouseActive()) DispatchWidgets(ctx, base);
   const auto top = TopRootWidget(ctx.r3.u32, base);
-  if (pvz::LocalPlayersActive() && top && Read(base, top) == 0x820CA94C) {
+  if (pvz::LocalPlayersActive() && top && Read(base, top) == kSeedChooser) {
     // Co-op shares a chooser but keeps a cursor and bank per signed-in user.
     // Mouse focus on a child button must not swallow the other player's pad.
-    PPCContext work = ctx; work.r1.u32 -= 0x100; work.r3.u32 = top;
-    sub_8220C280(work, base);
+    GuestCall(ctx, base, sub_8220C280, top);
     if (REXCVAR_GET(pvz_input_trace) && ctx.r4.u32 <= 9)
       REXLOG_INFO("PvZ native co-op chooser button {} user {} cursors {},{} banks {},{}", ctx.r4.u32,
           ctx.r5.u32, Read(base, top + 0xEAC), Read(base, top + 0xEB0), Read(base, top + 0xE74), Read(base, top + 0xE78));
     return;
   }
-  if (pvz::LocalPlayersActive() && top && Read(base, top) == 0x820CC2EC && Read(base, top + 0x114) == 1) {
-    PPCContext work = ctx; work.r1.u32 -= 0x100; work.r3.u32 = top;
-    sub_8228B5C0(work, base);
-    if (REXCVAR_GET(pvz_input_trace))
-      REXLOG_INFO("PvZ native VS pad button {} user {} routed phase {} sides {},{} ready {},{}",
+  if (pvz::LocalPlayersActive() && top && Read(base, top) == kVSSetupMenu && Read(base, top + 0x114) == 1) {
+    GuestCall(ctx, base, sub_8228B5C0, top);
+    PVZ_TRACE("PvZ native VS pad button {} user {} routed phase {} sides {},{} ready {},{}",
           ctx.r4.u32, ctx.r5.u32, Read(base, top + 0x114),
           int32_t(Read(base, top + 0x120)), int32_t(Read(base, top + 0x124)),
           base[top + 0x128], base[top + 0x129]);
     return;
   }
-  if (pvz::LocalPlayersActive() && top && Read(base, top) == 0x820CC2EC && Read(base, top + 0x114) == 2) {
+  if (pvz::LocalPlayersActive() && top && Read(base, top) == kVSSetupMenu && Read(base, top + 0x114) == 2) {
     const auto focus = Read(base, ctx.r3.u32 + 0xA8);
     // Ready disappears once both sides are confirmed. A mouse-owned focus
     // can still point at that hidden button when P1 uses a pad to start.
     if (!focus || !IsGameButton(Read(base, focus)) || !base[focus + 0x70] || base[focus + 0x72]) {
       // Use the XML lookup used by native SetState; the mode controls need
       // not be direct WidgetContainer children. Preserve its remembered mode.
-      PPCContext lookup = ctx; lookup.r1.u32 -= 0x100; lookup.r3.u32 = top;
       const auto mode = Read(base, top + 0x134);
-      lookup.r4.u32 = mode == 1 ? 10 : mode == 2 ? 11 : 9;
-      sub_82491DE8(lookup, base);
-      const auto quick = lookup.r3.u32;
-      if (quick) {
-        PPCContext work = ctx; work.r1.u32 -= 0x100; work.r4.u32 = quick;
-        __imp__sub_824A5F48(work, base);
-      }
+      const auto quick = GuestCall(ctx, base, sub_82491DE8, top, mode == 1 ? 10 : mode == 2 ? 11 : 9);
+      if (quick) GuestCall(ctx, base, __imp__sub_824A5F48, ctx.r3.u32, quick);
     }
     if (REXCVAR_GET(pvz_input_trace)) {
       const auto current = Read(base, ctx.r3.u32 + 0xA8);
@@ -3067,24 +2972,21 @@ REX_HOOK_RAW(sub_824A6890) {
     if (ctx.r4.u32 == 6 && current && IsGameButton(Read(base, current)))
       native_pad_button_press = {ctx.r3.u32, current, ctx.r5.u32};
   }
-  if (top && (Read(base, top) == 0x820CB23C || Read(base, top) == 0x820BB58C)) {
+  if (top && (Read(base, top) == kStoreScreen || Read(base, top) == kHouseChooser)) {
     // Store has no native focusable child. A painted mouse navigation button
     // can leave focus null (or on a child that was hidden on the owner switch).
     // The native Store handler validates the player itself.
-    PPCContext focus = ctx; focus.r1.u32 -= 0x100; focus.r4.u32 = top;
-    __imp__sub_824A5F48(focus, base);
-    if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ native shop/house pad button {} routed", ctx.r4.u32);
+    GuestCall(ctx, base, __imp__sub_824A5F48, ctx.r3.u32, top);
+    PVZ_TRACE("PvZ native shop/house pad button {} routed", ctx.r4.u32);
   }
-  if (top && Read(base, top) == 0x820B899C && ctx.r5.u32 == Read(base, top + 0xC0)) {
-    PPCContext focus = ctx; focus.r1.u32 -= 0x100; focus.r4.u32 = top;
-    __imp__sub_824A5F48(focus, base);
-    if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ native challenge pad button {} routed", ctx.r4.u32);
+  if (top && Read(base, top) == kChallengeScreen && ctx.r5.u32 == Read(base, top + 0xC0)) {
+    GuestCall(ctx, base, __imp__sub_824A5F48, ctx.r3.u32, top);
+    PVZ_TRACE("PvZ native challenge pad button {} routed", ctx.r4.u32);
   }
-  const auto root = FindRootWidget(ctx.r3.u32, 0x820B728C, base, true);
-  if (root && !base[root + 0x1D9] && (top == root || (top && Read(base, top) == 0x820BA804)) && (ctx.r5.u32 == 0 || pvz::LocalPlayersActive())) {
-    PPCContext focus = ctx; focus.r1.u32 -= 0x100; focus.r4.u32 = root;
-    __imp__sub_824A5F48(focus, base);
-    if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ native board pad button {} routed", ctx.r4.u32);
+  const auto root = FindRootWidget(ctx.r3.u32, kBoard, base, true);
+  if (root && !BoardPaused(base, root) && (top == root || (top && Read(base, top) == kHelpBar)) && (ctx.r5.u32 == 0 || pvz::LocalPlayersActive())) {
+    GuestCall(ctx, base, __imp__sub_824A5F48, ctx.r3.u32, root);
+    PVZ_TRACE("PvZ native board pad button {} routed", ctx.r4.u32);
   }
   __imp__sub_824A6890(ctx, base);
 }

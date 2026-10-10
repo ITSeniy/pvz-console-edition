@@ -2,6 +2,8 @@
 #include "mouse_bridge.h"
 #include "board_mapping.h"
 #include "guest_memory.h"
+#include "guest_call.h"
+#include "guest_layout.h"
 #include <rex/cvar.h>
 #include <rex/logging.h>
 #include <rex/ppc/context.h>
@@ -20,10 +22,12 @@ REX_EXTERN(sub_82150EB8); // BeghouledTwistMoveCausesMatch (scratch copy)
 REX_EXTERN(sub_8214F5E8); // LoadBeghouledBoardState (scratch copy)
 REX_EXTERN(sub_82151600); // BeghouledMoveCausesMatch (scratch copy)
 
+using namespace pvz::layout;
+using pvz::GuestCall;
+
 namespace {
 using pvz::guest::Read;
 using pvz::guest::Write;
-constexpr uint32_t kBoard = 0x820B728C, kMainMenu = 0x820C2784;
 constexpr uint32_t kLawnApp = 0x82D0BC88; // Verified global LawnApp.
 
 std::atomic_int test_adventure_level{0};
@@ -38,28 +42,23 @@ std::atomic_bool test_beghouled_swipe{false};
 
 // 144 and 151 are Zen (44) and Tree (51) with a prepared profile.
 constexpr std::array kFixtureModes{144, 151, 51, 52, 53, 37, 90, 19, 20, 21, 23, 24, 25, 31, 32};
-constexpr std::array kSunModes{19u, 20u, 21u, 23u, 24u, 25u, 31u, 32u};
+constexpr std::array kSunModes{kModeSlotMachine, kModeHeavyWeapon, kModeBeghouled, kModeSeeingStars,
+    kModeZombiquarium, kModeBeghouledTwist, kModeWhackAZombie, kModeLastStand};
 
 bool Contains(const auto& values, auto value) {
   return std::find(values.begin(), values.end(), value) != values.end();
 }
 // Live, unpaused Board in the given game mode (any mode when mode < 0).
 bool PlayingBoard(uint8_t* base, uint32_t root, int mode, bool unpaused = true) {
-  if (!root || Read(base, root) != kBoard || (unpaused && base[root + 0x1D9])) return false;
-  return mode < 0 || Read(base, Read(base, root + 0xF4) + 0x9CC) == uint32_t(mode);
-}
-uint32_t Call(PPCContext& ctx, uint8_t* base, PPCFunc* fn, uint32_t self, int a = 0, int b = 0, int c = 0) {
-  PPCContext work = ctx; work.r1.u32 -= 0x100;
-  work.r3.u32 = self; work.r4.s64 = a; work.r5.s64 = b; work.r6.s64 = c; work.r7.u32 = 0;
-  fn(work, base);
-  return work.r3.u32;
+  if (!root || Read(base, root) != kBoard || (unpaused && BoardPaused(base, root))) return false;
+  return mode < 0 || BoardMode(base, root) == uint32_t(mode);
 }
 
 void StartFixtureMode(PPCContext& ctx, uint8_t* base, uint32_t menu, int mode) {
   const auto app = Read(base, kLawnApp);
   const auto profile = Read(base, app + 0x9FC);
   // The native game constructor owns all objects for the selected mode.
-  if (mode == 51) Write(base, profile + 0x424, 1005);
+  if (mode == kModeTreeOfWisdom) Write(base, profile + 0x424, 1005);
   if (mode == 144) {
     Write(base, profile + 0x3FC, 1); // Mushroom Garden purchase.
     Write(base, profile + 0x418, 1); // Aquarium purchase.
@@ -72,27 +71,20 @@ void StartFixtureMode(PPCContext& ctx, uint8_t* base, uint32_t menu, int mode) {
     Write(base, profile + 0x424, 0);
   }
   base[menu + 0x70] = 0; // Direct entry bypasses MainMenu's exit animation.
-  Call(ctx, base, sub_821A1BD0, app, mode == 151 ? 51 : mode == 144 ? 44 : mode);
+  GuestCall(ctx, base, sub_821A1BD0, app, mode == 151 ? 51 : mode == 144 ? 44 : mode, 0, 0, 0);
   REXLOG_INFO("PvZ replay fixture game mode {}", mode);
 }
 
 void AddGardenCoin(PPCContext& ctx, uint8_t* base, uint32_t board, pvz::Point point) {
   const auto local = pvz::MapBoardPointer(point);
   if (!local) return;
-  PPCContext work = ctx; work.r1.u32 -= 0x100;
-  work.r3.u32 = board; work.r4.s64 = int(local->x); work.r5.s64 = int(local->y);
-  work.r6.u32 = 1; work.r7.u32 = 3; // Native silver coin, ordinary coin motion.
-  sub_82133968(work, base);
-  if (work.r3.u32) REXLOG_INFO("PvZ replay fixture garden coin at {},{}", local->x, local->y);
+  // Native silver coin, ordinary coin motion.
+  if (GuestCall(ctx, base, sub_82133968, board, int(local->x), int(local->y), 1, 3)) REXLOG_INFO("PvZ replay fixture garden coin at {},{}", local->x, local->y);
 }
 
 void DropSlotSeed(PPCContext& ctx, uint8_t* base, uint32_t board, int seed) {
-  PPCContext work = ctx; work.r1.u32 -= 0x100;
-  work.r3.u32 = board; work.r4.s64 = 360; work.r5.s64 = 85;
-  work.r6.u32 = 16; work.r7.u32 = 3;
-  sub_82133968(work, base);
-  if (work.r3.u32) {
-    Write(base, work.r3.u32 + 0x98, uint32_t(seed));
+  if (const auto coin = GuestCall(ctx, base, sub_82133968, board, 360, 85, 16, 3)) {
+    Write(base, coin + 0x98, uint32_t(seed));
     REXLOG_INFO("PvZ replay fixture Slot Machine dropped seed {}", seed);
   }
 }
@@ -102,20 +94,15 @@ void DropSlotSeed(PPCContext& ctx, uint8_t* base, uint32_t board, int seed) {
 // Do not edit plants, the RNG, the score or the rotation state.
 void SwipeBeghouled(PPCContext& ctx, uint8_t* base, uint32_t board) {
   const auto challenge = Read(base, board + 0x1D4), state = ctx.r1.u32 - 0x400;
-  PPCContext work = ctx; work.r1.u32 -= 0x800; work.r3.u32 = challenge; work.r4.u32 = state;
-  sub_8214F5E8(work, base);
+  GuestCall<0x800>(ctx, base, sub_8214F5E8, challenge, state);
   if (Read(base, challenge + 0x74) == 0) for (int col = 0; col < 8; ++col)
     for (int row = 0; row < 5; ++row)
       for (const auto direction : {pvz::Point{1, 0}, pvz::Point{0, 1}}) {
         if (col + int(direction.x) >= 8 || row + int(direction.y) >= 5) continue;
-        work = ctx; work.r1.u32 -= 0x800; work.r3.u32 = challenge;
-        work.r4.s64 = col; work.r5.s64 = row; work.r6.s64 = col + int(direction.x);
-        work.r7.s64 = row + int(direction.y); work.r8.u32 = state;
-        sub_82151600(work, base);
-        if (!work.r3.u32) continue;
-        work = ctx; work.r1.u32 -= 0x800; work.r3.u32 = board;
-        work.r4.s64 = col; work.r5.s64 = row; sub_82149848(work, base);
-        const pvz::Point start{200.f + col * 50, (float(work.r3.s32) + 110) / 1.2f};
+        if (!GuestCall<0x800>(ctx, base, sub_82151600, challenge, col, row,
+            col + int(direction.x), row + int(direction.y), state)) continue;
+        const int y = int32_t(GuestCall<0x800>(ctx, base, sub_82149848, board, col, row));
+        const pvz::Point start{200.f + col * 50, (float(y) + 110) / 1.2f};
         const pvz::Point end{start.x + direction.x * 25, start.y + direction.y * 25};
         const std::array events{pvz::MouseInputEvent{pvz::MouseEventKind::Button, start, 1, true},
             pvz::MouseInputEvent{pvz::MouseEventKind::Move, end},
@@ -130,14 +117,10 @@ void SwipeBeghouled(PPCContext& ctx, uint8_t* base, uint32_t board) {
 
 void ClickTwist(PPCContext& ctx, uint8_t* base, uint32_t board) {
   const auto challenge = Read(base, board + 0x1D4), state = ctx.r1.u32 - 0x400;
-  PPCContext work = ctx; work.r1.u32 -= 0x800; work.r3.u32 = challenge; work.r4.u32 = state;
-  sub_8214F5E8(work, base);
+  GuestCall<0x800>(ctx, base, sub_8214F5E8, challenge, state);
   if (Read(base, challenge + 0x74) == 0) for (int col = 0; col < 7; ++col)
     for (int row = 0; row < 4; ++row) {
-      work = ctx; work.r1.u32 -= 0x800;
-      work.r3.s64 = col; work.r4.s64 = row; work.r5.u32 = state;
-      sub_82150EB8(work, base);
-      if (!work.r3.u32) continue;
+      if (!GuestCall<0x800>(ctx, base, sub_82150EB8, col, row, state)) continue;
       const pvz::Point point{225.f + col * 50, 200.f + row * 100 / 1.2f};
       pvz::PublishButton(point, 1, true); pvz::PublishButton(point, 1, false);
       REXLOG_INFO("PvZ replay Twist match click block {},{}", col, row);
@@ -157,7 +140,7 @@ bool pvz::ApplyReplayFixtures(PPCContext& ctx, uint8_t* base, uint32_t focused_r
   }
   const int sun = test_heavy_weapon_sun.exchange(-1);
   if (replay && sun >= 0 && PlayingBoard(base, focused_root, -1, false) &&
-      Contains(kSunModes, Read(base, Read(base, focused_root + 0xF4) + 0x9CC))) {
+      Contains(kSunModes, BoardMode(base, focused_root))) {
     Write(base, focused_root + 0x55F4, uint32_t(sun));
     REXLOG_INFO("PvZ replay fixture Heavy Weapon sun {}", sun);
   }
@@ -179,7 +162,7 @@ bool pvz::ApplyReplayFixtures(PPCContext& ctx, uint8_t* base, uint32_t focused_r
     }
     if (test_award.exchange(false) && replay) {
       base[main_menu + 0x70] = 0; // Isolated diagnostic screen; do not leave the menu over it.
-      Call(ctx, base, sub_821A3070, Read(base, kLawnApp));
+      GuestCall(ctx, base, sub_821A3070, Read(base, kLawnApp), 0, 0, 0, 0);
       REXLOG_INFO("PvZ replay Award screen {:08X}", Read(base, Read(base, kLawnApp) + 0x92C));
     }
   }
