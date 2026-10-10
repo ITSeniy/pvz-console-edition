@@ -1462,143 +1462,171 @@ class MouseDispatch {
     }
     return false;
   }
+  // PC-style lawn: click a card or tool, then the lawn (or drag it there).
+  // False lets BoardClick keep the Board capture for the release.
   bool PcBoardClick() {
-    const int game_mode = int(GameMode(base, app));
-    const auto challenge = Read(base, widget + 0x1D4);
-    if (!event.down && game_mode == kModeBeghouled && beghouled_mouse.board == widget) {
-      base[challenge + 0x28] = 0;
-      beghouled_mouse.held = false;
+    if (!event.down) {
+      if (mini_mode == kModeBeghouled && beghouled_mouse.board == widget) {
+        base[Read(base, widget + 0x1D4) + 0x28] = 0;
+        beghouled_mouse.held = false;
+      }
+      return false;
     }
-    if (event.down) {
-      if (event.click < 0) {
-        const bool carried = selection.packet >= 0 || selection.usable_seed || selection.shovel;
-        CancelItemDrag("right click");
-        PlaySample(app, 0x82D0A43C);
-        if (!carried && Call(sub_821A8770, app, 0, 0, 0)) {
-          if (auto local = pvz::MapBoardPointer(event.point)) {
-            const auto hit = ctx.r1.u32 - 0x80;
-            Write(base, hit, 0); Write(base, hit + 4, 0);
-            Call(sub_82139238, widget, int(local->x), int(local->y), int(hit));
-            Call(sub_82153300, challenge, int(local->x), int(local->y), int(hit));
-          }
-        }
-        if (game_mode == kModeBeghouled) { base[challenge + 0x28] = 0; beghouled_mouse = {}; }
-        PVZ_TRACE("PvZ mouse cancel seed");
-      } else if (const auto local = pvz::MapBoardPointer(event.point)) {
-        // HitResult lives in this nested call's reserved caller frame.
-        const uint32_t hit = ctx.r1.u32 - 0x80;
-        Write(base, hit, 0);
-        Write(base, hit + 4, 0);
+    if (event.click < 0) {
+      PcRightClick();
+      return false;
+    }
+    const auto local = pvz::MapBoardPointer(event.point);
+    if (!local) return false;
+    // HitResult lives in this nested call's reserved caller frame.
+    const uint32_t hit = ctx.r1.u32 - 0x80;
+    Write(base, hit, 0);
+    Write(base, hit + 4, 0);
+    Call(sub_82139238, widget, int(local->x), int(local->y), int(hit));
+    if (Read(base, hit + 4) == 5) return PcToggleShovel();
+    if (selection.shovel) return PcDig(*local);
+    if (PcCollect(hit, *local)) return true;
+    const auto index = mini_mode == kModeSlotMachine ? -1 : PacketAt(selection.bank, *local, base);
+    return index >= 0 ? PcPacketClick(index) : PcFieldClick(hit, *local);
+  }
+  // Drops whatever the hand carries. An empty hand in Scary Potter still
+  // reaches the native vase handler, which uses right click for its hammer.
+  void PcRightClick() {
+    const auto challenge = Read(base, widget + 0x1D4);
+    const bool carried = selection.packet >= 0 || selection.usable_seed || selection.shovel;
+    CancelItemDrag("right click");
+    PlaySample(app, 0x82D0A43C);
+    if (!carried && Call(sub_821A8770, app, 0, 0, 0)) {
+      if (auto local = pvz::MapBoardPointer(event.point)) {
+        const auto hit = ctx.r1.u32 - 0x80;
+        Write(base, hit, 0); Write(base, hit + 4, 0);
         Call(sub_82139238, widget, int(local->x), int(local->y), int(hit));
-        if (Read(base, hit + 4) == 5) {
-          selection.packet = -1;
-          selection.packets.clear();
-          selection.usable_seed = false;
-          selection.shovel = !selection.shovel && Call(sub_82139808, widget, 5, 0, 0);
-          HideUnselectedCursor(primary, base);
-          item_drag = {};
-          PVZ_TRACE("PvZ PC shovel selected {}", selection.shovel);
-          return true;
-        }
-        if (selection.shovel) {
-          const auto count = Read(base, widget + 0x583C);
-          Call(sub_821388A0, widget, int(local->x), int(local->y), 6);
-          selection.shovel = false;
-          HideUnselectedCursor(primary, base);
-          PVZ_TRACE("PvZ PC shovel dug {}", Read(base, widget + 0x583C) != count);
-          return true;
-        }
-        const auto coin = Read(base, hit + 4) == 3 ? Read(base, hit) : 0;
-        const auto type = coin ? Read(base, coin + 0x80) : 0;
-        if (coin && ((type >= 1 && type <= 7) || type == 16)) {
-          const auto before = Read(base, coin + 0x84);
-          Call(sub_8216EF50, coin, 0, 0, 0);
-          if (type == 16) {
-            selection.packet = -1;
-            selection.usable_seed = MouseCursorType(widget, base) == 2;
-            PVZ_TRACE("PvZ mouse dropped seed picked {}", selection.usable_seed);
-          }
-          if (REXCVAR_GET(pvz_input_trace) && before != 7 && Read(base, coin + 0x84) == 7)
-            REXLOG_INFO("PvZ mouse collect coin type {} at {},{}", type, local->x, local->y);
-          // Collection is a discrete click. Native Board MouseDown starts
-          // a held drag collector, so it must not also receive this click.
-          return true;
-        }
-        const auto index = game_mode == kModeSlotMachine ? -1 : PacketAt(selection.bank, *local, base);
-        if (index >= 0) {
-          const auto packet = selection.bank + 0x50 + uint32_t(index) * 0x7C;
-          if (game_mode == kModeBeghouled || game_mode == kModeZombiquarium || game_mode == kModeBeghouledTwist) {
-            if (game_mode == kModeBeghouled) { base[challenge + 0x28] = 0; beghouled_mouse = {}; }
-            const auto sun = Read(base, widget + 0x55F4);
-            Call(sub_8220F510, packet, 0, 0, 0);
-            PVZ_TRACE("PvZ minigame {} buy packet {} type {} active {} sun {} -> {} upgrades {}/{}/{}", game_mode, index, Read(base, packet + 0x50), base[packet + 0x64], sun, Read(base, widget + 0x55F4), base[challenge + 0x6A], base[challenge + 0x6B], base[challenge + 0x6C]);
-            return true;
-          }
-          if (selection.packet == index) {
-            ClearItem();
-            PVZ_TRACE("PvZ mouse toggle packet {} off", index);
-            return true;
-          }
-          const bool allowed = Call(sub_8220F370, packet, 0, 0, 0) != 0;
-          if (allowed) {
-            selection.shovel = false;
-            selection.usable_seed = false;
-            PlaySample(app, 0x82D0A630); // SOUND_SEEDLIFT, verified Xbox resource assignment.
-            Write(base, primary + 0xBC, uint32_t(index));
-            Write(base, packet + 0x70, 0); // Restart native selection scale animation.
-            selection.packet = index;
-            Call(sub_82190D80, primary, 1, 0, 0);
-            ApplyPointer(ctx, primary, base, event.point);
-            RememberPackets(base);
-            item_drag = {widget, primary, selection.bank, index, false, false, event.point};
-            PVZ_TRACE("PvZ item drag seed begin packet {}", index);
-          } else PlaySample(app, 0x82D0AA24);
-          PVZ_TRACE("PvZ mouse pick packet {} allowed {}", index, allowed);
-        } else if (game_mode == kModeBeghouled || game_mode == kModeZombiquarium || game_mode == kModeBeghouledTwist ||
-            (game_mode == kModeSlotMachine && Read(base, hit + 4) == 22) ||
-            (game_mode == kModeWhackAZombie && selection.packet < 0 && !selection.usable_seed)) {
-          const auto previous = beghouled_mouse.selected;
-          if (game_mode == kModeBeghouled) {
-            if (beghouled_mouse.board != widget) beghouled_mouse = {widget};
-            const auto grid = [&](pvz::Point p) {
-              return std::pair(int(Call(sub_82149538, widget, int(p.x), int(p.y), 0)),
-                  int(Call(sub_821495B0, widget, int(p.x), int(p.y), 0)));
-            };
-            const auto current_cell = grid(*local);
-            const auto previous_cell = previous ? grid(*previous) : std::pair(-99, -99);
-            if (previous && Read(base, hit + 4) == 1 && std::abs(current_cell.first - previous_cell.first) +
-                std::abs(current_cell.second - previous_cell.second) == 1) {
-              Write(base, challenge + 0x2C, uint32_t(int(previous->x)));
-              Write(base, challenge + 0x30, uint32_t(int(previous->y)));
-              base[challenge + 0x28] = 1;
-              Call(sub_821516D8, challenge, int(local->x), int(local->y), 0);
-              beghouled_mouse.selected.reset();
-              beghouled_mouse.held = false;
-              return true;
-            }
-          }
-          Call(sub_82153300, challenge, int(local->x), int(local->y), int(hit));
-          if (game_mode == kModeBeghouled && base[challenge + 0x28]) {
-            beghouled_mouse = {widget, *local, true};
-          }
-          PVZ_TRACE("PvZ minigame {} field click {},{} hit {} state {}", game_mode, local->x, local->y, Read(base, hit + 4), Read(base, challenge + 0x74));
-        } else if (Read(base, hit + 4) == 23) {
-          // All Vasebreaker variants share Challenge's native vase hit
-          // handler. Picking its dropped seed remains a separate click.
-          const auto handled = Call(sub_82153300, challenge, int(local->x), int(local->y), int(hit));
-          PVZ_TRACE("PvZ Vasebreaker click mode {} handled {}", game_mode, handled);
-        } else if (selection.usable_seed) {
-          Call(sub_8214CDC0, widget, 6, 0, 0);
-          selection.usable_seed = MouseCursorType(widget, base) == 2;
-          PVZ_TRACE("PvZ mouse dropped seed placed {}", !selection.usable_seed);
-          HideUnselectedCursor(primary, base);
-        } else if (selection.packet >= 0 &&
-            uint32_t(selection.packet) < Read(base, selection.bank + 0x40)) {
-          PlantPacket(widget, primary);
-        }
+        Call(sub_82153300, challenge, int(local->x), int(local->y), int(hit));
       }
     }
+    if (mini_mode == kModeBeghouled) { base[challenge + 0x28] = 0; beghouled_mouse = {}; }
+    PVZ_TRACE("PvZ mouse cancel seed");
+  }
+  // Clicking the shovel bank picks the shovel up, or puts it back.
+  bool PcToggleShovel() {
+    selection.packet = -1;
+    selection.packets.clear();
+    selection.usable_seed = false;
+    selection.shovel = !selection.shovel && Call(sub_82139808, widget, 5, 0, 0);
+    HideUnselectedCursor(primary, base);
+    item_drag = {};
+    PVZ_TRACE("PvZ PC shovel selected {}", selection.shovel);
+    return true;
+  }
+  bool PcDig(pvz::Point local) {
+    const auto count = Read(base, widget + 0x583C);
+    Call(sub_821388A0, widget, int(local.x), int(local.y), 6);
+    selection.shovel = false;
+    HideUnselectedCursor(primary, base);
+    PVZ_TRACE("PvZ PC shovel dug {}", Read(base, widget + 0x583C) != count);
+    return true;
+  }
+  // Money, sun and dropped seed packets. Collection is a discrete click:
+  // native Board MouseDown starts a held drag collector, so it must not
+  // also receive this click.
+  bool PcCollect(uint32_t hit, pvz::Point local) {
+    const auto coin = Read(base, hit + 4) == 3 ? Read(base, hit) : 0;
+    const auto type = coin ? Read(base, coin + 0x80) : 0;
+    if (!coin || !((type >= 1 && type <= 7) || type == 16)) return false;
+    const auto before = Read(base, coin + 0x84);
+    Call(sub_8216EF50, coin, 0, 0, 0);
+    if (type == 16) {
+      selection.packet = -1;
+      selection.usable_seed = MouseCursorType(widget, base) == 2;
+      PVZ_TRACE("PvZ mouse dropped seed picked {}", selection.usable_seed);
+    }
+    if (REXCVAR_GET(pvz_input_trace) && before != 7 && Read(base, coin + 0x84) == 7)
+      REXLOG_INFO("PvZ mouse collect coin type {} at {},{}", type, local.x, local.y);
+    return true;
+  }
+  // A seed bank card: buy a minigame upgrade, or pick up / put back a seed.
+  bool PcPacketClick(int index) {
+    const auto challenge = Read(base, widget + 0x1D4);
+    const auto packet = selection.bank + 0x50 + uint32_t(index) * 0x7C;
+    if (mini_mode == kModeBeghouled || mini_mode == kModeZombiquarium || mini_mode == kModeBeghouledTwist) {
+      if (mini_mode == kModeBeghouled) { base[challenge + 0x28] = 0; beghouled_mouse = {}; }
+      const auto sun = Read(base, widget + 0x55F4);
+      Call(sub_8220F510, packet, 0, 0, 0);
+      PVZ_TRACE("PvZ minigame {} buy packet {} type {} active {} sun {} -> {} upgrades {}/{}/{}", mini_mode, index, Read(base, packet + 0x50), base[packet + 0x64], sun, Read(base, widget + 0x55F4), base[challenge + 0x6A], base[challenge + 0x6B], base[challenge + 0x6C]);
+      return true;
+    }
+    if (selection.packet == index) {
+      ClearItem();
+      PVZ_TRACE("PvZ mouse toggle packet {} off", index);
+      return true;
+    }
+    const bool allowed = Call(sub_8220F370, packet, 0, 0, 0) != 0;
+    if (allowed) {
+      selection.shovel = false;
+      selection.usable_seed = false;
+      PlaySample(app, 0x82D0A630); // SOUND_SEEDLIFT, verified Xbox resource assignment.
+      Write(base, primary + 0xBC, uint32_t(index));
+      Write(base, packet + 0x70, 0); // Restart native selection scale animation.
+      selection.packet = index;
+      Call(sub_82190D80, primary, 1, 0, 0);
+      ApplyPointer(ctx, primary, base, event.point);
+      RememberPackets(base);
+      item_drag = {widget, primary, selection.bank, index, false, false, event.point};
+      PVZ_TRACE("PvZ item drag seed begin packet {}", index);
+    } else PlaySample(app, 0x82D0AA24);
+    PVZ_TRACE("PvZ mouse pick packet {} allowed {}", index, allowed);
     return false;
+  }
+  // The lawn itself: minigame field actions, vases, or planting what the
+  // hand carries.
+  bool PcFieldClick(uint32_t hit, pvz::Point local) {
+    const auto challenge = Read(base, widget + 0x1D4);
+    if (mini_mode == kModeBeghouled || mini_mode == kModeZombiquarium || mini_mode == kModeBeghouledTwist ||
+        (mini_mode == kModeSlotMachine && Read(base, hit + 4) == 22) ||
+        (mini_mode == kModeWhackAZombie && selection.packet < 0 && !selection.usable_seed)) {
+      if (mini_mode == kModeBeghouled && BeghouledSecondClick(hit, local)) return true;
+      Call(sub_82153300, challenge, int(local.x), int(local.y), int(hit));
+      if (mini_mode == kModeBeghouled && base[challenge + 0x28]) {
+        beghouled_mouse = {widget, local, true};
+      }
+      PVZ_TRACE("PvZ minigame {} field click {},{} hit {} state {}", mini_mode, local.x, local.y, Read(base, hit + 4), Read(base, challenge + 0x74));
+    } else if (Read(base, hit + 4) == 23) {
+      // All Vasebreaker variants share Challenge's native vase hit
+      // handler. Picking its dropped seed remains a separate click.
+      const auto handled = Call(sub_82153300, challenge, int(local.x), int(local.y), int(hit));
+      PVZ_TRACE("PvZ Vasebreaker click mode {} handled {}", mini_mode, handled);
+    } else if (selection.usable_seed) {
+      Call(sub_8214CDC0, widget, 6, 0, 0);
+      selection.usable_seed = MouseCursorType(widget, base) == 2;
+      PVZ_TRACE("PvZ mouse dropped seed placed {}", !selection.usable_seed);
+      HideUnselectedCursor(primary, base);
+    } else if (selection.packet >= 0 &&
+        uint32_t(selection.packet) < Read(base, selection.bank + 0x40)) {
+      PlantPacket(widget, primary);
+    }
+    return false;
+  }
+  // Beghouled click-click: a plant next to the previously clicked one swaps
+  // them through the native drag update, as a swipe would.
+  bool BeghouledSecondClick(uint32_t hit, pvz::Point local) {
+    const auto challenge = Read(base, widget + 0x1D4);
+    const auto previous = beghouled_mouse.selected;
+    if (beghouled_mouse.board != widget) beghouled_mouse = {widget};
+    const auto grid = [&](pvz::Point p) {
+      return std::pair(int(Call(sub_82149538, widget, int(p.x), int(p.y), 0)),
+          int(Call(sub_821495B0, widget, int(p.x), int(p.y), 0)));
+    };
+    const auto current_cell = grid(local);
+    const auto previous_cell = previous ? grid(*previous) : std::pair(-99, -99);
+    if (!previous || Read(base, hit + 4) != 1 || std::abs(current_cell.first - previous_cell.first) +
+        std::abs(current_cell.second - previous_cell.second) != 1) return false;
+    Write(base, challenge + 0x2C, uint32_t(int(previous->x)));
+    Write(base, challenge + 0x30, uint32_t(int(previous->y)));
+    base[challenge + 0x28] = 1;
+    Call(sub_821516D8, challenge, int(local.x), int(local.y), 0);
+    beghouled_mouse.selected.reset();
+    beghouled_mouse.held = false;
+    return true;
   }
   bool ConsoleBoardClick() {
     // Card clicks change the console's persistent selection without
