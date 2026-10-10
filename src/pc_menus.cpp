@@ -9,6 +9,7 @@
 #include <mutex>
 #include <atomic>
 #include <deque>
+#include <utility>
 
 REX_EXTERN(__imp__sub_821C0630);
 REX_EXTERN(__imp__sub_82289228); // TypingCheck::Check
@@ -29,6 +30,10 @@ std::deque<size_t> commands;
 std::atomic_bool open{false};
 std::atomic<uint32_t> buttons{0};
 std::atomic<uint32_t> held_buttons{0};
+// Guest thread: the panel whose button last left the main menu, and whether
+// the current MainMenu instance has been handled.
+uint32_t return_panel = 1;
+bool menu_seen = false;
 // Override matching for exactly one native evaluation, on the guest thread.
 // All effects and Tree requirements still run inside Board::DoTypingCheck.
 thread_local uint32_t requested_check = 0;
@@ -129,6 +134,9 @@ REX_HOOK_RAW(sub_822CA128) {
 }
 REX_HOOK_RAW(sub_821C0630) {
   const auto menu = ctx.r3.u32 - 0xD4;
+  // Native depress accepts input only on a settled panel after the intro.
+  if (Read(base, menu + 0x118) == Read(base, menu + 0x11C) && !base[menu + 0xD8] &&
+      int32_t(Read(base, menu + 0x168)) <= 0) return_panel = Read(base, menu + 0x118);
   if ((ctx.r4.u32 == 10 || ctx.r4.u32 == 11) && Read(base, menu + 0x118) == Read(base, menu + 0x11C) &&
       !base[menu + 0xD8]) pvz::BeginLocalPlayers(pvz::MouseOwnsInput());
   const bool options = ctx.r4.u32 == 5;
@@ -175,4 +183,24 @@ REX_EXTERN(__imp__sub_821A25C8);
 REX_HOOK_RAW(sub_821A25C8) {
   pvz::ResetLocalPlayers();
   __imp__sub_821A25C8(ctx, base);
+}
+
+void pvz::RestoreMenuPanel(PPCContext& ctx, uint8_t* b, uint32_t manager) {
+  uint32_t menu = 0;
+  int budget = 64;
+  guest::VisitChildren(b, manager, budget, [&](uint32_t child) {
+    if (Read(b, child) == 0x820C2784 && b[child + 0x70]) menu = child;
+    return !menu;
+  });
+  if (!menu) { menu_seen = false; return; }
+  // Wait for the new menu to settle on its main panel (1).
+  if (menu_seen || Read(b, menu + 0x118) != 1 || Read(b, menu + 0x11C) != 1 || b[menu + 0xD8]) return;
+  menu_seen = true;
+  const auto panel = std::exchange(return_panel, 1u);
+  if (panel != 0 && panel != 2) return;
+  // Returning from a sub-screen skips the crow intro, then slides through the
+  // native More Ways to Play (2) or Extras (8) button.
+  Write(b, menu + 0x168, 0);
+  Call(ctx, b, __imp__sub_821C0630, {menu + 0xD4, panel == 0 ? 2u : 8u});
+  REXLOG_INFO("PvZ main menu returned to panel {}", panel);
 }

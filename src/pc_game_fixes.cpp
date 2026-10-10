@@ -99,3 +99,14 @@ REX_HOOK_RAW(sub_82284848) {
   }
   __imp__sub_82284848(ctx, base);
 }
+
+REX_EXTERN(__imp__sub_82139DE8); // Board::Pause(bool)
+REX_HOOK_RAW(sub_82139DE8) {
+  // Pausing shows the coin bank for 1000 frames. Keep it to coin pickups:
+  // a bank already fading in from a pickup survives the pause.
+  const auto board = ctx.r3.u32;
+  const bool pause = (ctx.r4.u32 & 0xFF) != 0;
+  const auto coin_bank = Read(base, board + 0x5694);
+  __imp__sub_82139DE8(ctx, base);
+  if (pause) Write(base, board + 0x5694, coin_bank);
+}

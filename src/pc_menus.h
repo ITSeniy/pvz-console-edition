@@ -17,4 +17,7 @@ struct CheatState { bool available = false; std::array<bool, 7> enabled{}, allow
 CheatState ReadCheatState();
 void RequestCheat(size_t index);
 void UpdatePcMenus(PPCContext& ctx, uint8_t* base, uint32_t manager);
+// Reopens More Ways to Play or Extras when the main menu returns from a
+// screen started there. Runs every WidgetManager update, for any input.
+void RestoreMenuPanel(PPCContext& ctx, uint8_t* base, uint32_t manager);
 }

@@ -272,9 +272,12 @@ uint32_t MouseMenu(uint32_t manager, uint8_t* base) {
   return over && TopRootWidget(manager, base) == over && Read(base, over) == kMainMenu && base[over + 0x70] && !base[over + 0x72] ? over : 0;
 }
 
+// Same guard as native MainMenu::GamepadButtonDown (821C41A0): the panel is
+// not sliding, the menu is not leaving, and the crow intro (+168) is over.
 bool StableMenu(uint32_t menu, uint8_t* base) {
   return Read(base, menu + 0x118) < 3 &&
-      Read(base, menu + 0x118) == Read(base, menu + 0x11C);
+      Read(base, menu + 0x118) == Read(base, menu + 0x11C) &&
+      !base[menu + 0xD8] && int32_t(Read(base, menu + 0x168)) <= 0;
 }
 
 int AdventureButtonId(uint32_t menu, uint8_t* base) {
@@ -2096,6 +2099,7 @@ REX_HOOK_RAW(sub_82188310) {
 REX_HOOK_RAW(sub_824A6140) {
   const auto manager = ctx.r3.u32;
   pvz::UpdateControllerAssets(ctx, base);
+  if (Read(base, manager) == kWidgetManager) pvz::RestoreMenuPanel(ctx, base, manager);
   DispatchWidgets(ctx, base);
   __imp__sub_824A6140(ctx, base);
   std::optional<pvz::Point> snapshot;
@@ -2105,6 +2109,7 @@ REX_HOOK_RAW(sub_824A6140) {
 REX_HOOK_RAW(sub_824A6198) {
   const auto manager = ctx.r3.u32;
   pvz::UpdateControllerAssets(ctx, base);
+  if (Read(base, manager) == kWidgetManager) pvz::RestoreMenuPanel(ctx, base, manager);
   DispatchWidgets(ctx, base);
   __imp__sub_824A6198(ctx, base);
   std::optional<pvz::Point> snapshot;
@@ -2123,7 +2128,9 @@ REX_HOOK_RAW(sub_8216DC40) {
   const auto coin = ctx.r3.u32, board = Read(base, coin + 0x20);
   const auto type = Read(base, coin + 0x80);
   const auto state = Read(base, coin + 0x84);
-  const bool automatic = ctx.lr == 0x8216B554 || ctx.lr == 0x8216B490 || ctx.lr == 0x8216B3B0 || ctx.lr == 0x82158488;
+  // 8216B3B0 is the money bag's fan-out (FROM_PRESENT motion, collected at
+  // age 80 as on PC); it is part of the award animation, not proximity pickup.
+  const bool automatic = ctx.lr == 0x8216B554 || ctx.lr == 0x8216B490 || ctx.lr == 0x82158488;
   // State 7 is the homing pickup already requested by Coin::Collect on
   // a click. Update calls this function again when the coin reaches the
   // cursor; that completion must run to collect/credit it. Only reject
