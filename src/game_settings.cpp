@@ -109,7 +109,7 @@ struct NavigationButton { uint32_t widget, listener; };
 std::unordered_map<uint32_t, NavigationButton> navigation_buttons;
 std::unordered_map<uint32_t, NavigationButton> endless_buttons;
 std::unordered_map<uint32_t, NavigationButton> garden_shop_buttons, shop_prev_buttons, shop_next_buttons;
-std::unordered_map<uint32_t, NavigationButton> garden_back_buttons, onslaught_buttons;
+std::unordered_map<uint32_t, NavigationButton> onslaught_buttons;
 std::unordered_map<uint32_t, NavigationButton> service_prev_buttons, service_next_buttons, service_ready_buttons;
 std::unordered_map<uint32_t, uint32_t> navigation_listeners;
 std::filesystem::path settings_path;
@@ -229,19 +229,21 @@ void Layout(PPCContext& ctx, uint8_t* base, uint32_t dialog, uint32_t button) {
   }
   const auto credits = Read(base, dialog + 0x1D0);
   const auto back = Read(base, dialog + 0x1D4);
-  Call(ctx, base, sub_82188E20, {back, Read(base, back + 0x190), setting.page ? 420u : 371u,
-      Read(base, back + 0x1A4), 46});
+  // The PC page has six rows above Back. Keep Back at its native position
+  // inside the dialog frame; the rows are slightly shorter to fit above it.
+  constexpr uint32_t kPageTop = 114, kPageStep = 42, kPageRow = 40;
+  const auto x = Read(base, back + 0x190), width = Read(base, back + 0x1A4);
+  Call(ctx, base, sub_82188E20, {back, x, 371, width, 46});
   base[setting.cheats + 0x70] = setting.page;
   base[setting.cheats + 0x72] = !setting.page;
-  Call(ctx, base, sub_82188E20, {setting.cheats, Read(base, back + 0x190), 350, Read(base, back + 0x1A4), 46});
-  Call(ctx, base, sub_82188E20, {button, Read(base, back + 0x190), setting.page ? 120u : 306u,
-      Read(base, back + 0x1A4), 46});
+  Call(ctx, base, sub_82188E20, {setting.cheats, x, kPageTop + 5 * kPageStep, width, kPageRow});
+  if (setting.page) Call(ctx, base, sub_82188E20, {button, x, kPageTop, width, kPageRow});
+  else Call(ctx, base, sub_82188E20, {button, x, 306, width, 46});
   for (size_t i = 0; i < setting.extra.size(); ++i) {
     const auto widget = setting.extra[i];
     base[widget + 0x70] = setting.page;
     base[widget + 0x72] = !setting.page;
-    Call(ctx, base, sub_82188E20, {widget, Read(base, back + 0x190), uint32_t(166 + i * 46),
-        Read(base, back + 0x1A4), 46});
+    Call(ctx, base, sub_82188E20, {widget, x, kPageTop + uint32_t(i + 1) * kPageStep, width, kPageRow});
   }
   for (size_t i = 0; i < setting.visible.size(); ++i) {
     const auto original = Read(base, dialog + 0x1C4 + uint32_t(i * 4));
@@ -265,7 +267,7 @@ void Layout(PPCContext& ctx, uint8_t* base, uint32_t dialog, uint32_t button) {
   Write(base, back + 0xB0, button);
 }
 void RemoveNavigation(PPCContext& ctx, uint8_t* base, uint32_t parent) {
-  for (auto* collection : {&navigation_buttons, &endless_buttons, &garden_shop_buttons, &garden_back_buttons, &onslaught_buttons, &shop_prev_buttons, &shop_next_buttons,
+  for (auto* collection : {&navigation_buttons, &endless_buttons, &garden_shop_buttons, &onslaught_buttons, &shop_prev_buttons, &shop_next_buttons,
       &service_prev_buttons, &service_next_buttons, &service_ready_buttons}) {
     const auto found = collection->find(parent);
     if (found == collection->end()) continue;
@@ -324,8 +326,10 @@ void pvz::UpdateMouseNavigation(PPCContext& ctx, uint32_t manager, uint8_t* base
     // viewport while its parent and native controller navigation animate.
     const auto app = board ? Read(base, parent + 0xF4) : 0;
     const bool zen = app && (Read(base, app + 0x9CC) == 44 || Read(base, app + 0x9CC) == 51);
-    const auto x = uint32_t((zen ? 20 : board ? 680 : 650) - int32_t(Read(base, parent + 0x40)));
-    const auto y = uint32_t((board && !zen ? 4 : vt == 0x820CC2EC ? 585 : 548) - int32_t(Read(base, parent + 0x44)));
+    // Zen keeps PC's top-right Menu with Shop below it, moved past the Xbox
+    // toolbar's extra garden icons into the window's free corner.
+    const auto x = uint32_t((zen ? 860 : board ? 680 : 650) - int32_t(Read(base, parent + 0x40)));
+    const auto y = uint32_t((zen ? -46 : board ? 4 : vt == 0x820CC2EC ? 585 : 548) - int32_t(Read(base, parent + 0x44)));
     if (Read(base, button + 0x190) != x || Read(base, button + 0x194) != y ||
         Read(base, button + 0x1A4) != 120 || Read(base, button + 0x1A8) != 46)
       Call(ctx, base, sub_82188E20, {button, x, y, 120, 46});
@@ -351,9 +355,7 @@ void pvz::UpdateMouseNavigation(PPCContext& ctx, uint32_t manager, uint8_t* base
           uint32_t(top - int32_t(Read(base, parent + 0x44))), uint32_t(width), 46});
     };
     if (zen || garden_shop_buttons.contains(parent))
-      service_button(garden_shop_buttons, 1103, u"Shop", visible && zen && Call(ctx, base, sub_821A9678, {app}), 150, 548, 120);
-    if (zen || garden_back_buttons.contains(parent))
-      service_button(garden_back_buttons, 1106, u"Back", visible && zen, 280, 548, 120);
+      service_button(garden_shop_buttons, 1103, u"Shop", visible && zen && Call(ctx, base, sub_821A9678, {app}), 860, 6, 120);
     const bool last_stand = app && Read(base, app + 0x9CC) == 32;
     if (last_stand || onslaught_buttons.contains(parent)) {
       const auto challenge = last_stand ? Read(base, parent + 0x1D4) : 0;
@@ -430,16 +432,13 @@ bool pvz::CloseMouseHelp(PPCContext& ctx, uint32_t widget, uint8_t* base) {
 
 REX_HOOK_RAW(sub_824AE488) {
   const auto button = ctx.r3.u32, parent = Read(base, button + 0x24);
-  for (auto* collection : {&garden_back_buttons, &onslaught_buttons}) {
-    const auto found = collection->find(parent);
-    if (found == collection->end() || found->second.widget != button) continue;
+  if (const auto found = onslaught_buttons.find(parent); found != onslaught_buttons.end() && found->second.widget == button) {
     if (ctx.r4.u32 == 6 && base[button + 0x74] && !base[button + 0x72]) {
       base[button + 0x74] = 0;
-      const uint32_t action = collection == &garden_back_buttons ? 7 : 9;
-      Call(ctx, base, sub_8214CDC0, {parent, action, 0, 0});
       // Last Stand starts on the native Y release, after its button sound.
-      if (collection == &onslaught_buttons) Call(ctx, base, sub_8214D1B8, {parent, action, 0, 0});
-      if (rex::cvar::Query<bool>("pvz_input_trace")) REXLOG_INFO("PvZ mouse {} activated", action == 9 ? "Start Onslaught" : "Zen Back");
+      Call(ctx, base, sub_8214CDC0, {parent, 9, 0, 0});
+      Call(ctx, base, sub_8214D1B8, {parent, 9, 0, 0});
+      if (rex::cvar::Query<bool>("pvz_input_trace")) REXLOG_INFO("PvZ mouse Start Onslaught activated");
     }
     return;
   }
@@ -654,13 +653,16 @@ REX_HOOK_RAW(sub_8219B8A0) {
   std::array<uint32_t, 4> items{};
   const std::array<std::u16string_view, 4> labels{u"LET'S ROCK!", u"SHOP", u"ALMANAC", u"MENU"};
   const std::array<uint32_t, 4> ids{100, 105, 103, 1100};
-  const std::array<uint32_t, 4> left{260, 20, 150, 660}, width{205, 120, 120, 120};
+  // PC layout: LET'S ROCK inside the panel, Shop and Almanac to its lower
+  // right on the lawn, Menu where Board keeps it in the top-right corner.
+  const std::array<uint32_t, 4> left{160, 680, 560, 680}, top{548, 572, 572, 4};
+  const std::array<uint32_t, 4> width{205, 120, 120, 120}, height{42, 40, 40, 46};
   for (int i = 0; i < 4; ++i) {
     const auto button = WithLabel(ctx, base, labels[i], [&](uint32_t label) {
       return Call(ctx, base, sub_82188F80, {ids[i], chooser + 0xD4, chooser, label});
     });
     items[i] = button;
-    Call(ctx, base, sub_82188E20, {button, left[i], 550, width[i], 40});
+    Call(ctx, base, sub_82188E20, {button, left[i], top[i], width[i], height[i]});
     Call(ctx, base, sub_82493E10, {chooser, button});
   }
   chooser_buttons.emplace(chooser, items);
