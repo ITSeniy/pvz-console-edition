@@ -29,6 +29,7 @@ set(PVZ_SOURCES
     src/service_mouse.cpp
     src/frame_capture.cpp
     src/input_replay.cpp
+    src/replay_fixtures.cpp
     src/input_backend.cpp
     src/windows_identity.cpp
     src/display_sync.cpp

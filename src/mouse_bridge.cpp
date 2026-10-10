@@ -12,6 +12,7 @@
 #include "service_mouse.h"
 #include "heavy_weapon_pointer.h"
 #include "input_backend.h"
+#include "replay_fixtures.h"
 #include <rex/hook.h>
 #include <rex/cvar.h>
 #include <bit>
@@ -45,7 +46,6 @@ REX_EXTERN(sub_8220F370); // SeedPacket::CanPickUp
 REX_EXTERN(sub_82190D80); // GamepadControls::SetState
 REX_EXTERN(sub_82139238); // Board::MouseHitTest (HitResult*, player); coin hit type = 3
 REX_EXTERN(sub_8216EF50); // Coin::Collect (player)
-REX_EXTERN(sub_82133968); // Board::AddCoin(x, y, type, motion)
 REX_EXTERN(sub_824AE388); // GameButton::GamepadButtonDown
 REX_EXTERN(sub_824AE488); // GameButton::GamepadButtonUp
 REX_EXTERN(sub_82219690); // TitleScreen::GamepadButtonDown (checks loading completion)
@@ -73,7 +73,6 @@ REX_EXTERN(sub_8220B1C0); // SeedChooser: return a bank card to the chooser
 REX_EXTERN(sub_8220B440); // SeedChooser: add a chooser card to the bank
 REX_EXTERN(sub_8220C280); // SeedChooser::GamepadButtonDown, including Dave introduction
 REX_EXTERN(sub_8212C4D0); // AwardScreen::GamepadButtonDown (native readiness guard)
-REX_EXTERN(sub_821A3070); // LawnApp::ShowAwardScreen
 REX_EXTERN(__imp__sub_821ABDE8); // LawnApp::PlaySample
 REX_EXTERN(__imp__sub_824A85F0); // Dialog::MouseDrag
 REX_EXTERN(__imp__sub_82165B58); // Challenge::UpdateHeavyWeapon
@@ -85,7 +84,6 @@ REX_EXTERN(sub_82153300); // Challenge::MouseDown(x,y,HitResult*,player)
 REX_EXTERN(sub_821538D8); // Challenge::GamepadButtonDown
 REX_EXTERN(sub_82153018); // Challenge::MouseDownWhackAZombie(x,y,player)
 REX_EXTERN(sub_821A8770); // LawnApp::IsScaryPotterLevel
-REX_EXTERN(sub_821A1BD0); // LawnApp::StartGame(mode,load)
 REX_EXTERN(sub_82152F20); // Challenge::MouseMove(x,y)
 REX_EXTERN(sub_821516D8); // Challenge::BeghouledDragUpdate(x,y)
 REX_EXTERN(sub_82208550); // SeedChooser::GetSeedPosition(index,x*,y*)
@@ -106,14 +104,6 @@ struct ButtonEvent { pvz::Point point; int click; bool down; };
 pvz::MouseInputStream mouse_events;
 pvz::MouseButtons mouse_buttons;
 pvz::MouseWheel mouse_wheel;
-std::atomic_int test_adventure_level{0};
-std::atomic_bool test_award{false};
-std::atomic_int test_mode{-1};
-std::atomic_int test_heavy_weapon_sun{-1};
-std::atomic_int test_slot_seed{-1};
-std::optional<pvz::Point> test_garden_coin;
-std::atomic_bool test_twist_click{false};
-std::atomic_bool test_beghouled_swipe{false};
 std::atomic_bool mouse_owner{true};
 std::atomic_bool mouse_item_cursor{false};
 std::atomic_bool menu_ready{false}, board_ready{false};
@@ -706,32 +696,7 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
     return work.r3.u32;
   };
   const auto focused_root = TopRootWidget(manager, base);
-  const int fixture_mode = test_mode.exchange(-1);
-  if ((fixture_mode == 144 || fixture_mode == 151 || fixture_mode == 51 || fixture_mode == 52 || fixture_mode == 53 || fixture_mode == 37 || fixture_mode == 90 ||
-      fixture_mode == 19 || fixture_mode == 20 || fixture_mode == 21 || fixture_mode == 23 || fixture_mode == 24 || fixture_mode == 25 || fixture_mode == 31 || fixture_mode == 32) &&
-      !rex::cvar::Query<std::string>("pvz_input_replay").empty() && focused_root && Read(base, focused_root) == 0x820C2784) {
-    const auto app = Read(base, 0x82D0BC88);
-    // Explicit diagnostic setup, never run during an ordinary launch.
-    // The native game constructor owns all objects for the selected mode.
-    if (fixture_mode == 51) Write(base, Read(base, app + 0x9FC) + 0x424, 1005);
-    if (fixture_mode == 144) {
-      const auto profile = Read(base, app + 0x9FC);
-      Write(base, profile + 0x3FC, 1); // Mushroom Garden purchase.
-      Write(base, profile + 0x418, 1); // Aquarium purchase.
-    }
-    if (fixture_mode == 151) {
-      const auto profile = Read(base, app + 0x9FC);
-      // Store::PurchaseItem(27) sets ownership and height to one. Tree's
-      // constructor starts its first-visit speech while food is below 1000.
-      Write(base, profile + 0x420, 1);
-      Write(base, profile + 0x2E8, 1);
-      Write(base, profile + 0x424, 0);
-    }
-    base[focused_root + 0x70] = 0; // Diagnostic direct entry bypasses MainMenu's exit animation.
-    call(sub_821A1BD0, app, fixture_mode == 151 ? 51 : fixture_mode == 144 ? 44 : fixture_mode, 0, 0);
-    REXLOG_INFO("PvZ replay fixture game mode {}", fixture_mode);
-    return;
-  }
+  if (pvz::ApplyReplayFixtures(ctx, base, focused_root, FindRootWidget(manager, 0x820C2784, base))) return;
   auto live_selection = [&]() {
     const auto board = FindRootWidget(manager, 0x820B728C, base, true);
     return board && board == selection.board && MouseControls(board, base) == selection.controls &&
@@ -814,101 +779,6 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
       if (const auto challenge = Read(base, live + 0x1D4)) base[challenge + 0x28] = 0;
     beghouled_mouse = {};
   }
-  const int fixture_sun = test_heavy_weapon_sun.exchange(-1);
-  if (fixture_sun >= 0 && focused_root && Read(base, focused_root) == 0x820B728C &&
-      (Read(base, Read(base, focused_root + 0xF4) + 0x9CC) == 20 ||
-       Read(base, Read(base, focused_root + 0xF4) + 0x9CC) == 19 ||
-       Read(base, Read(base, focused_root + 0xF4) + 0x9CC) == 21 ||
-       Read(base, Read(base, focused_root + 0xF4) + 0x9CC) == 24 ||
-       Read(base, Read(base, focused_root + 0xF4) + 0x9CC) == 25 ||
-       Read(base, Read(base, focused_root + 0xF4) + 0x9CC) == 23 ||
-       Read(base, Read(base, focused_root + 0xF4) + 0x9CC) == 31 ||
-       Read(base, Read(base, focused_root + 0xF4) + 0x9CC) == 32) &&
-      !rex::cvar::Query<std::string>("pvz_input_replay").empty()) {
-    Write(base, focused_root + 0x55F4, uint32_t(fixture_sun));
-    REXLOG_INFO("PvZ replay fixture Heavy Weapon sun {}", fixture_sun);
-  }
-  const int fixture_seed = test_slot_seed.exchange(-1);
-  std::optional<pvz::Point> fixture_coin;
-  { std::lock_guard lock(pointer_mutex); fixture_coin.swap(test_garden_coin); }
-  if (fixture_coin && focused_root && Read(base, focused_root) == 0x820B728C &&
-      Read(base, Read(base, focused_root + 0xF4) + 0x9CC) == 44 && !base[focused_root + 0x1D9] &&
-      !rex::cvar::Query<std::string>("pvz_input_replay").empty()) {
-    if (const auto local = pvz::MapBoardPointer(*fixture_coin)) {
-      PPCContext work = ctx; work.r1.u32 -= 0x100;
-      work.r3.u32 = focused_root; work.r4.s64 = int(local->x); work.r5.s64 = int(local->y);
-      work.r6.u32 = 1; work.r7.u32 = 3; // Native silver coin, ordinary coin motion.
-      sub_82133968(work, base);
-      if (work.r3.u32) REXLOG_INFO("PvZ replay fixture garden coin at {},{}", local->x, local->y);
-    }
-  }
-  if (fixture_seed >= 0 && focused_root && Read(base, focused_root) == 0x820B728C &&
-      Read(base, Read(base, focused_root + 0xF4) + 0x9CC) == 19 && !base[focused_root + 0x1D9] &&
-      !rex::cvar::Query<std::string>("pvz_input_replay").empty()) {
-    PPCContext work = ctx; work.r1.u32 -= 0x100;
-    work.r3.u32 = focused_root; work.r4.s64 = 360; work.r5.s64 = 85;
-    work.r6.u32 = 16; work.r7.u32 = 3;
-    sub_82133968(work, base);
-    if (work.r3.u32) {
-      Write(base, work.r3.u32 + 0x98, uint32_t(fixture_seed));
-      REXLOG_INFO("PvZ replay fixture Slot Machine dropped seed {}", fixture_seed);
-    }
-  }
-  if (test_beghouled_swipe.exchange(false) && focused_root && Read(base, focused_root) == 0x820B728C &&
-      Read(base, Read(base, focused_root + 0xF4) + 0x9CC) == 21 && !base[focused_root + 0x1D9] &&
-      !rex::cvar::Query<std::string>("pvz_input_replay").empty()) {
-    const auto challenge = Read(base, focused_root + 0x1D4), state = ctx.r1.u32 - 0x400;
-    PPCContext work = ctx; work.r1.u32 -= 0x800; work.r3.u32 = challenge; work.r4.u32 = state;
-    sub_8214F5E8(work, base);
-    bool found = false;
-    if (Read(base, challenge + 0x74) == 0) for (int col = 0; col < 8 && !found; ++col)
-      for (int row = 0; row < 5 && !found; ++row)
-        for (const auto direction : {pvz::Point{1, 0}, pvz::Point{0, 1}}) {
-          if (col + int(direction.x) >= 8 || row + int(direction.y) >= 5) continue;
-          work = ctx; work.r1.u32 -= 0x800; work.r3.u32 = challenge;
-          work.r4.s64 = col; work.r5.s64 = row; work.r6.s64 = col + int(direction.x);
-          work.r7.s64 = row + int(direction.y); work.r8.u32 = state;
-          sub_82151600(work, base);
-          if (work.r3.u32) {
-            work = ctx; work.r1.u32 -= 0x800; work.r3.u32 = focused_root;
-            work.r4.s64 = col; work.r5.s64 = row; sub_82149848(work, base);
-            const pvz::Point start{200.f + col * 50, (float(work.r3.s32) + 110) / 1.2f};
-            const pvz::Point end{start.x + direction.x * 25, start.y + direction.y * 25};
-            const std::array events{pvz::MouseInputEvent{pvz::MouseEventKind::Button, start, 1, true},
-                pvz::MouseInputEvent{pvz::MouseEventKind::Move, end},
-                pvz::MouseInputEvent{pvz::MouseEventKind::Button, end, 1, false}};
-            pvz::PublishReplayMouseBatch(events);
-            REXLOG_INFO("PvZ replay Beghouled swipe {},{} to {},{}", col, row,
-                col + int(direction.x), row + int(direction.y));
-            found = true; break;
-          }
-        }
-    if (!found) REXLOG_WARN("PvZ replay Beghouled swipe: no legal pair ready");
-  }
-  if (test_twist_click.exchange(false) && focused_root && Read(base, focused_root) == 0x820B728C &&
-      Read(base, Read(base, focused_root + 0xF4) + 0x9CC) == 25 && !base[focused_root + 0x1D9] &&
-      !rex::cvar::Query<std::string>("pvz_input_replay").empty()) {
-    // Imported boards can refill differently on startup. Find a legal block
-    // through the native match checker, then exercise normal mouse dispatch.
-    // Do not edit plants, the RNG, the score or the rotation state.
-    const auto challenge = Read(base, focused_root + 0x1D4), state = ctx.r1.u32 - 0x400;
-    PPCContext work = ctx; work.r1.u32 -= 0x800; work.r3.u32 = challenge; work.r4.u32 = state;
-    sub_8214F5E8(work, base);
-    bool found = false;
-    if (Read(base, challenge + 0x74) == 0) for (int col = 0; col < 7 && !found; ++col)
-      for (int row = 0; row < 4 && !found; ++row) {
-        work = ctx; work.r1.u32 -= 0x800;
-        work.r3.s64 = col; work.r4.s64 = row; work.r5.u32 = state;
-        sub_82150EB8(work, base);
-        if (work.r3.u32) {
-          const pvz::Point point{225.f + col * 50, 200.f + row * 100 / 1.2f};
-          pvz::PublishButton(point, 1, true); pvz::PublishButton(point, 1, false);
-          REXLOG_INFO("PvZ replay Twist match click block {},{}", col, row);
-          found = true;
-        }
-      }
-    if (!found) REXLOG_WARN("PvZ replay Twist match click: no legal block ready");
-  }
   if (cancel || !active_mouse || !heavy_weapon_mouse.board ||
       focused_root != heavy_weapon_mouse.board || Read(base, focused_root) != 0x820B728C || base[focused_root + 0x1D9] ||
       Read(base, Read(base, focused_root + 0xF4) + 0x9CC) != 20)
@@ -924,20 +794,6 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
         call(sub_82139AC0, board, 0, 0, 0);
       }
       console_shovel = {};
-    }
-  }
-  if (FindRootWidget(manager, 0x820C2784, base)) {
-    const int level = test_adventure_level.exchange(0);
-    if (level >= 1 && level <= 50 && !rex::cvar::Query<std::string>("pvz_input_replay").empty()) {
-      const auto app = Read(base, 0x82D0BC88); // Verified global LawnApp.
-      const auto profile = app ? Read(base, app + 0x9FC) : 0;
-      if (profile) { Write(base, profile + 0x21C, level); REXLOG_INFO("PvZ replay fixture Adventure level {}", level); }
-    }
-    if (test_award.exchange(false) && !rex::cvar::Query<std::string>("pvz_input_replay").empty()) {
-      const auto menu = FindRootWidget(manager, 0x820C2784, base);
-      base[menu + 0x70] = 0; // Isolated diagnostic screen; do not leave the menu over it.
-      call(sub_821A3070, Read(base, 0x82D0BC88), 0, 0, 0);
-      REXLOG_INFO("PvZ replay Award screen {:08X}", Read(base, Read(base, 0x82D0BC88) + 0x92C));
     }
   }
   if (lost_focus && rex::cvar::Query<bool>("pvz_pause_on_focus_loss") &&
@@ -1926,9 +1782,6 @@ void pvz::PublishFocusLost() {
   std::lock_guard lock(pointer_mutex);
   mouse_events.Cancel(MouseCancelReason::FocusLost);
 }
-void pvz::PublishTestAdventureLevel(int level) { test_adventure_level.store(level); }
-void pvz::PublishTestAward() { test_award.store(true); }
-void pvz::PublishTestMode(int mode) { test_mode.store(mode); }
 void pvz::PublishControllerActivity() {
   if (pvz::LocalMouseAssigned()) return;
   if (!REXCVAR_GET(pvz_mouse_cursor) || !REXCVAR_GET(pvz_input_auto_switch)) return;
@@ -2281,17 +2134,6 @@ REX_HOOK_RAW(sub_8227C240) {
   }
   __imp__sub_8227C240(ctx, base);
 }
-void pvz::PublishTestHeavyWeaponSun(int sun) {
-  test_heavy_weapon_sun.store(std::clamp(sun, 0, 9990));
-}
-void pvz::PublishTestSlotSeed(int seed) {
-  if (seed >= 0 && seed < 48) test_slot_seed.store(seed);
-}
-void pvz::PublishTestGardenCoin(Point point) {
-  std::lock_guard lock(pointer_mutex); test_garden_coin = point;
-}
-void pvz::PublishTestTwistClick() { test_twist_click.store(true); }
-void pvz::PublishTestBeghouledSwipe() { test_beghouled_swipe.store(true); }
 REX_HOOK_RAW(sub_82580C80) {
   if (heavy_weapon_aim && ctx.lr == 0x82165D24) ctx.f1.f64 = heavy_weapon_aim->y;
   else __imp__sub_82580C80(ctx, base);

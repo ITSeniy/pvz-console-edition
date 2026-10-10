@@ -1,4 +1,5 @@
 #include "mouse_bridge.h"
+#include "replay_fixtures.h"
 #include "input_activity.h"
 #include "input_backend.h"
 #include "game_settings.h"
