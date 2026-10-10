@@ -1,0 +1,9 @@
+0,400,300,wait_title
+1,400,500,left_down
+1.15,400,500,left_up
+2,400,300,wait_menu
+4,478,444,left_down
+4.15,478,444,left_up
+7,398,234,left_down
+7.15,398,234,left_up
+10,398,234,pad_press

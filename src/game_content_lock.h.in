@@ -1,0 +1,11 @@
+#pragma once
+#include <array>
+#include <string_view>
+namespace pvz {
+inline constexpr std::string_view kTitleId = "@PVZ_title_id@";
+inline constexpr std::array<std::pair<std::string_view, std::string_view>, 3> kGameContentHashes{{
+    {"default.xex", "@PVZ_xex_sha256@"},
+    {"main.pak", "@PVZ_main_pak_sha256@"},
+    {"en.pak", "@PVZ_en_pak_sha256@"},
+}};
+}

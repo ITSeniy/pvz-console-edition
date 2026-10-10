@@ -1,0 +1,14 @@
+# Tutorial inline A and P2 Start hint: controller restores, mouse hides again.
+0,400,200,wait_title
+1,400,500,left_down
+1.15,400,500,left_up
+2,400,200,wait_menu
+3,230,320,left_down
+3.15,230,320,left_up
+4,400,320,wait_board
+6,218,80,left_down
+6.15,218,80,left_up
+7,0,0,pad_press
+8,500,320,move
+10,400,320,right_down
+10.15,400,320,right_up

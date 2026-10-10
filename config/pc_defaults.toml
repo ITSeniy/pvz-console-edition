@@ -1,0 +1,17 @@
+mnk_mode = true
+mnk_mouse = false
+pvz_cursor_mode = "pc"
+pvz_input_auto_switch = true
+pvz_full_version = false
+pvz_test_unlock = false
+pvz_skip_intro = true
+pvz_pause_on_focus_loss = true
+pvz_display_mode = "windowed"
+vsync = false
+pvz_vsync = true
+pvz_frame_limit = 60
+keybind_start = "Escape"
+keybind_a = "LMB"
+keybind_b = "RMB"
+window_width = 1280
+window_height = 720

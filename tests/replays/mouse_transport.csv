@@ -1,0 +1,43 @@
+# Atomic Up -> Move, orphan releases after focus/mode cancellation and clean recovery.
+0,400,300,wait_title
+1,400,500,left_down
+1.15,400,500,left_up
+2,400,300,wait_menu
+4,478,444,left_down
+4.15,478,444,left_up
+6,398,405,left_down
+7,0,0,batch_begin
+7,398,405,left_up
+7,550,300,move
+7,0,0,batch_end
+8,400,300,wait_menu
+10,0,0,batch_begin
+10,478,444,left_down
+10,478,444,left_up
+10,550,300,move
+10,0,0,batch_end
+# A pressed Back button loses focus while the pointer is over the background.
+12,398,405,left_down
+12.5,550,300,move
+13,0,0,focus_lost
+14,398,405,left_up
+15,398,405,left_down
+15.15,398,405,left_up
+16,400,300,wait_menu
+18,478,444,left_down
+18.15,478,444,left_up
+20,398,405,left_down
+21,0,0,mode_console
+22,398,405,left_up
+23,0,0,mode_pc
+24,398,405,left_down
+24.15,398,405,left_up
+25,400,300,wait_menu
+# A partial wheel step from the cancelled generation must disappear.
+27,0,0,batch_begin
+27,400,300,wheel_half_up
+27,0,0,cancel
+27,400,300,wheel_half_up
+27,0,0,batch_end
+28,400,300,wheel_half_up
+29,400,300,wait_idle

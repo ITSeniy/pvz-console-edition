@@ -1,0 +1,16 @@
+0,400,300,wait_title
+1,400,500,left_down
+1.15,400,500,left_up
+2,400,300,wait_menu
+4,240,320,left_down
+4.15,240,320,left_up
+5,400,300,wait_board
+7,465,345,move
+22,0,0,pad_press
+27,466,345,move
+32,400,300,mode_console
+33,481,343,move
+37,488,355,move
+41,470,320,move
+45,400,300,mode_pc
+46,465,345,move

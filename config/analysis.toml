@@ -1,0 +1,11 @@
+[functions]
+# C++ adjustment/tail thunks referenced by branches, missed by discovery.
+# 8261A850: addi r3,r3,8; b 82619230. 82625538: b 82624A10.
+0x8261A850 = { size = 8 }
+0x82625538 = { size = 4 }
+# The cleanup at 826723C8..826723EC is shared by entrypoints 82671E78
+# and 82671FC8. Auto-discovery emitted cross-function local gotos.
+0x82671E78 = { end = 0x826723F0 }
+# Reached indirectly during initial resource loading (smoke 2026-10-04).
+0x826230D8 = {}
+0x8261DFC0 = {}

@@ -1,0 +1,10 @@
+0,400,300,wait_title
+1,400,500,left_down
+1.15,400,500,left_up
+2,400,300,wait_menu
+4,546,447,left_down
+4.15,546,447,left_up
+9,4,0,controller
+9.15,0,0,controller
+11,4096,0,controller
+11.15,0,0,controller

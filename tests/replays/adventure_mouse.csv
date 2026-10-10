@@ -1,0 +1,34 @@
+# Coordinates are normalized screen points, not Board-local coordinates.
+# Waits pause the replay clock; a fresh profile starts Adventure level 1-1.
+0,400,300,wait_title
+1,400,500,left_down
+1.15,400,500,left_up
+2,400,300,wait_menu
+4,478,444,left_down
+4.15,478,444,left_up
+6,398,405,left_down
+6.15,398,405,left_up
+8,230,320,left_down
+8.15,230,320,left_up
+9,400,320,wait_board
+# Empty hand: no planting.
+11,400,320,left_down
+11.15,400,320,left_up
+# Select, cancel, then try the lawn again: still no planting.
+12,218,80,left_down
+12.15,218,80,left_up
+13,400,320,right_down
+13.15,400,320,right_up
+14,400,320,left_down
+14.15,400,320,left_up
+# Select and plant one peashooter.
+15,218,80,left_down
+15.15,218,80,left_up
+16,400,320,left_down
+16.15,400,320,left_up
+# Cooldown: card rejected; the next lawn click must not plant.
+17,218,80,left_down
+17.15,218,80,left_up
+18,500,320,left_down
+18.15,500,320,left_up
+20,570,320,move

@@ -1,0 +1,22 @@
+/assets/
+/generated/
+/build/
+/out/
+/dist/
+/runtime-data/
+/logs/
+/.cache/
+/tools/rexglue-sdk/
+/tools/python/
+/research/
+/save/
+/PS3 Image/
+/PSVita Image/
+/Chinese Android TV Image/
+/Heavy Weapon Deluxe/
+.pvz-import.toml*
+/Plants vs. Zombies*/
+/Plants Vs Zombies/
+/CMakeUserPresets.json
+*.log
+__pycache__/

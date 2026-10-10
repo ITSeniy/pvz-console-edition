@@ -1,0 +1,81 @@
+# Shared conveyor test: bowling.
+0,400,300,wait_title
+1,400,500,left_down
+1.15,400,500,left_up
+2,400,300,wait_menu
+4,230,410,left_down
+4.15,230,410,left_up
+7,410,350,left_down
+7.15,410,350,left_up
+10.00,400,300,wheel_up
+10.10,400,300,wheel_up
+10.20,400,300,wheel_up
+10.30,400,300,wheel_up
+10.40,400,300,wheel_up
+10.50,400,300,wheel_up
+10.60,400,300,wheel_up
+10.70,400,300,wheel_up
+10.80,400,300,wheel_up
+10.90,400,300,wheel_up
+11.00,400,300,wheel_up
+11.10,400,300,wheel_up
+11.20,400,300,wheel_up
+11.30,400,300,wheel_up
+11.40,400,300,wheel_up
+11.50,400,300,wheel_up
+11.60,400,300,wheel_up
+11.70,400,300,wheel_up
+
+17,400,260,left_down
+17.15,400,260,left_up
+18,326,356,left_down
+18.15,326,356,left_up
+19,400,300,wait_board
+20,400,300,move
+# First conveyor packet: drag, then the old click-click path.
+33,225,86,left_down
+34,230,210,move
+35,230,210,left_up
+38,225,86,left_down
+38.15,225,86,left_up
+40,230,453,left_down
+40.15,230,453,left_up
+# Toggle selected card off; no throw on the following field click.
+44,225,86,left_down
+44.15,225,86,left_up
+45,225,86,left_down
+45.15,225,86,left_up
+46,250,300,left_down
+46.15,250,300,left_up
+# Cancel by RMB while held, then release on the lawn.
+49,225,86,left_down
+50,260,300,move
+51,260,300,right_down
+51.15,260,300,right_up
+52,260,300,left_up
+# Leaving the window clears capture.
+55,225,86,left_down
+56,0,0,cancel
+57,280,300,left_up
+# Mode switch cancels the gesture; no delayed PC planting.
+60,225,86,left_down
+61,0,0,mode_console
+62,285,300,left_up
+63,0,0,mode_pc
+# Focus loss cancels even when auto pause is disabled for this replay.
+65,225,86,left_down
+66,0,0,focus_lost
+67,285,300,left_up
+# Returning to the bank bottom edge must not plant through grid clamping.
+70,225,86,left_down
+71,225,120,left_up
+72,225,86,left_down
+72.15,225,86,left_up
+# Direct Down/Up on distinct coordinates, without an intervening move.
+75,225,86,left_down
+75,285,370,left_up
+# A controller input cancels a pending gesture.
+78,225,86,left_down
+79,0,0,pad_press
+79.2,0,0,pad_neutral
+80,300,370,left_up

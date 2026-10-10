@@ -1,0 +1,24 @@
+# Hover re-entry, side-panel navigation and Mail activation on a fresh profile.
+0,400,200,wait_title
+1,400,500,left_down
+1.15,400,500,left_up
+2,400,200,wait_menu
+3,230,320,move
+3.3,230,320,move
+4,400,200,move
+5,230,320,move
+6,230,410,left_down
+6.15,230,410,left_up
+8,400,200,wait_menu
+10,232,320,move
+11,410,324,move
+14,590,400,move
+16,590,400,left_down
+16.15,590,400,left_up
+18,400,200,wait_menu
+20,610,380,left_down
+20.15,610,380,left_up
+22,400,200,wait_menu
+23,271,357,move
+24,271,357,left_down
+24.15,271,357,left_up

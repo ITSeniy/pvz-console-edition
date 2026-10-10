@@ -1,0 +1,5261 @@
+{
+  "method": "Xbox RTTI primary vtables and native overload dispatch. Hook presence is not proof of behavioral coverage. Android names are semantic references, not Xbox symbols.",
+  "image_sha256": "27e8e044a0b7e232ce43e1de2cf06b377040f3d24e67a86047b337bb46d257ea",
+  "widget_count": 58,
+  "controls_count": 4,
+  "android_handler_count": 224,
+  "rows": [
+    {
+      "class": "AlmanacDialog",
+      "vtable": "0x820B466C",
+      "rtti": "0x820ED584",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x82125430",
+          "range_bytes": 440,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x824A8900",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x824A8588",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x82125150",
+          "range_bytes": 368,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824A8730",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x821250C0",
+          "range_bytes": 136,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824A85F0",
+          "range_bytes": 320,
+          "noop": false,
+          "hooked": true
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x821252C0",
+          "range_bytes": 208,
+          "noop": false,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "AlmanacDialog::MouseWheel(int)",
+        "AlmanacDialog::MouseUp(int, int, int)",
+        "AlmanacDialog::ButtonDepress(int)",
+        "AlmanacDialog::MouseDown(int, int, int)",
+        "AlmanacDialog::GameButtonDown(Sexy::GamepadButton, int, unsigned int)",
+        "AlmanacDialog::GameAxisMove(Sexy::GamepadAxis, int, int)",
+        "AlmanacDialog::KeyDown(Sexy::KeyCode)"
+      ],
+      "vita_controls": [],
+      "route": {
+        "status": "adapter-manual-check",
+        "note": "Native species hit testing, section selection, native description wheel, Back."
+      }
+    },
+    {
+      "class": "AwardScreen",
+      "vtable": "0x820B4F44",
+      "rtti": "0x820ED940",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x8212C4D0",
+          "range_bytes": 112,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x82472F90",
+          "range_bytes": 40,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x82473040",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x8212C490",
+          "range_bytes": 48,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x8212C4C0",
+          "range_bytes": 12,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "AwardScreen::MouseDown(int, int, int)",
+        "AwardScreen::MouseUp(int, int, int)",
+        "AwardScreen::KeyDown(Sexy::KeyCode)",
+        "AwardScreen::GameButtonDown(Sexy::GamepadButton, int, unsigned int)"
+      ],
+      "vita_controls": [],
+      "route": {
+        "status": "adapter-manual-check",
+        "note": "Native Next Level button, hover without persistent selection."
+      }
+    },
+    {
+      "class": "BaseGamepadControls",
+      "vtable": "0x820BA5A4",
+      "rtti": "0x820EE22C",
+      "kind": "controls",
+      "methods": {
+        "button_down": {
+          "slot": "0x0",
+          "address": "0x82189B28",
+          "range_bytes": 20,
+          "noop": false,
+          "hooked": false
+        },
+        "button_up": {
+          "slot": "0x4",
+          "address": "0x825FB608",
+          "range_bytes": 80,
+          "noop": false,
+          "hooked": false
+        },
+        "update": {
+          "slot": "0xc",
+          "address": "0x82189B40",
+          "range_bytes": 384,
+          "noop": false,
+          "hooked": true
+        },
+        "draw": {
+          "slot": "0x10",
+          "address": "0x821770E8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "BaseGamepadControls::OnButtonDown(int, int, unsigned int)"
+      ],
+      "vita_controls": [
+        "BaseGamepadControls",
+        "BaseGamepadControlsTouch"
+      ],
+      "route": {
+        "status": "base-dispatch",
+        "note": "Shared controller input helper; Xbox subclasses own gameplay. Pointer overrides limited to primary mouse-controlled player."
+      }
+    },
+    {
+      "class": "Board",
+      "vtable": "0x820B728C",
+      "rtti": "0x820ED9E8",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x8214CDC0",
+          "range_bytes": 1016,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x8214D1B8",
+          "range_bytes": 412,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x821363F8",
+          "range_bytes": 56,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x82473040",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x8254C498",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82139D40",
+          "range_bytes": 112,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x82139DB0",
+          "range_bytes": 56,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "Board::MouseHitTest(int, int, HitResult*, int)",
+        "Board::MouseDown(int, int, int)",
+        "Board::MouseMove(int, int)",
+        "Board::MouseDrag(int, int)",
+        "Board::MouseUp(int, int, int)",
+        "Board::MouseDownCobcannonFire(int, int, int)",
+        "Board::MouseHitTestPlant(int, int, HitResult*)",
+        "Board::GameAxisMove(Sexy::GamepadAxis, int, int)",
+        "Board::GameButtonUp(Sexy::GamepadButton, int, unsigned int)",
+        "Board::KeyUp(Sexy::KeyCode)",
+        "Board::GameButtonDown(Sexy::GamepadButton, int, unsigned int)",
+        "Board::KeyDown(Sexy::KeyCode)",
+        "Board::MouseDownWithPlant(int, int, int, int)",
+        "Board::MouseDownWithTool(int, int, int, CursorType, int)"
+      ],
+      "vita_controls": [
+        "Board"
+      ],
+      "route": {
+        "status": "adapter-manual-check",
+        "note": "PC seed/shovel/coin/drag routes, console hold actions; Challenge mode routes. See gameplay gaps in docs/input-coverage.md."
+      }
+    },
+    {
+      "class": "ChallengeScreen",
+      "vtable": "0x820B899C",
+      "rtti": "0x820EDAD4",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x82169968",
+          "range_bytes": 800,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x821770E8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x82473040",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x82473000",
+          "range_bytes": 64,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "ChallengeScreen::ButtonDepress(int)",
+        "ChallengeScreen::GameAxisMove(Sexy::GamepadAxis, int, int)",
+        "ChallengeScreen::GameButtonUp(Sexy::GamepadButton, int, unsigned int)",
+        "ChallengeScreen::KeyDown(Sexy::KeyCode)",
+        "ChallengeScreen::GameButtonDown(Sexy::GamepadButton, int, unsigned int)"
+      ],
+      "vita_controls": [
+        "ChallengeScreen"
+      ],
+      "route": {
+        "status": "adapter-manual-check",
+        "note": "Recorded native tile bounds, selection/press/wheel."
+      }
+    },
+    {
+      "class": "ContinueDialog",
+      "vtable": "0x820B91FC",
+      "rtti": "0x820EDBDC",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x824A88D0",
+          "range_bytes": 48,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x824A8900",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x824A8588",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x8254C498",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824A8730",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824A85F0",
+          "range_bytes": 320,
+          "noop": false,
+          "hooked": true
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "ContinueDialog::ButtonDepress(int)",
+        "ContinueDialog::KeyDown(Sexy::KeyCode)",
+        "ContinueDialog::KeyUp(Sexy::KeyCode)"
+      ],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+      }
+    },
+    {
+      "class": "CreditScreen",
+      "vtable": "0x820B96EC",
+      "rtti": "0x820EDCCC",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x821770F0",
+          "range_bytes": 168,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x82472F90",
+          "range_bytes": 40,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x82473040",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x82473000",
+          "range_bytes": 64,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x821770E8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "CreditScreen::MouseUp(int, int, int)",
+        "CreditScreen::ButtonDepress(int)",
+        "CreditScreen::GameButtonDown(Sexy::GamepadButton, int, unsigned int)",
+        "CreditScreen::KeyDown(Sexy::KeyCode)"
+      ],
+      "vita_controls": [],
+      "route": {
+        "status": "adapter-manual-check",
+        "note": "Native B through Back/RMB; original completion safety checks."
+      }
+    },
+    {
+      "class": "CreditsOverlay",
+      "vtable": "0x820B9864",
+      "rtti": "0x820EDC50",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x82472DE0",
+          "range_bytes": 432,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x82472F90",
+          "range_bytes": 40,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x82473040",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x82473000",
+          "range_bytes": 64,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [],
+      "vita_controls": [],
+      "route": {
+        "status": "framework-or-passive",
+        "note": "Display/overlay or inherited framework component; mouse goes to interactive children. Check layering/capture during manual traversal."
+      }
+    },
+    {
+      "class": "CustomScrollbarWidget",
+      "vtable": "0x820B99F4",
+      "rtti": "0x820EDDEC",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x82472DE0",
+          "range_bytes": 432,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x82472F90",
+          "range_bytes": 40,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x824BA5D8",
+          "range_bytes": 240,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x8254C498",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824BA6C8",
+          "range_bytes": 80,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x821B1320",
+          "range_bytes": 16,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824BA718",
+          "range_bytes": 120,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Interactive native scrollbar: child-button clicks and drag through WidgetManager; Almanac wheel through the parent handler. Check thumb capture and limits manually."
+      }
+    },
+    {
+      "class": "DaveWidget",
+      "vtable": "0x820C0384",
+      "rtti": "0x820EEA0C",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x82472DE0",
+          "range_bytes": 432,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x82472F90",
+          "range_bytes": 40,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x82473040",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x82473000",
+          "range_bytes": 64,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [],
+      "vita_controls": [],
+      "route": {
+        "status": "framework-or-passive",
+        "note": "Display/overlay or inherited framework component; mouse goes to interactive children. Check layering/capture during manual traversal."
+      }
+    },
+    {
+      "class": "GameButton",
+      "vtable": "0x820BA0AC",
+      "rtti": "0x820EDFD8",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x824AE388",
+          "range_bytes": 256,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x824AE488",
+          "range_bytes": 136,
+          "noop": false,
+          "hooked": true
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x824AE138",
+          "range_bytes": 72,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x824AE180",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x8254C498",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824AE1E8",
+          "range_bytes": 120,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82187910",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x821B1320",
+          "range_bytes": 16,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "GameButton::KeyDown(Sexy::KeyCode)"
+      ],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+      }
+    },
+    {
+      "class": "GameOverDialog",
+      "vtable": "0x820C08F4",
+      "rtti": "0x820EF124",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x824A88D0",
+          "range_bytes": 48,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x824A8900",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x824A8588",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x8254C498",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824A8730",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x821B31C0",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "GameOverDialog::MouseDrag(int, int)",
+        "GameOverDialog::ButtonDepress(int)"
+      ],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+      }
+    },
+    {
+      "class": "GameSlider",
+      "vtable": "0x820BAD94",
+      "rtti": "0x820EE3C8",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x824E34D8",
+          "range_bytes": 184,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x824E3590",
+          "range_bytes": 128,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x824E3240",
+          "range_bytes": 232,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x82473040",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x824E30D8",
+          "range_bytes": 360,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x824E3458",
+          "range_bytes": 96,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824E3328",
+          "range_bytes": 304,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+      }
+    },
+    {
+      "class": "GamepadControls",
+      "vtable": "0x820BA5E8",
+      "rtti": "0x820EE1C0",
+      "kind": "controls",
+      "methods": {
+        "button_down": {
+          "slot": "0x0",
+          "address": "0x8218A140",
+          "range_bytes": 5768,
+          "noop": false,
+          "hooked": true
+        },
+        "button_up": {
+          "slot": "0x4",
+          "address": "0x8218B7F0",
+          "range_bytes": 176,
+          "noop": false,
+          "hooked": false
+        },
+        "update": {
+          "slot": "0xc",
+          "address": "0x8218B8A0",
+          "range_bytes": 3864,
+          "noop": false,
+          "hooked": true
+        },
+        "draw": {
+          "slot": "0x10",
+          "address": "0x8218D0F8",
+          "range_bytes": 2536,
+          "noop": false,
+          "hooked": true
+        }
+      },
+      "android_handlers": [
+        "GamepadControls::OnButtonUp(int, int, unsigned int)",
+        "GamepadControls::OnButtonDown(int, int, unsigned int)"
+      ],
+      "vita_controls": [
+        "GamepadControls",
+        "GamepadControlsTouch"
+      ],
+      "route": {
+        "status": "adapter-manual-check",
+        "note": "Board pointer/state/drag/planting routes; preserve controller input activity."
+      }
+    },
+    {
+      "class": "HelpBarWidget",
+      "vtable": "0x820BA804",
+      "rtti": "0x820EE360",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x82472DE0",
+          "range_bytes": 432,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x82472F90",
+          "range_bytes": 40,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x82473040",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x82473000",
+          "range_bytes": 64,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [],
+      "vita_controls": [],
+      "route": {
+        "status": "framework-or-passive",
+        "note": "Display/overlay or inherited framework component; mouse goes to interactive children. Check layering/capture during manual traversal."
+      }
+    },
+    {
+      "class": "HelpOptionsDialog",
+      "vtable": "0x820BAA54",
+      "rtti": "0x820EE578",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x82198BD0",
+          "range_bytes": 48,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x824A8900",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x824A8588",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x8254C498",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824A8730",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824A85F0",
+          "range_bytes": 320,
+          "noop": false,
+          "hooked": true
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "HelpOptionsDialog::GameButtonDown(Sexy::GamepadButton, int, unsigned int)",
+        "HelpOptionsDialog::ButtonDepress(int)",
+        "HelpOptionsDialog::KeyDown(Sexy::KeyCode)"
+      ],
+      "vita_controls": [
+        "HelpOptionsDialog"
+      ],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+      }
+    },
+    {
+      "class": "HelpTextImageWidget",
+      "vtable": "0x820BAEFC",
+      "rtti": "0x820EE67C",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x82472DE0",
+          "range_bytes": 432,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x82472F90",
+          "range_bytes": 40,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x82473040",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x82473000",
+          "range_bytes": 64,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [],
+      "vita_controls": [],
+      "route": {
+        "status": "framework-or-passive",
+        "note": "Display/overlay or inherited framework component; mouse goes to interactive children. Check layering/capture during manual traversal."
+      }
+    },
+    {
+      "class": "HelpTextScreen",
+      "vtable": "0x820BB22C",
+      "rtti": "0x820EE6F8",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x8219A210",
+          "range_bytes": 168,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x82472F90",
+          "range_bytes": 40,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x82473040",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x82473000",
+          "range_bytes": 64,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "HelpTextScreen::KeyDown(Sexy::KeyCode)",
+        "HelpTextScreen::GameButtonDown(Sexy::GamepadButton, int, unsigned int)"
+      ],
+      "vita_controls": [],
+      "route": {
+        "status": "adapter-manual-check",
+        "note": "Native left/right page commands through buttons/wheel, Back/RMB."
+      }
+    },
+    {
+      "class": "HelpTextWidget",
+      "vtable": "0x820BB3BC",
+      "rtti": "0x820EE834",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x82472DE0",
+          "range_bytes": 432,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x82472F90",
+          "range_bytes": 40,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x82473040",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x82473000",
+          "range_bytes": 64,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [],
+      "vita_controls": [],
+      "route": {
+        "status": "framework-or-passive",
+        "note": "Display/overlay or inherited framework component; mouse goes to interactive children. Check layering/capture during manual traversal."
+      }
+    },
+    {
+      "class": "HouseChooserDialog",
+      "vtable": "0x820BB58C",
+      "rtti": "0x820EE8B0",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x8219ACD0",
+          "range_bytes": 392,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x824A8900",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x824A8588",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x8254C498",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824A8730",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824A85F0",
+          "range_bytes": 320,
+          "noop": false,
+          "hooked": true
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "HouseChooserDialog::GameButtonDown(Sexy::GamepadButton, int, unsigned int)"
+      ],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+      }
+    },
+    {
+      "class": "HouseLeaderboardTransition",
+      "vtable": "0x820BB724",
+      "rtti": "0x820EE924",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x82472DE0",
+          "range_bytes": 432,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x82472F90",
+          "range_bytes": 40,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x82473040",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x82473000",
+          "range_bytes": 64,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [],
+      "vita_controls": [],
+      "route": {
+        "status": "framework-or-passive",
+        "note": "Display/overlay or inherited framework component; mouse goes to interactive children. Check layering/capture during manual traversal."
+      }
+    },
+    {
+      "class": "HouseMenu",
+      "vtable": "0x820BBF94",
+      "rtti": "0x820EE9A0",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x8219D480",
+          "range_bytes": 848,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x821770E8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x82473040",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x82473000",
+          "range_bytes": 64,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [],
+      "vita_controls": [],
+      "route": {
+        "status": "adapter-manual-check",
+        "note": "Native left/right page commands, Endless, Back/RMB."
+      }
+    },
+    {
+      "class": "ImitaterDialog",
+      "vtable": "0x820CAAC4",
+      "rtti": "0x820EFA64",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x822074F0",
+          "range_bytes": 1080,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x824A8900",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x824A8588",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x82207178",
+          "range_bytes": 888,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824A8730",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x821770E8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824A85F0",
+          "range_bytes": 320,
+          "noop": false,
+          "hooked": true
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "ImitaterDialog::MouseUp(int, int, int)",
+        "ImitaterDialog::MouseDown(int, int, int)",
+        "ImitaterDialog::GameButtonDown(Sexy::GamepadButton, int, unsigned int)",
+        "ImitaterDialog::KeyDown(Sexy::KeyCode)"
+      ],
+      "vita_controls": [],
+      "route": {
+        "status": "adapter-manual-check",
+        "note": "Native seed hit testing and copied seed selection; RMB native B."
+      }
+    },
+    {
+      "class": "LawnDialog",
+      "vtable": "0x820C0604",
+      "rtti": "0x820EF214",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x824A88D0",
+          "range_bytes": 48,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x824A8900",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x824A8588",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x8254C498",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824A8730",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824A85F0",
+          "range_bytes": 320,
+          "noop": false,
+          "hooked": true
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "LawnDialog::KeyDown(Sexy::KeyCode)",
+        "LawnDialog::ButtonDepress(int)"
+      ],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+      }
+    },
+    {
+      "class": "LawnMenuWidget",
+      "vtable": "0x820BB09C",
+      "rtti": "0x820EE780",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x82472DE0",
+          "range_bytes": 432,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x82472F90",
+          "range_bytes": 40,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x82473040",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x82473000",
+          "range_bytes": 64,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+      }
+    },
+    {
+      "class": "LawnStoneButton",
+      "vtable": "0x820BA21C",
+      "rtti": "0x820EDF64",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x824AE388",
+          "range_bytes": 256,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x824AE488",
+          "range_bytes": 136,
+          "noop": false,
+          "hooked": true
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x824AE138",
+          "range_bytes": 72,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x824AE180",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x8254C498",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824AE1E8",
+          "range_bytes": 120,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82187910",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x821B1320",
+          "range_bytes": 16,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+      }
+    },
+    {
+      "class": "LeaderboardMenu",
+      "vtable": "0x820C1D24",
+      "rtti": "0x820EF4B4",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x821B9618",
+          "range_bytes": 488,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x82472F90",
+          "range_bytes": 40,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x82473040",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x82473000",
+          "range_bytes": 64,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [],
+      "vita_controls": [],
+      "route": {
+        "status": "adapter-manual-check",
+        "note": "Native up/down row commands, Back/RMB. Remote data still needs Xbox services."
+      }
+    },
+    {
+      "class": "MailScreen",
+      "vtable": "0x820C21A4",
+      "rtti": "0x820EF538",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x821BECE0",
+          "range_bytes": 848,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x824A8900",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x824A8588",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x8254C498",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824A8730",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824A85F0",
+          "range_bytes": 320,
+          "noop": false,
+          "hooked": true
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "MailScreen::KeyDown(Sexy::KeyCode)",
+        "MailScreen::GameButtonDown(Sexy::GamepadButton, int, unsigned int)"
+      ],
+      "vita_controls": [],
+      "route": {
+        "status": "adapter-manual-check",
+        "note": "Native previous/next message commands, Back/RMB. Platform invitation actions are not exposed."
+      }
+    },
+    {
+      "class": "MainMenu",
+      "vtable": "0x820C2784",
+      "rtti": "0x820EF5C0",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x821C41A0",
+          "range_bytes": 480,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x82472F90",
+          "range_bytes": 40,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x82473040",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x82473000",
+          "range_bytes": 64,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "MainMenu::ButtonDepress(int)",
+        "MainMenu::GameButtonDown(Sexy::GamepadButton, int, unsigned int)",
+        "MainMenu::KeyDown(Sexy::KeyCode)"
+      ],
+      "vita_controls": [],
+      "route": {
+        "status": "adapter-manual-check",
+        "note": "Panel-aware painted buttons; progress-specific Adventure and animated press/release."
+      }
+    },
+    {
+      "class": "NewOptionsDialog",
+      "vtable": "0x820C4ABC",
+      "rtti": "0x820EF708",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x821CA6A0",
+          "range_bytes": 120,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x824A8900",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x824A8588",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x8254C498",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824A8730",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824A85F0",
+          "range_bytes": 320,
+          "noop": false,
+          "hooked": true
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "NewOptionsDialog::ButtonDepress(int)",
+        "NewOptionsDialog::GameButtonDown(Sexy::GamepadButton, int, unsigned int)",
+        "NewOptionsDialog::KeyDown(Sexy::KeyCode)"
+      ],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+      }
+    },
+    {
+      "class": "ReanimationWidget",
+      "vtable": "0x820C079C",
+      "rtti": "0x820EF198",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x82472DE0",
+          "range_bytes": 432,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x82472F90",
+          "range_bytes": 40,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x82473040",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x82473000",
+          "range_bytes": 64,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [],
+      "vita_controls": [],
+      "route": {
+        "status": "framework-or-passive",
+        "note": "Display/overlay or inherited framework component; mouse goes to interactive children. Check layering/capture during manual traversal."
+      }
+    },
+    {
+      "class": "SavingDingusDialog",
+      "vtable": "0x820C0C24",
+      "rtti": "0x820EF018",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x824A88D0",
+          "range_bytes": 48,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x824A8900",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x824A8588",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x8254C498",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824A8730",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824A85F0",
+          "range_bytes": 320,
+          "noop": false,
+          "hooked": true
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+      }
+    },
+    {
+      "class": "SavingFileDialog",
+      "vtable": "0x820C1264",
+      "rtti": "0x820EEDF8",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x824A88D0",
+          "range_bytes": 48,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x824A8900",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x824A8588",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x8254C498",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824A8730",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824A85F0",
+          "range_bytes": 320,
+          "noop": false,
+          "hooked": true
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+      }
+    },
+    {
+      "class": "SavingProfileDialog",
+      "vtable": "0x820C13F4",
+      "rtti": "0x820EED70",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x824A88D0",
+          "range_bytes": 48,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x824A8900",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x824A8588",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x8254C498",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824A8730",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824A85F0",
+          "range_bytes": 320,
+          "noop": false,
+          "hooked": true
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+      }
+    },
+    {
+      "class": "SeedChooserScreen",
+      "vtable": "0x820CA94C",
+      "rtti": "0x820EFAEC",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x8220C280",
+          "range_bytes": 2304,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x8220CBA8",
+          "range_bytes": 80,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x82473040",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x8254C498",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x821770E8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "SeedChooserScreen::MouseUp(int, int, int)",
+        "SeedChooserScreen::MouseDown(int, int, int)",
+        "SeedChooserScreen::KeyUp(Sexy::KeyCode)",
+        "SeedChooserScreen::KeyDown(Sexy::KeyCode)",
+        "SeedChooserScreen::GameAxisMove(Sexy::GamepadAxis, int, int)",
+        "SeedChooserScreen::GameButtonUp(Sexy::GamepadButton, int, unsigned int)",
+        "SeedChooserScreen::ButtonDepress(int)",
+        "SeedChooserScreen::GameButtonDown(Sexy::GamepadButton, int, unsigned int)"
+      ],
+      "vita_controls": [
+        "SeedChooserScreen"
+      ],
+      "route": {
+        "status": "adapter-manual-check",
+        "note": "Native seed selection, tooltip, outline, drag-to-bank, Shop/Almanac/Let us Rock."
+      }
+    },
+    {
+      "class": "SettingsDialog",
+      "vtable": "0x820BABEC",
+      "rtti": "0x820EE4B0",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x82199BA8",
+          "range_bytes": 72,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x824A8900",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x824A8588",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x8254C498",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824A8730",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824A85F0",
+          "range_bytes": 320,
+          "noop": false,
+          "hooked": true
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "SettingsDialog::GameButtonDown(Sexy::GamepadButton, int, unsigned int)",
+        "SettingsDialog::ButtonDepress(int)",
+        "SettingsDialog::KeyDown(Sexy::KeyCode)"
+      ],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+      }
+    },
+    {
+      "class": "Sexy::ButtonWidget",
+      "vtable": "0x82064CB4",
+      "rtti": "0x820EC090",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x824AE388",
+          "range_bytes": 256,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x824AE488",
+          "range_bytes": 136,
+          "noop": false,
+          "hooked": true
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x824AE138",
+          "range_bytes": 72,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x824AE180",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x8254C498",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824AE1E8",
+          "range_bytes": 120,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82187910",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x821B1320",
+          "range_bytes": 16,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "Sexy::ButtonWidget::MouseDown(int, int, int)",
+        "Sexy::ButtonWidget::MouseUp(int, int)",
+        "Sexy::ButtonWidget::MouseUp(int, int, int)",
+        "Sexy::ButtonWidget::KeyDown(Sexy::KeyCode)",
+        "Sexy::ButtonWidget::KeyUp(Sexy::KeyCode)",
+        "Sexy::ButtonWidget::MouseEnter()",
+        "Sexy::ButtonWidget::MouseLeave()",
+        "Sexy::ButtonWidget::MouseMove(int, int)",
+        "Sexy::ButtonWidget::MouseDown(int, int, int, int)",
+        "Sexy::ButtonWidget::MouseUp(int, int, int, int)"
+      ],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+      }
+    },
+    {
+      "class": "Sexy::Checkbox",
+      "vtable": "0x82072094",
+      "rtti": "0x820EC83C",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x8254C2F0",
+          "range_bytes": 112,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x8254C360",
+          "range_bytes": 12,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x8254C280",
+          "range_bytes": 112,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x8254C498",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "Sexy::Checkbox::MouseDown(int, int, int)",
+        "Sexy::Checkbox::MouseDown(int, int, int, int)",
+        "Sexy::Checkbox::KeyDown(Sexy::KeyCode)"
+      ],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+      }
+    },
+    {
+      "class": "Sexy::Dialog",
+      "vtable": "0x820644BC",
+      "rtti": "0x820EC00C",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x824A88D0",
+          "range_bytes": 48,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x824A8900",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x824A8588",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x8254C498",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824A8730",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824A85F0",
+          "range_bytes": 320,
+          "noop": false,
+          "hooked": true
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "Sexy::Dialog::MouseUp(int, int)",
+        "Sexy::Dialog::KeyUp(Sexy::KeyCode)",
+        "Sexy::Dialog::MouseDown(int, int, int, int)",
+        "Sexy::Dialog::MouseUp(int, int, int, int)",
+        "Sexy::Dialog::MouseDrag(int, int)",
+        "Sexy::Dialog::MouseDown(int, int, int)",
+        "Sexy::Dialog::MouseUp(int, int, int)",
+        "Sexy::Dialog::ButtonDepress(int)",
+        "Sexy::Dialog::KeyDown(Sexy::KeyCode)"
+      ],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+      }
+    },
+    {
+      "class": "Sexy::DialogButton",
+      "vtable": "0x8206917C",
+      "rtti": "0x820EC3F8",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x824AE388",
+          "range_bytes": 256,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x824AE488",
+          "range_bytes": 136,
+          "noop": false,
+          "hooked": true
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x824AE138",
+          "range_bytes": 72,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x824AE180",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x8254C498",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824AE1E8",
+          "range_bytes": 120,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82187910",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x821B1320",
+          "range_bytes": 16,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+      }
+    },
+    {
+      "class": "Sexy::EditWidget",
+      "vtable": "0x820654B4",
+      "rtti": "0x820EC0B8",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x82472DE0",
+          "range_bytes": 432,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x82472F90",
+          "range_bytes": 40,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x824AF5B8",
+          "range_bytes": 160,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x8254C498",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824AF658",
+          "range_bytes": 160,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82187910",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x821B1320",
+          "range_bytes": 16,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824AF6F8",
+          "range_bytes": 136,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "Sexy::EditWidget::MouseDown(int, int, int)",
+        "Sexy::EditWidget::MouseUp(int, int)",
+        "Sexy::EditWidget::MouseUp(int, int, int)",
+        "Sexy::EditWidget::KeyDown(Sexy::KeyCode)",
+        "Sexy::EditWidget::MouseEnter()",
+        "Sexy::EditWidget::MouseLeave()",
+        "Sexy::EditWidget::MouseDown(int, int, int, int)",
+        "Sexy::EditWidget::MouseUp(int, int, int, int)",
+        "Sexy::EditWidget::MouseDrag(int, int)"
+      ],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native mouse transport to the text field; selection/caret and host keyboard text input require separate manual/research checks."
+      }
+    },
+    {
+      "class": "Sexy::ImageWidget",
+      "vtable": "0x82081FCC",
+      "rtti": "0x820ED1BC",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x82472DE0",
+          "range_bytes": 432,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x82472F90",
+          "range_bytes": 40,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x82473040",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x82473000",
+          "range_bytes": 64,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [],
+      "vita_controls": [],
+      "route": {
+        "status": "framework-or-passive",
+        "note": "Display/overlay or inherited framework component; mouse goes to interactive children. Check layering/capture during manual traversal."
+      }
+    },
+    {
+      "class": "Sexy::LabelWidget",
+      "vtable": "0x82082174",
+      "rtti": "0x820ED224",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x82472DE0",
+          "range_bytes": 432,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x82472F90",
+          "range_bytes": 40,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x82473040",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x82473000",
+          "range_bytes": 64,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [],
+      "vita_controls": [],
+      "route": {
+        "status": "framework-or-passive",
+        "note": "Display/overlay or inherited framework component; mouse goes to interactive children. Check layering/capture during manual traversal."
+      }
+    },
+    {
+      "class": "Sexy::MenuWidget",
+      "vtable": "0x8206AEE4",
+      "rtti": "0x820EC58C",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x82472DE0",
+          "range_bytes": 432,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x82472F90",
+          "range_bytes": 40,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x82473040",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x82473000",
+          "range_bytes": 64,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+      }
+    },
+    {
+      "class": "Sexy::ScrollbarWidget",
+      "vtable": "0x820661C4",
+      "rtti": "0x820EC1A8",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x82472DE0",
+          "range_bytes": 432,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x82472F90",
+          "range_bytes": 40,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x824BA5D8",
+          "range_bytes": 240,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x8254C498",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824BA6C8",
+          "range_bytes": 80,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x821B1320",
+          "range_bytes": 16,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824BA718",
+          "range_bytes": 120,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "Sexy::ScrollbarWidget::MouseDown(int, int, int)",
+        "Sexy::ScrollbarWidget::MouseUp(int, int)",
+        "Sexy::ScrollbarWidget::MouseDown(int, int, int, int)",
+        "Sexy::ScrollbarWidget::MouseUp(int, int, int, int)",
+        "Sexy::ScrollbarWidget::MouseDrag(int, int)",
+        "Sexy::ScrollbarWidget::ButtonDepress(int)"
+      ],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+      }
+    },
+    {
+      "class": "Sexy::ScrollbuttonWidget",
+      "vtable": "0x8207DD84",
+      "rtti": "0x820ECF04",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x824AE388",
+          "range_bytes": 256,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x824AE488",
+          "range_bytes": 136,
+          "noop": false,
+          "hooked": true
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x824AE138",
+          "range_bytes": 72,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x824AE180",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x8254C498",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824AE1E8",
+          "range_bytes": 120,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82187910",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x821B1320",
+          "range_bytes": 16,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+      }
+    },
+    {
+      "class": "Sexy::Slider",
+      "vtable": "0x8206ABA4",
+      "rtti": "0x820EC578",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x824E34D8",
+          "range_bytes": 184,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x824E3590",
+          "range_bytes": 128,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x824E3240",
+          "range_bytes": 232,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x82473040",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x824E30D8",
+          "range_bytes": 360,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x824E3458",
+          "range_bytes": 96,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824E3328",
+          "range_bytes": 304,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "Sexy::Slider::KeyDown(Sexy::KeyCode)",
+        "Sexy::Slider::MouseLeave()",
+        "Sexy::Slider::MouseMove(int, int)",
+        "Sexy::Slider::MouseDown(int, int, int)",
+        "Sexy::Slider::MouseUp(int, int)",
+        "Sexy::Slider::MouseDrag(int, int)"
+      ],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+      }
+    },
+    {
+      "class": "Sexy::Widget",
+      "vtable": "0x8205D504",
+      "rtti": "0x820EB718",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x82472DE0",
+          "range_bytes": 432,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x82472F90",
+          "range_bytes": 40,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x82473040",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x82473000",
+          "range_bytes": 64,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "Sexy::Widget::MouseUp(int, int)",
+        "Sexy::Widget::MouseWheel(int, int)",
+        "Sexy::Widget::KeyDown(Sexy::Event const&)",
+        "Sexy::Widget::KeyUp(Sexy::Event const&)",
+        "Sexy::Widget::MouseEnter()",
+        "Sexy::Widget::MouseLeave()",
+        "Sexy::Widget::MouseMove(int, int)",
+        "Sexy::Widget::MouseDown(int, int, int)",
+        "Sexy::Widget::MouseUp(int, int, int)",
+        "Sexy::Widget::KeyDown(Sexy::KeyCode)",
+        "Sexy::Widget::KeyUp(Sexy::KeyCode)",
+        "Sexy::Widget::MouseDown(int, int, int, int)",
+        "Sexy::Widget::MouseUp(int, int, int, int)",
+        "Sexy::Widget::MouseDrag(int, int)",
+        "Sexy::Widget::MouseWheel(int)"
+      ],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+      }
+    },
+    {
+      "class": "StartButton",
+      "vtable": "0x820CB564",
+      "rtti": "0x820EFE94",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x82218208",
+          "range_bytes": 40,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x82218230",
+          "range_bytes": 48,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x82473040",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x82473000",
+          "range_bytes": 64,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "StartButton::GameButtonDown(Sexy::GamepadButton, int, unsigned int)",
+        "StartButton::GameButtonUp(Sexy::GamepadButton, int, unsigned int)",
+        "StartButton::KeyDown(Sexy::KeyCode)"
+      ],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+      }
+    },
+    {
+      "class": "StoreScreen",
+      "vtable": "0x820CB23C",
+      "rtti": "0x820EFDA4",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x82217888",
+          "range_bytes": 1120,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x824A8900",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x824A8588",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x821770E8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824A8730",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824A85F0",
+          "range_bytes": 320,
+          "noop": false,
+          "hooked": true
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "StoreScreen::MouseDown(int, int, int)",
+        "StoreScreen::ButtonDepress(int)",
+        "StoreScreen::GameButtonDown(Sexy::GamepadButton, int, unsigned int)",
+        "StoreScreen::KeyDown(Sexy::KeyCode)"
+      ],
+      "vita_controls": [
+        "StoreScreenTouch",
+        "StoreScreen"
+      ],
+      "route": {
+        "status": "adapter-manual-check",
+        "note": "Native item positions, price/availability/purchase dialog; arrows and wheel."
+      }
+    },
+    {
+      "class": "StoreScreenOverlay",
+      "vtable": "0x820CB3CC",
+      "rtti": "0x820EFD28",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x82472DE0",
+          "range_bytes": 432,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x82472F90",
+          "range_bytes": 40,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x82473040",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x82473000",
+          "range_bytes": 64,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [],
+      "vita_controls": [],
+      "route": {
+        "status": "framework-or-passive",
+        "note": "Display/overlay or inherited framework component; mouse goes to interactive children. Check layering/capture during manual traversal."
+      }
+    },
+    {
+      "class": "StretchableGameButton",
+      "vtable": "0x820BA38C",
+      "rtti": "0x820EDEF0",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x824AE388",
+          "range_bytes": 256,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x824AE488",
+          "range_bytes": 136,
+          "noop": false,
+          "hooked": true
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x824AE138",
+          "range_bytes": 72,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x824AE180",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x8254C498",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824AE1E8",
+          "range_bytes": 120,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82187910",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x821B1320",
+          "range_bytes": 16,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+      }
+    },
+    {
+      "class": "TitleScreen",
+      "vtable": "0x820CB6BC",
+      "rtti": "0x820EFE28",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x82219690",
+          "range_bytes": 360,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x82472F90",
+          "range_bytes": 40,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x82473040",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x82473000",
+          "range_bytes": 64,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "TitleScreen::KeyDown(Sexy::KeyCode)",
+        "TitleScreen::GameButtonDown(Sexy::GamepadButton, int, unsigned int)"
+      ],
+      "vita_controls": [],
+      "route": {
+        "status": "adapter-manual-check",
+        "note": "LMB invokes verified native Start after intro-ready guard; original console state handling."
+      }
+    },
+    {
+      "class": "TrashBin",
+      "vtable": "0x820CBEE4",
+      "rtti": "0x820F00C4",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x82472DE0",
+          "range_bytes": 432,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x82472F90",
+          "range_bytes": 40,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x82473040",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x82473000",
+          "range_bytes": 64,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [],
+      "vita_controls": [],
+      "route": {
+        "status": "framework-or-passive",
+        "note": "Display/overlay or inherited framework component; mouse goes to interactive children. Check layering/capture during manual traversal."
+      }
+    },
+    {
+      "class": "TreeOfWisdomControls",
+      "vtable": "0x820BA62C",
+      "rtti": "0x820EE150",
+      "kind": "controls",
+      "methods": {
+        "button_down": {
+          "slot": "0x0",
+          "address": "0x82191B10",
+          "range_bytes": 664,
+          "noop": false,
+          "hooked": false
+        },
+        "button_up": {
+          "slot": "0x4",
+          "address": "0x821770E8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "update": {
+          "slot": "0xc",
+          "address": "0x82191DA8",
+          "range_bytes": 648,
+          "noop": false,
+          "hooked": true
+        },
+        "draw": {
+          "slot": "0x10",
+          "address": "0x821770E8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "TreeOfWisdomControls::OnButtonUp(int, int, unsigned int)",
+        "TreeOfWisdomControls::OnButtonDown(int, int, unsigned int)"
+      ],
+      "vita_controls": [
+        "TreeOfWisdomControls",
+        "TreeOfWisdomControlsTouch"
+      ],
+      "route": {
+        "status": "adapter-manual-check",
+        "note": "Native food tool, tree hit 19, validated native A, Shop/wheel; PC empty hand."
+      }
+    },
+    {
+      "class": "VSResultsMenu",
+      "vtable": "0x820CC0AC",
+      "rtti": "0x820F0140",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x82472DE0",
+          "range_bytes": 432,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x82472F90",
+          "range_bytes": 40,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x82473040",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x82473000",
+          "range_bytes": 64,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "VSResultsMenu::KeyDown(Sexy::KeyCode)",
+        "VSResultsMenu::ButtonDepress(int)"
+      ],
+      "vita_controls": [],
+      "route": {
+        "status": "adapter-manual-check",
+        "note": "Original Play Again/Quit native children; RMB routes native quit listener with exit animation."
+      }
+    },
+    {
+      "class": "VSSetupMenu",
+      "vtable": "0x820CC2EC",
+      "rtti": "0x820F01C8",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x8228B5C0",
+          "range_bytes": 1096,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x821770E8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x82473040",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x82473000",
+          "range_bytes": 64,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824730D0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824730D8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "VSSetupMenu::GameAxisMove(Sexy::GamepadAxis, int, int)",
+        "VSSetupMenu::GameButtonUp(Sexy::GamepadButton, int, unsigned int)",
+        "VSSetupMenu::KeyDown(Sexy::KeyCode)",
+        "VSSetupMenu::GameButtonDown(Sexy::GamepadButton, int, unsigned int)",
+        "VSSetupMenu::ButtonDepress(int)"
+      ],
+      "vita_controls": [],
+      "route": {
+        "status": "adapter-manual-check",
+        "note": "First joined user native side selection via arrows/wheel, Ready and Back/RMB. Second player remains native controller."
+      }
+    },
+    {
+      "class": "WaitFor2PLoadDialog",
+      "vtable": "0x820C10D4",
+      "rtti": "0x820EEE80",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x824A88D0",
+          "range_bytes": 48,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x824A8900",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x824A8588",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x8254C498",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824A8730",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824A85F0",
+          "range_bytes": 320,
+          "noop": false,
+          "hooked": true
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+      }
+    },
+    {
+      "class": "WaitForLeaderboardsDialog",
+      "vtable": "0x820C0DB4",
+      "rtti": "0x820EEF90",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x824A88D0",
+          "range_bytes": 48,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x824A8900",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x824A8588",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x8254C498",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824A8730",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824A85F0",
+          "range_bytes": 320,
+          "noop": false,
+          "hooked": true
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+      }
+    },
+    {
+      "class": "WaitForRemoteFileDialog",
+      "vtable": "0x820C0F44",
+      "rtti": "0x820EEF08",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x824A88D0",
+          "range_bytes": 48,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x824A8900",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x824A8588",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x8254C498",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824A8730",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824A85F0",
+          "range_bytes": 320,
+          "noop": false,
+          "hooked": true
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+      }
+    },
+    {
+      "class": "WaitForSecondPlayerDialog",
+      "vtable": "0x820C0A8C",
+      "rtti": "0x820EF09C",
+      "kind": "widget",
+      "methods": {
+        "game_button_down": {
+          "slot": "0xc0",
+          "address": "0x821B3DE8",
+          "range_bytes": 272,
+          "noop": false,
+          "hooked": false
+        },
+        "game_button_up": {
+          "slot": "0xc4",
+          "address": "0x824A8900",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_move": {
+          "slot": "0xd4",
+          "address": "0x82472FF8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_down_buttons": {
+          "slot": "0xd8",
+          "address": "0x824A8588",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_down": {
+          "slot": "0xdc",
+          "address": "0x8254C498",
+          "range_bytes": 8,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_buttons": {
+          "slot": "0xe0",
+          "address": "0x824A8730",
+          "range_bytes": 104,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up": {
+          "slot": "0xe4",
+          "address": "0x82473050",
+          "range_bytes": 128,
+          "noop": false,
+          "hooked": false
+        },
+        "mouse_up_point": {
+          "slot": "0xe8",
+          "address": "0x82473048",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "mouse_drag": {
+          "slot": "0xec",
+          "address": "0x824A85F0",
+          "range_bytes": 320,
+          "noop": false,
+          "hooked": true
+        },
+        "mouse_wheel": {
+          "slot": "0xf0",
+          "address": "0x824730E0",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        }
+      },
+      "android_handlers": [
+        "WaitForSecondPlayerDialog::KeyDown(Sexy::KeyCode)",
+        "WaitForSecondPlayerDialog::GameButtonDown(Sexy::GamepadButton, int, unsigned int)"
+      ],
+      "vita_controls": [],
+      "route": {
+        "status": "native-framework-manual-check",
+        "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+      }
+    },
+    {
+      "class": "ZenGardenControls",
+      "vtable": "0x820BA670",
+      "rtti": "0x820EE0E0",
+      "kind": "controls",
+      "methods": {
+        "button_down": {
+          "slot": "0x0",
+          "address": "0x82192490",
+          "range_bytes": 1868,
+          "noop": false,
+          "hooked": false
+        },
+        "button_up": {
+          "slot": "0x4",
+          "address": "0x821770E8",
+          "range_bytes": 8,
+          "noop": true,
+          "hooked": false
+        },
+        "update": {
+          "slot": "0xc",
+          "address": "0x82192080",
+          "range_bytes": 832,
+          "noop": false,
+          "hooked": true
+        },
+        "draw": {
+          "slot": "0x10",
+          "address": "0x821923C0",
+          "range_bytes": 208,
+          "noop": false,
+          "hooked": true
+        }
+      },
+      "android_handlers": [
+        "ZenGardenControls::OnButtonUp(int, int, unsigned int)",
+        "ZenGardenControls::OnButtonDown(int, int, unsigned int)"
+      ],
+      "vita_controls": [
+        "ZenGardenControls",
+        "ZenGardenControlsTouch"
+      ],
+      "route": {
+        "status": "adapter-manual-check",
+        "note": "Native tool pick/apply, precise pointer, Shop and tool wheel."
+      }
+    }
+  ]
+}

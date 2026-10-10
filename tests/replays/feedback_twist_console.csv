@@ -1,0 +1,12 @@
+0,400,300,wait_title
+1,400,500,left_down
+1.15,400,500,left_up
+2,400,300,wait_menu
+4,25,0,fixture_mode
+8,400,300,wait_board
+10,1000,0,fixture_heavy_sun
+12,0,0,click_twist_match
+16,0,0,click_twist_match
+20,400,300,right_down
+20.15,400,300,right_up
+24,0,0,click_twist_match

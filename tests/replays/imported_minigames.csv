@@ -1,0 +1,11 @@
+# Imported profile; inspect More Ways to Play without changing its progress.
+0,400,300,wait_title
+1,400,500,left_down
+1.15,400,500,left_up
+2,400,300,wait_menu
+4,230,410,left_down
+4.15,230,410,left_up
+7,410,350,left_down
+7.15,410,350,left_up
+10,410,350,left_down
+10.15,410,350,left_up

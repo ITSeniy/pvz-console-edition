@@ -1,0 +1,8 @@
+0,400,300,wait_title
+1,400,500,left_down
+1.15,400,500,left_up
+2,400,300,wait_menu
+4,19,0,fixture_mode
+8,400,300,wait_board
+12,400,300,wheel_down
+18,400,300,wheel_up

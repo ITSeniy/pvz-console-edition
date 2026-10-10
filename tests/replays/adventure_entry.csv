@@ -1,0 +1,21 @@
+# Use either a fresh profile or an isolated copy of a profile with progress.
+# Hover Adventure, leave it, click background, then cancel a drag off it.
+# Switch input ownership on background before finally clicking Adventure.
+# An unfinished saved game opens Continue Game; confirm it to finish wait_board.
+0,400,300,wait_title
+1,400,500,left_down
+1.15,400,500,left_up
+2,400,300,wait_menu
+3,230,320,move
+5,700,100,move
+6,700,100,left_down
+6.15,700,100,left_up
+7,230,320,left_down
+7.3,700,100,left_up
+8,700,100,pad_press
+8.2,700,100,pad_neutral
+9,701,100,move
+10,230,320,move
+12,230,320,left_down
+12.15,230,320,left_up
+13,400,320,wait_board

@@ -1,0 +1,17 @@
+0,400,300,wait_title
+1,400,500,left_down
+1.15,400,500,left_up
+2,400,300,wait_menu
+4,20,0,fixture_mode
+8,400,300,wait_board
+9,400,300,move
+10,1000,0,fixture_heavy_sun
+12,300,250,move
+14,300,250,left_down
+16,500,250,move
+18,500,250,left_up
+19,400,300,right_down
+19.15,400,300,right_up
+20,400,300,wheel_down
+22,400,300,right_down
+22.15,400,300,right_up

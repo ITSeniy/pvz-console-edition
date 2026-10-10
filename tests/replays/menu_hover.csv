@@ -1,0 +1,24 @@
+# PC hover, both sides of the Board canvas, modal buttons and live mode switches.
+0,400,300,wait_title
+1,400,500,left_down
+1.15,400,500,left_up
+2,400,300,wait_menu
+4,400,300,move
+10,230,320,move
+16,400,300,move
+22,100,320,move
+28,700,320,move
+34,478,444,move
+40,478,444,left_down
+40.15,478,444,left_up
+42,400,350,move
+48,398,405,move
+54,500,300,move
+57,400,350,move
+60,398,405,left_down
+60.15,398,405,left_up
+62,400,300,cancel
+68,400,300,mode_console
+69,230,320,move
+70,700,320,move
+76,700,320,mode_pc

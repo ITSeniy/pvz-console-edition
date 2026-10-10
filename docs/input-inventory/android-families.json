@@ -1,0 +1,706 @@
+[
+  {
+    "class": "AlmanacDialog",
+    "count": 7,
+    "methods": [
+      "AlmanacDialog::MouseWheel(int)",
+      "AlmanacDialog::MouseUp(int, int, int)",
+      "AlmanacDialog::ButtonDepress(int)",
+      "AlmanacDialog::MouseDown(int, int, int)",
+      "AlmanacDialog::GameButtonDown(Sexy::GamepadButton, int, unsigned int)",
+      "AlmanacDialog::GameAxisMove(Sexy::GamepadAxis, int, int)",
+      "AlmanacDialog::KeyDown(Sexy::KeyCode)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Native species hit testing, section selection, native description wheel, Back."
+  },
+  {
+    "class": "AwardScreen",
+    "count": 4,
+    "methods": [
+      "AwardScreen::MouseDown(int, int, int)",
+      "AwardScreen::MouseUp(int, int, int)",
+      "AwardScreen::KeyDown(Sexy::KeyCode)",
+      "AwardScreen::GameButtonDown(Sexy::GamepadButton, int, unsigned int)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Native Next Level button, hover without persistent selection."
+  },
+  {
+    "class": "BaseGamepadControls",
+    "count": 1,
+    "methods": [
+      "BaseGamepadControls::OnButtonDown(int, int, unsigned int)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Shared controller input helper; Xbox subclasses own gameplay. Pointer overrides limited to primary mouse-controlled player."
+  },
+  {
+    "class": "Board",
+    "count": 14,
+    "methods": [
+      "Board::MouseHitTest(int, int, HitResult*, int)",
+      "Board::MouseDown(int, int, int)",
+      "Board::MouseMove(int, int)",
+      "Board::MouseDrag(int, int)",
+      "Board::MouseUp(int, int, int)",
+      "Board::MouseDownCobcannonFire(int, int, int)",
+      "Board::MouseHitTestPlant(int, int, HitResult*)",
+      "Board::GameAxisMove(Sexy::GamepadAxis, int, int)",
+      "Board::GameButtonUp(Sexy::GamepadButton, int, unsigned int)",
+      "Board::KeyUp(Sexy::KeyCode)",
+      "Board::GameButtonDown(Sexy::GamepadButton, int, unsigned int)",
+      "Board::KeyDown(Sexy::KeyCode)",
+      "Board::MouseDownWithPlant(int, int, int, int)",
+      "Board::MouseDownWithTool(int, int, int, CursorType, int)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "PC seed/shovel/coin/drag routes, console hold actions; Challenge mode routes. See gameplay gaps in docs/input-coverage.md."
+  },
+  {
+    "class": "BuyMoneyDialog",
+    "count": 3,
+    "methods": [
+      "BuyMoneyDialog::ButtonDepress(int)",
+      "BuyMoneyDialog::KeyDown(Sexy::KeyCode)",
+      "BuyMoneyDialog::KeyUp(Sexy::KeyCode)"
+    ],
+    "status": "reference-only",
+    "note": "No matching Xbox primary Widget/Controls RTTI. Android-only or unresolved class; not patched by copying an Android signature."
+  },
+  {
+    "class": "BuySunMoneyDialog",
+    "count": 2,
+    "methods": [
+      "BuySunMoneyDialog::MouseDrag(int, int)",
+      "BuySunMoneyDialog::ButtonDepress(int)"
+    ],
+    "status": "reference-only",
+    "note": "No matching Xbox primary Widget/Controls RTTI. Android-only or unresolved class; not patched by copying an Android signature."
+  },
+  {
+    "class": "Challenge",
+    "count": 7,
+    "methods": [
+      "Challenge::MouseMove(int, int)",
+      "Challenge::MouseUp(int, int)",
+      "Challenge::MouseDownWhackAZombie(int, int, int)",
+      "Challenge::GameButtonUp(int, int, unsigned int)",
+      "Challenge::GameAxisMove(int, int, int)",
+      "Challenge::GameButtonDown(int, int, unsigned int)",
+      "Challenge::MouseDown(int, int, int, HitResult*, int)"
+    ],
+    "status": "object-dispatch",
+    "note": "Native mode/hit dispatch: match puzzles, slot lever, aquarium food, hammer, vase hit 23. Includes unresolved special actions listed in docs/input-coverage.md."
+  },
+  {
+    "class": "ChallengeScreen",
+    "count": 5,
+    "methods": [
+      "ChallengeScreen::ButtonDepress(int)",
+      "ChallengeScreen::GameAxisMove(Sexy::GamepadAxis, int, int)",
+      "ChallengeScreen::GameButtonUp(Sexy::GamepadButton, int, unsigned int)",
+      "ChallengeScreen::KeyDown(Sexy::KeyCode)",
+      "ChallengeScreen::GameButtonDown(Sexy::GamepadButton, int, unsigned int)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Recorded native tile bounds, selection/press/wheel."
+  },
+  {
+    "class": "Coin",
+    "count": 2,
+    "methods": [
+      "Coin::MouseHitTest(int, int, HitResult*, int)",
+      "Coin::MouseDown(int, int, int)"
+    ],
+    "status": "object-dispatch",
+    "note": "Discrete native collection and dropped-seed capture; no held sun magnet."
+  },
+  {
+    "class": "ConfirmBackToMainDialog",
+    "count": 2,
+    "methods": [
+      "ConfirmBackToMainDialog::MouseDrag(int, int)",
+      "ConfirmBackToMainDialog::ButtonDepress(int)"
+    ],
+    "status": "reference-only",
+    "note": "No matching Xbox primary Widget/Controls RTTI. Android-only or unresolved class; not patched by copying an Android signature."
+  },
+  {
+    "class": "ContinueDialog",
+    "count": 3,
+    "methods": [
+      "ContinueDialog::ButtonDepress(int)",
+      "ContinueDialog::KeyDown(Sexy::KeyCode)",
+      "ContinueDialog::KeyUp(Sexy::KeyCode)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+  },
+  {
+    "class": "CreditScreen",
+    "count": 4,
+    "methods": [
+      "CreditScreen::MouseUp(int, int, int)",
+      "CreditScreen::ButtonDepress(int)",
+      "CreditScreen::GameButtonDown(Sexy::GamepadButton, int, unsigned int)",
+      "CreditScreen::KeyDown(Sexy::KeyCode)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Native B through Back/RMB; original completion safety checks."
+  },
+  {
+    "class": "CutScene",
+    "count": 3,
+    "methods": [
+      "CutScene::GameButtonDown(Sexy::GamepadButton, int, unsigned int)",
+      "CutScene::KeyDown(Sexy::KeyCode)",
+      "CutScene::MouseDown(int, int)"
+    ],
+    "status": "object-dispatch",
+    "note": "Native Board A for Dave/scripted clicks; manual check all tutorial branches."
+  },
+  {
+    "class": "GameButton",
+    "count": 1,
+    "methods": [
+      "GameButton::KeyDown(Sexy::KeyCode)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+  },
+  {
+    "class": "GameOverDialog",
+    "count": 2,
+    "methods": [
+      "GameOverDialog::MouseDrag(int, int)",
+      "GameOverDialog::ButtonDepress(int)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+  },
+  {
+    "class": "GamepadControls",
+    "count": 2,
+    "methods": [
+      "GamepadControls::OnButtonUp(int, int, unsigned int)",
+      "GamepadControls::OnButtonDown(int, int, unsigned int)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Board pointer/state/drag/planting routes; preserve controller input activity."
+  },
+  {
+    "class": "HelpOptionsDialog",
+    "count": 3,
+    "methods": [
+      "HelpOptionsDialog::GameButtonDown(Sexy::GamepadButton, int, unsigned int)",
+      "HelpOptionsDialog::ButtonDepress(int)",
+      "HelpOptionsDialog::KeyDown(Sexy::KeyCode)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+  },
+  {
+    "class": "HelpTextScreen",
+    "count": 2,
+    "methods": [
+      "HelpTextScreen::KeyDown(Sexy::KeyCode)",
+      "HelpTextScreen::GameButtonDown(Sexy::GamepadButton, int, unsigned int)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Native left/right page commands through buttons/wheel, Back/RMB."
+  },
+  {
+    "class": "HouseChooserDialog",
+    "count": 1,
+    "methods": [
+      "HouseChooserDialog::GameButtonDown(Sexy::GamepadButton, int, unsigned int)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+  },
+  {
+    "class": "ImitaterDialog",
+    "count": 4,
+    "methods": [
+      "ImitaterDialog::MouseUp(int, int, int)",
+      "ImitaterDialog::MouseDown(int, int, int)",
+      "ImitaterDialog::GameButtonDown(Sexy::GamepadButton, int, unsigned int)",
+      "ImitaterDialog::KeyDown(Sexy::KeyCode)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Native seed hit testing and copied seed selection; RMB native B."
+  },
+  {
+    "class": "LawnApp",
+    "count": 2,
+    "methods": [
+      "LawnApp::OnButtonDown(int, int, unsigned int)",
+      "LawnApp::ButtonDepress(int)"
+    ],
+    "status": "object-dispatch",
+    "note": "Native screen/dialog transitions; host Escape routes gameplay pause."
+  },
+  {
+    "class": "LawnDialog",
+    "count": 2,
+    "methods": [
+      "LawnDialog::KeyDown(Sexy::KeyCode)",
+      "LawnDialog::ButtonDepress(int)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+  },
+  {
+    "class": "LawnEditWidget",
+    "count": 1,
+    "methods": [
+      "LawnEditWidget::KeyDown(Sexy::KeyCode)"
+    ],
+    "status": "reference-only",
+    "note": "No matching Xbox primary Widget/Controls RTTI. Android-only or unresolved class; not patched by copying an Android signature."
+  },
+  {
+    "class": "MailScreen",
+    "count": 2,
+    "methods": [
+      "MailScreen::KeyDown(Sexy::KeyCode)",
+      "MailScreen::GameButtonDown(Sexy::GamepadButton, int, unsigned int)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Native previous/next message commands, Back/RMB. Platform invitation actions are not exposed."
+  },
+  {
+    "class": "MainMenu",
+    "count": 3,
+    "methods": [
+      "MainMenu::ButtonDepress(int)",
+      "MainMenu::GameButtonDown(Sexy::GamepadButton, int, unsigned int)",
+      "MainMenu::KeyDown(Sexy::KeyCode)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Panel-aware painted buttons; progress-specific Adventure and animated press/release."
+  },
+  {
+    "class": "NewOptionsDialog",
+    "count": 3,
+    "methods": [
+      "NewOptionsDialog::ButtonDepress(int)",
+      "NewOptionsDialog::GameButtonDown(Sexy::GamepadButton, int, unsigned int)",
+      "NewOptionsDialog::KeyDown(Sexy::KeyCode)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+  },
+  {
+    "class": "Plant",
+    "count": 1,
+    "methods": [
+      "Plant::MouseDown(int, int, int)"
+    ],
+    "status": "object-dispatch",
+    "note": "Native planting/tool/hammer paths. Specialized Cob Cannon targeting remains a research gap."
+  },
+  {
+    "class": "PurchaseLimitDialog",
+    "count": 3,
+    "methods": [
+      "PurchaseLimitDialog::KeyDown(Sexy::KeyCode)",
+      "PurchaseLimitDialog::KeyUp(Sexy::KeyCode)",
+      "PurchaseLimitDialog::ButtonDepress(int)"
+    ],
+    "status": "reference-only",
+    "note": "No matching Xbox primary Widget/Controls RTTI. Android-only or unresolved class; not patched by copying an Android signature."
+  },
+  {
+    "class": "RevivalGameDialog",
+    "count": 2,
+    "methods": [
+      "RevivalGameDialog::MouseDrag(int, int)",
+      "RevivalGameDialog::ButtonDepress(int)"
+    ],
+    "status": "reference-only",
+    "note": "No matching Xbox primary Widget/Controls RTTI. Android-only or unresolved class; not patched by copying an Android signature."
+  },
+  {
+    "class": "SeedBank",
+    "count": 1,
+    "methods": [
+      "SeedBank::MouseHitTest(int, int, HitResult*)"
+    ],
+    "status": "object-dispatch",
+    "note": "Shared slot/conveyor selection, wheel in console mode and PC drag gestures."
+  },
+  {
+    "class": "SeedChooserScreen",
+    "count": 8,
+    "methods": [
+      "SeedChooserScreen::MouseUp(int, int, int)",
+      "SeedChooserScreen::MouseDown(int, int, int)",
+      "SeedChooserScreen::KeyUp(Sexy::KeyCode)",
+      "SeedChooserScreen::KeyDown(Sexy::KeyCode)",
+      "SeedChooserScreen::GameAxisMove(Sexy::GamepadAxis, int, int)",
+      "SeedChooserScreen::GameButtonUp(Sexy::GamepadButton, int, unsigned int)",
+      "SeedChooserScreen::ButtonDepress(int)",
+      "SeedChooserScreen::GameButtonDown(Sexy::GamepadButton, int, unsigned int)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Native seed selection, tooltip, outline, drag-to-bank, Shop/Almanac/Let us Rock."
+  },
+  {
+    "class": "SeedPacket",
+    "count": 2,
+    "methods": [
+      "SeedPacket::MouseDown(int, int, int, int)",
+      "SeedPacket::MouseHitTest(int, int, HitResult*)"
+    ],
+    "status": "object-dispatch",
+    "note": "Native pickup/usability/cost/cooldown routes via bank geometry."
+  },
+  {
+    "class": "SessionWaitingDialog",
+    "count": 1,
+    "methods": [
+      "SessionWaitingDialog::MouseDrag(int, int)"
+    ],
+    "status": "reference-only",
+    "note": "No matching Xbox primary Widget/Controls RTTI. Android-only or unresolved class; not patched by copying an Android signature."
+  },
+  {
+    "class": "SettingsDialog",
+    "count": 3,
+    "methods": [
+      "SettingsDialog::GameButtonDown(Sexy::GamepadButton, int, unsigned int)",
+      "SettingsDialog::ButtonDepress(int)",
+      "SettingsDialog::KeyDown(Sexy::KeyCode)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+  },
+  {
+    "class": "Sexy::BaseAppDriver",
+    "count": 1,
+    "methods": [
+      "Sexy::BaseAppDriver::KeyDown(int)"
+    ],
+    "status": "reference-only",
+    "note": "No matching Xbox primary Widget/Controls RTTI. Android-only or unresolved class; not patched by copying an Android signature."
+  },
+  {
+    "class": "Sexy::Board",
+    "count": 2,
+    "methods": [
+      "Sexy::Board::MouseDown(int, int, int)",
+      "Sexy::Board::ButtonDepress(int)"
+    ],
+    "status": "reference-only",
+    "note": "No matching Xbox primary Widget/Controls RTTI. Android-only or unresolved class; not patched by copying an Android signature."
+  },
+  {
+    "class": "Sexy::ButtonListener",
+    "count": 1,
+    "methods": [
+      "Sexy::ButtonListener::ButtonDepress(int)"
+    ],
+    "status": "reference-only",
+    "note": "No matching Xbox primary Widget/Controls RTTI. Android-only or unresolved class; not patched by copying an Android signature."
+  },
+  {
+    "class": "Sexy::ButtonWidget",
+    "count": 10,
+    "methods": [
+      "Sexy::ButtonWidget::MouseDown(int, int, int)",
+      "Sexy::ButtonWidget::MouseUp(int, int)",
+      "Sexy::ButtonWidget::MouseUp(int, int, int)",
+      "Sexy::ButtonWidget::KeyDown(Sexy::KeyCode)",
+      "Sexy::ButtonWidget::KeyUp(Sexy::KeyCode)",
+      "Sexy::ButtonWidget::MouseEnter()",
+      "Sexy::ButtonWidget::MouseLeave()",
+      "Sexy::ButtonWidget::MouseMove(int, int)",
+      "Sexy::ButtonWidget::MouseDown(int, int, int, int)",
+      "Sexy::ButtonWidget::MouseUp(int, int, int, int)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+  },
+  {
+    "class": "Sexy::Checkbox",
+    "count": 3,
+    "methods": [
+      "Sexy::Checkbox::MouseDown(int, int, int)",
+      "Sexy::Checkbox::MouseDown(int, int, int, int)",
+      "Sexy::Checkbox::KeyDown(Sexy::KeyCode)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+  },
+  {
+    "class": "Sexy::Dialog",
+    "count": 9,
+    "methods": [
+      "Sexy::Dialog::MouseUp(int, int)",
+      "Sexy::Dialog::KeyUp(Sexy::KeyCode)",
+      "Sexy::Dialog::MouseDown(int, int, int, int)",
+      "Sexy::Dialog::MouseUp(int, int, int, int)",
+      "Sexy::Dialog::MouseDrag(int, int)",
+      "Sexy::Dialog::MouseDown(int, int, int)",
+      "Sexy::Dialog::MouseUp(int, int, int)",
+      "Sexy::Dialog::ButtonDepress(int)",
+      "Sexy::Dialog::KeyDown(Sexy::KeyCode)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+  },
+  {
+    "class": "Sexy::EditWidget",
+    "count": 9,
+    "methods": [
+      "Sexy::EditWidget::MouseDown(int, int, int)",
+      "Sexy::EditWidget::MouseUp(int, int)",
+      "Sexy::EditWidget::MouseUp(int, int, int)",
+      "Sexy::EditWidget::KeyDown(Sexy::KeyCode)",
+      "Sexy::EditWidget::MouseEnter()",
+      "Sexy::EditWidget::MouseLeave()",
+      "Sexy::EditWidget::MouseDown(int, int, int, int)",
+      "Sexy::EditWidget::MouseUp(int, int, int, int)",
+      "Sexy::EditWidget::MouseDrag(int, int)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Native mouse transport to the text field; selection/caret and host keyboard text input require separate manual/research checks."
+  },
+  {
+    "class": "Sexy::HyperlinkWidget",
+    "count": 2,
+    "methods": [
+      "Sexy::HyperlinkWidget::MouseEnter()",
+      "Sexy::HyperlinkWidget::MouseLeave()"
+    ],
+    "status": "reference-only",
+    "note": "No matching Xbox primary Widget/Controls RTTI. Android-only or unresolved class; not patched by copying an Android signature."
+  },
+  {
+    "class": "Sexy::ListWidget",
+    "count": 6,
+    "methods": [
+      "Sexy::ListWidget::MouseDown(int, int, int, int)",
+      "Sexy::ListWidget::MouseWheel(int)",
+      "Sexy::ListWidget::MouseLeave()",
+      "Sexy::ListWidget::MouseMove(int, int)",
+      "Sexy::ListWidget::MouseDown(int, int, int)",
+      "Sexy::ListWidget::KeyDown(Sexy::KeyCode)"
+    ],
+    "status": "reference-only",
+    "note": "No matching Xbox primary Widget/Controls RTTI. Android-only or unresolved class; not patched by copying an Android signature."
+  },
+  {
+    "class": "Sexy::ScrollbarWidget",
+    "count": 6,
+    "methods": [
+      "Sexy::ScrollbarWidget::MouseDown(int, int, int)",
+      "Sexy::ScrollbarWidget::MouseUp(int, int)",
+      "Sexy::ScrollbarWidget::MouseDown(int, int, int, int)",
+      "Sexy::ScrollbarWidget::MouseUp(int, int, int, int)",
+      "Sexy::ScrollbarWidget::MouseDrag(int, int)",
+      "Sexy::ScrollbarWidget::ButtonDepress(int)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+  },
+  {
+    "class": "Sexy::SexyAppBase",
+    "count": 1,
+    "methods": [
+      "Sexy::SexyAppBase::KeyDown(int)"
+    ],
+    "status": "reference-only",
+    "note": "No matching Xbox primary Widget/Controls RTTI. Android-only or unresolved class; not patched by copying an Android signature."
+  },
+  {
+    "class": "Sexy::Slider",
+    "count": 6,
+    "methods": [
+      "Sexy::Slider::KeyDown(Sexy::KeyCode)",
+      "Sexy::Slider::MouseLeave()",
+      "Sexy::Slider::MouseMove(int, int)",
+      "Sexy::Slider::MouseDown(int, int, int)",
+      "Sexy::Slider::MouseUp(int, int)",
+      "Sexy::Slider::MouseDrag(int, int)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+  },
+  {
+    "class": "Sexy::SoundControllerWidget",
+    "count": 1,
+    "methods": [
+      "Sexy::SoundControllerWidget::KeyUp(Sexy::KeyCode)"
+    ],
+    "status": "reference-only",
+    "note": "No matching Xbox primary Widget/Controls RTTI. Android-only or unresolved class; not patched by copying an Android signature."
+  },
+  {
+    "class": "Sexy::Widget",
+    "count": 15,
+    "methods": [
+      "Sexy::Widget::MouseUp(int, int)",
+      "Sexy::Widget::MouseWheel(int, int)",
+      "Sexy::Widget::KeyDown(Sexy::Event const&)",
+      "Sexy::Widget::KeyUp(Sexy::Event const&)",
+      "Sexy::Widget::MouseEnter()",
+      "Sexy::Widget::MouseLeave()",
+      "Sexy::Widget::MouseMove(int, int)",
+      "Sexy::Widget::MouseDown(int, int, int)",
+      "Sexy::Widget::MouseUp(int, int, int)",
+      "Sexy::Widget::KeyDown(Sexy::KeyCode)",
+      "Sexy::Widget::KeyUp(Sexy::KeyCode)",
+      "Sexy::Widget::MouseDown(int, int, int, int)",
+      "Sexy::Widget::MouseUp(int, int, int, int)",
+      "Sexy::Widget::MouseDrag(int, int)",
+      "Sexy::Widget::MouseWheel(int)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+  },
+  {
+    "class": "Sexy::WidgetManager",
+    "count": 14,
+    "methods": [
+      "Sexy::WidgetManager::MouseWheel(int, int)",
+      "Sexy::WidgetManager::KeyDown(Sexy::Event const&)",
+      "Sexy::WidgetManager::KeyUp(Sexy::Event const&)",
+      "Sexy::WidgetManager::MouseUp(int, int, int)",
+      "Sexy::WidgetManager::MouseWheel(int)",
+      "Sexy::WidgetManager::MouseDown(int, int, int)",
+      "Sexy::WidgetManager::MouseExit(int, int)",
+      "Sexy::WidgetManager::MouseMove(int, int)",
+      "Sexy::WidgetManager::MousePosition(int, int)",
+      "Sexy::WidgetManager::MouseEnter(Sexy::Widget*)",
+      "Sexy::WidgetManager::MouseLeave(Sexy::Widget*)",
+      "Sexy::WidgetManager::MouseDrag(int, int)",
+      "Sexy::WidgetManager::KeyDown(Sexy::KeyCode)",
+      "Sexy::WidgetManager::KeyUp(Sexy::KeyCode)"
+    ],
+    "status": "reference-only",
+    "note": "No matching Xbox primary Widget/Controls RTTI. Android-only or unresolved class; not patched by copying an Android signature."
+  },
+  {
+    "class": "StartButton",
+    "count": 3,
+    "methods": [
+      "StartButton::GameButtonDown(Sexy::GamepadButton, int, unsigned int)",
+      "StartButton::GameButtonUp(Sexy::GamepadButton, int, unsigned int)",
+      "StartButton::KeyDown(Sexy::KeyCode)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+  },
+  {
+    "class": "StoreScreen",
+    "count": 4,
+    "methods": [
+      "StoreScreen::MouseDown(int, int, int)",
+      "StoreScreen::ButtonDepress(int)",
+      "StoreScreen::GameButtonDown(Sexy::GamepadButton, int, unsigned int)",
+      "StoreScreen::KeyDown(Sexy::KeyCode)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Native item positions, price/availability/purchase dialog; arrows and wheel."
+  },
+  {
+    "class": "TitleScreen",
+    "count": 2,
+    "methods": [
+      "TitleScreen::KeyDown(Sexy::KeyCode)",
+      "TitleScreen::GameButtonDown(Sexy::GamepadButton, int, unsigned int)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "LMB invokes verified native Start after intro-ready guard; original console state handling."
+  },
+  {
+    "class": "TreeOfWisdomControls",
+    "count": 2,
+    "methods": [
+      "TreeOfWisdomControls::OnButtonUp(int, int, unsigned int)",
+      "TreeOfWisdomControls::OnButtonDown(int, int, unsigned int)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Native food tool, tree hit 19, validated native A, Shop/wheel; PC empty hand."
+  },
+  {
+    "class": "UnlockDialog",
+    "count": 2,
+    "methods": [
+      "UnlockDialog::MouseDrag(int, int)",
+      "UnlockDialog::ButtonDepress(int)"
+    ],
+    "status": "reference-only",
+    "note": "No matching Xbox primary Widget/Controls RTTI. Android-only or unresolved class; not patched by copying an Android signature."
+  },
+  {
+    "class": "UserDialog",
+    "count": 1,
+    "methods": [
+      "UserDialog::ButtonDepress(int)"
+    ],
+    "status": "reference-only",
+    "note": "No matching Xbox primary Widget/Controls RTTI. Android-only or unresolved class; not patched by copying an Android signature."
+  },
+  {
+    "class": "VSResultsMenu",
+    "count": 2,
+    "methods": [
+      "VSResultsMenu::KeyDown(Sexy::KeyCode)",
+      "VSResultsMenu::ButtonDepress(int)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Original Play Again/Quit native children; RMB routes native quit listener with exit animation."
+  },
+  {
+    "class": "VSSetupMenu",
+    "count": 5,
+    "methods": [
+      "VSSetupMenu::GameAxisMove(Sexy::GamepadAxis, int, int)",
+      "VSSetupMenu::GameButtonUp(Sexy::GamepadButton, int, unsigned int)",
+      "VSSetupMenu::KeyDown(Sexy::KeyCode)",
+      "VSSetupMenu::GameButtonDown(Sexy::GamepadButton, int, unsigned int)",
+      "VSSetupMenu::ButtonDepress(int)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "First joined user native side selection via arrows/wheel, Ready and Back/RMB. Second player remains native controller."
+  },
+  {
+    "class": "WaitForSecondPlayerDialog",
+    "count": 2,
+    "methods": [
+      "WaitForSecondPlayerDialog::KeyDown(Sexy::KeyCode)",
+      "WaitForSecondPlayerDialog::GameButtonDown(Sexy::GamepadButton, int, unsigned int)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Native widget transport and painted child-button press/release. Check child controls and modal closure; no new speculative native calls."
+  },
+  {
+    "class": "ZenGarden",
+    "count": 7,
+    "methods": [
+      "ZenGarden::MouseDownWithFullWheelBarrow(int, int)",
+      "ZenGarden::MouseDownWithTool(int, int, CursorType, int)",
+      "ZenGarden::MouseDownWithFeedingTool(int, int, CursorType, int)",
+      "ZenGarden::GameButtonDown(int, int, unsigned int)",
+      "ZenGarden::MouseDownZenGarden(int, int, int, HitResult*)",
+      "ZenGarden::MouseDownWithEmptyWheelBarrow(Plant*)",
+      "ZenGarden::MouseDownWithMoneySign(Plant*)"
+    ],
+    "status": "object-dispatch",
+    "note": "Native tools and save/switch/shop through Xbox controls and Board hit testing."
+  },
+  {
+    "class": "ZenGardenControls",
+    "count": 2,
+    "methods": [
+      "ZenGardenControls::OnButtonUp(int, int, unsigned int)",
+      "ZenGardenControls::OnButtonDown(int, int, unsigned int)"
+    ],
+    "status": "xbox-widget-or-controls",
+    "note": "Native tool pick/apply, precise pointer, Shop and tool wheel."
+  }
+]
