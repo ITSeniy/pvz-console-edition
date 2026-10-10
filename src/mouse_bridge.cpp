@@ -166,7 +166,6 @@ thread_local std::optional<pvz::Point> console_draw_offset;
 thread_local std::optional<pvz::Point> heavy_weapon_aim;
 struct HeavyWeaponMouse { uint32_t board = 0; bool firing = false; } heavy_weapon_mouse;
 thread_local bool explicit_mouse_collect = false;
-std::vector<uint32_t> slot_auto_attempted;
 struct LateCursor { uint32_t board = 0, controls = 0; std::array<uint32_t, 17> graphics{}; };
 thread_local LateCursor late_cursor;
 thread_local bool drawing_late_cursor = false;
@@ -532,6 +531,15 @@ uint32_t MouseGuestCall(PPCContext& ctx, uint8_t* base, PPCFunc* fn, uint32_t se
   return work.r3.u32;
 }
 
+// Empties the mouse player's hand. A dropped seed packet goes back to the
+// lawn through native B; ClearCursor alone leaves that coin unpickable.
+void DropMouseItem(PPCContext& ctx, uint8_t* base, uint32_t board) {
+  if (MouseCursorType(board, base) == 2) {
+    MouseGuestCall(ctx, base, sub_8214CDC0, board, 7);
+    MouseGuestCall(ctx, base, sub_8214D1B8, board, 7);
+  } else MouseGuestCall(ctx, base, sub_82139AC0, board);
+}
+
 bool PlantMouse(uint32_t controls, uint8_t* base) {
   if (!MouseActive() || !controls ||
       Read(base, controls) != kGamepadControls || int32_t(Read(base, controls + 0xA0)) != pvz::MouseUserIndex())
@@ -635,7 +643,7 @@ void CancelMouseGestures(PPCContext& ctx, uint8_t* base, uint32_t manager) {
   board = FindRootWidget(manager, kBoard, base, true);
   if (board && board == old_selection.board && MouseControls(board, base) == old_selection.controls &&
       MouseSeedBank(board, old_selection.controls, base) == old_selection.bank)
-    call(sub_82139AC0, board);
+    DropMouseItem(ctx, base, board);
   pvz::CancelServiceMouse(ctx, base, board);
   pvz::CancelChallengeMouse(base, TopRootWidget(manager, base));
   if (mouse_item_cursor.exchange(false)) pvz::RefreshHostSettings();
@@ -706,7 +714,7 @@ class MouseDispatch {
     selection.packets.clear();
     selection.shovel = selection.usable_seed = false;
     if (live) {
-      Call(sub_82139AC0, selection.board, 0, 0, 0);
+      DropMouseItem(ctx, base, selection.board);
       HideUnselectedCursor(selection.controls, base);
     }
   }
@@ -1638,6 +1646,7 @@ class MouseDispatch {
     // Card clicks change the console's persistent selection without
     // also firing A on the lawn. Selection need not be affordable yet.
     const auto local = pvz::MapBoardPointer(event.point);
+    if (ConsolePickSeed(local)) return true;
     const auto packet = GameMode(base, app) != kModeSlotMachine && PlantMouse(primary, base) && local ?
         PacketAt(selection.bank, *local, base) : -1;
     if (!PcMouseMode() && GameMode(base, app) == kModeSlotMachine && event.click > 0 && local) {
@@ -1667,7 +1676,10 @@ class MouseDispatch {
       }
     } else if (event.click < 0 && PlantMouse(primary, base) &&
         MouseCursorType(widget, base) == 2) {
-      if (event.down) { Call(sub_82139AC0, widget, 0, 0, 0); PlaySample(app, 0x82D0A43C); }
+      if (event.down) {
+        DropMouseItem(ctx, base, widget);
+        PVZ_TRACE("PvZ console seed cancel cursor {}", MouseCursorType(widget, base));
+      }
     } else if (event.click < 0 && PlantMouse(primary, base) && base[widget + 0x5691]) {
       // Console holds RMB like B: native B starts the timed dig (controls
       // state 6), the pad hook keeps B down while RMB is held, and the
@@ -1676,7 +1688,8 @@ class MouseDispatch {
           (GameScene(base, app) == kScenePlaying || shovel_lesson)) {
         console_shovel = {widget, primary, true};
         Call(sub_8214CDC0, widget, 7, 0, 0);
-        PVZ_TRACE("PvZ console shovel hold started state {} tutorial {}", Read(base, primary + 0x68), tutorial);
+        PVZ_TRACE("PvZ console shovel hold started state {} tutorial {} cursor {} seed {}", Read(base, primary + 0x68), tutorial,
+            MouseCursorType(widget, base), int32_t(Read(base, MouseCursor(widget, base) + 0x44)));
       }
     } else {
       const auto bank = Read(base, widget + 0x1A4);
@@ -1692,6 +1705,20 @@ class MouseDispatch {
         REXLOG_INFO("PvZ console planted seed");
     }
     return false;
+  }
+  // Console: dropped seed packets are not picked up by proximity; LMB on one
+  // takes it, and RMB with it in hand cancels as before.
+  bool ConsolePickSeed(std::optional<pvz::Point> local) {
+    if (!event.down || event.click != 1 || !local || BoardPaused(base, widget) || !PlantMouse(primary, base)) return false;
+    const auto hit = ctx.r1.u32 - 0x80;
+    Write(base, hit, 0); Write(base, hit + 4, 0);
+    Call(sub_82139238, widget, int(local->x), int(local->y), int(hit));
+    const auto coin = Read(base, hit + 4) == 3 ? Read(base, hit) : 0;
+    PVZ_TRACE("PvZ console click hit {} coin type {} at {},{}", Read(base, hit + 4), coin ? Read(base, coin + 0x80) : 0, local->x, local->y);
+    if (!coin || Read(base, coin + 0x80) != 16) return false;
+    Call(sub_8216EF50, coin, 0, 0, 0);
+    PVZ_TRACE("PvZ console dropped seed picked {}", MouseCursorType(widget, base) == 2);
+    return true;
   }
   void NativeMouseDown() {
     const auto local = pvz::MapUiPointer(event.point);
@@ -1962,45 +1989,20 @@ REX_HOOK_RAW(sub_8216EF50) {
   const auto board = Read(base, ctx.r3.u32 + 0x20);
   const auto primary = board ? MouseControls(board, base) : 0;
   const auto type = Read(base, ctx.r3.u32 + 0x80);
-  const auto app = board ? BoardApp(base, board) : 0;
-  const bool slot_seed = app && GameMode(base, app) == kModeSlotMachine && type == 16;
-  if (PcMouseMode() && slot_seed && !explicit_mouse_collect &&
-      std::find(slot_auto_attempted.begin(), slot_auto_attempted.end(), ctx.r3.u32) != slot_auto_attempted.end()) return;
-  if (REXCVAR_GET(pvz_mouse_cursor) && PcMouseMode() &&
-      ((type == 16 && !explicit_mouse_collect) || ctx.lr == 0x8218C1C4 || ctx.lr == 0x821922F8) && ctx.r4.u32 == 0 &&
-      !slot_seed && ((type >= 1 && type <= 7) || type == 16) && (PlantMouse(primary, base) ||
-       (primary && Read(base, primary) == kZenControls && int32_t(Read(base, primary + 0xA0)) == pvz::MouseUserIndex() && MouseActive()))) return;
+  const bool mouse_player = PlantMouse(primary, base) || (primary && Read(base, primary) == kZenControls &&
+      int32_t(Read(base, primary + 0xA0)) == pvz::MouseUserIndex() && MouseActive());
+  const bool proximity = ctx.lr == 0x8218C1C4 || ctx.lr == 0x821922F8;
+  // A dropped seed packet is taken only by a click in both mouse modes, so a
+  // right-click cancel is not undone by the cursor still resting on it.
+  const bool seed = type == 16 && !explicit_mouse_collect;
+  if (MouseActive() && ctx.r4.u32 == 0 && mouse_player && ((type >= 1 && type <= 7) || type == 16) &&
+      (seed || (PcMouseMode() && proximity))) return;
   const auto coin = ctx.r3.u32;
   const bool trace_auto = REXCVAR_GET(pvz_input_trace) && REXCVAR_GET(pvz_mouse_cursor) &&
       !PcMouseMode() && (ctx.lr == 0x8218C1C4 || ctx.lr == 0x821922F8) && Read(base, coin + 0x84) != 7;
   __imp__sub_8216EF50(ctx, base);
-  if (slot_seed && PcMouseMode() && PlantMouse(primary, base)) {
-    if (MouseCursorType(board, base) == 2) {
-      selection.packet = -1; selection.packets.clear(); selection.usable_seed = true;
-      PVZ_TRACE("PvZ Slot Machine auto picked dropped seed {}", Read(base, MouseCursor(board, base) + 0x44));
-    }
-  }
   if (trace_auto && Read(base, coin + 0x84) == 7)
     REXLOG_INFO("PvZ console auto collect coin type {}", type);
-}
-REX_EXTERN(__imp__sub_82133968);
-REX_HOOK_RAW(sub_82133968) {
-  __imp__sub_82133968(ctx, base);
-  // Native coin slots are reused; a new award gets one new auto-pick attempt.
-  std::erase(slot_auto_attempted, ctx.r3.u32);
-}
-REX_EXTERN(__imp__sub_8216B330);
-REX_HOOK_RAW(sub_8216B330) {
-  const auto coin = ctx.r3.u32, board = Read(base, coin + 0x20);
-  const auto app = board ? BoardApp(base, board) : 0;
-  if (PcMouseMode() && app && GameMode(base, app) == kModeSlotMachine && GameScene(base, app) == kScenePlaying &&
-      !BoardPaused(base, board) && Read(base, coin + 0x80) == 16 && !base[coin + 0x5C] && !base[coin + 0x74] &&
-      PlantMouse(MouseControls(board, base), base) && MouseCursor(board, base) && MouseCursorType(board, base) == 0 &&
-      std::find(slot_auto_attempted.begin(), slot_auto_attempted.end(), coin) == slot_auto_attempted.end()) {
-    GuestCall(ctx, base, sub_8216EF50, coin, 0);
-    if (MouseCursorType(board, base) == 2) slot_auto_attempted.push_back(coin);
-  }
-  __imp__sub_8216B330(ctx, base);
 }
 
 REX_HOOK_RAW(sub_821ABDE8) {
@@ -2136,11 +2138,9 @@ REX_HOOK_RAW(sub_8216DC40) {
   // a click. Update calls this function again when the coin reaches the
   // cursor; that completion must run to collect/credit it. Only reject
   // unsolicited pickup of a coin still falling or resting on the lawn.
-  const bool slot_seed = type == 16 && board && BoardMode(base, board) == kModeSlotMachine;
-  if (PcMouseMode() && automatic && slot_seed && state != 7 && !base[coin + 0x74] &&
-      std::find(slot_auto_attempted.begin(), slot_auto_attempted.end(), coin) != slot_auto_attempted.end()) return;
-  if (PcMouseMode() && automatic && !slot_seed && state != 7 && !base[coin + 0x74] &&
-      ((type >= 1 && type <= 7) || type == 16) && board && PlantMouse(MouseControls(board, base), base)) return;
+  if (MouseActive() && automatic && state != 7 && !base[coin + 0x74] && board &&
+      (PcMouseMode() ? (type >= 1 && type <= 7) || type == 16 : type == 16) &&
+      PlantMouse(MouseControls(board, base), base)) return;
   if (PcMouseMode() && type == 16 && REXCVAR_GET(pvz_input_trace))
     REXLOG_INFO("PvZ dropped packet pickup caller {:08X} picked {} seed {}", ctx.lr, base[coin + 0x74], Read(base, coin + 0x98));
   const bool completing = REXCVAR_GET(pvz_input_trace) && PcMouseMode() && automatic &&
