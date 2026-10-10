@@ -14,7 +14,7 @@ int main() {
   check(pvz::MousePrompt(plain) == plain);
   check(pvz::MousePrompt(u"<A><A><B><unknown>") == u"LMBLMBRMB<unknown>");
   check(pvz::MousePrompt(u"then press and hold <B> to dig!", true) == u"then click LMB to dig!");
-  check(pvz::MousePrompt(u"then press and hold <B> to dig!", false) == u"then click RMB to dig!");
+  check(pvz::MousePrompt(u"then press and hold <B> to dig!", false) == u"then hold RMB to dig!");
   const std::u16string join = u"Player 2: Press <A> to join. Press <B> to cancel.";
   check(pvz::PcGameText(u"2P_JOIN_TEXT", join, true, true) == join);
   check(pvz::PcGameText(u"RECONNECT_SECOND_CONTROLLER_FMT", u"Controller %d", true, true) == u"Controller %d");

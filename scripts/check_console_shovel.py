@@ -8,10 +8,13 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('log', type=Path)
 args = parser.parse_args()
 text = args.log.read_text(encoding='utf-8')
-steps = re.findall(r'PvZ console shovel press completed (true|false) tutorial (\d+) -> (\d+)', text)
+# One entry per RMB release: (dug, tutorial before, tutorial after).
+steps = [m[1:] for m in re.findall(
+    r'PvZ console shovel released after (\S+) dug (true|false) tutorial (\d+) -> (\d+)', text)]
 checks = {
-    'empty_cell_does_not_complete': bool(steps) and steps[0] == ('false', '15', '15'),
-    'first_press_digs': any(s[0] == 'true' and s[1] == '15' for s in steps),
+    'empty_cell_does_not_complete': len(steps) > 0 and steps[0] == ('false', '15', '15'),
+    'short_press_does_not_dig': len(steps) > 1 and steps[1][0] == 'false',
+    'held_press_digs': any(s[0] == 'true' and s[1] in ('15', '16') for s in steps),
     'three_successful_digs': sum(s[0] == 'true' for s in steps) == 3,
     'last_dig_completes': any(s[0] == 'true' and s[2] == '18' for s in steps),
     'gameplay_ready_after_dave': 'PvZ replay wait_board ready' in text,

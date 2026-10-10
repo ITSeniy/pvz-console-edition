@@ -43,7 +43,7 @@ inline std::u16string PcGameText(std::u16string_view key, std::u16string text,
     return pc ? u"Click the falling sun to collect it!" : u"Move over to the falling sun to collect it!";
   if (key == u"ADVICE_CLICK_SHOVEL") return pc ?
     u"Click the shovel, then click the plant you want to dig up!" :
-    u"Point at a plant, then right-click to dig!";
+    u"Point at a plant, then hold the right mouse button to dig!";
   if (key == u"HELP_TEXT_2_LSTICK") return u"Mouse: Move Cursor";
   if (key == u"HELP_TEXT_2_BUMPERS") return pc ? u"LMB: Select Seed Packet" : u"Wheel: Select Seed Packet";
   if (key == u"HELP_TEXT_2_B") return pc ? u"LMB: Shovel / Dig; RMB: Cancel" : u"RMB: Dig / Cancel";

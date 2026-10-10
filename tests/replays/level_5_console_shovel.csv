@@ -32,13 +32,15 @@
 # An empty-cell click must not complete the tutorial.
 46,400,300,right_down
 46.15,400,300,right_up
-# Each short press digs immediately; release must not dig a second time.
+# A short press on a plant must not dig; holding RMB like B digs it.
 47,460,225,right_down
 47.15,460,225,right_up
+48,460,225,right_down
+49.5,460,225,right_up
 51,552,310,right_down
-51.15,552,310,right_up
+52.5,552,310,right_up
 54,505,388,right_down
-54.15,505,388,right_up
+55.5,505,388,right_up
 # Advance Dave after successful completion; wait_board must become ready.
 60,450,400,left_down
 60.15,450,400,left_up

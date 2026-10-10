@@ -13,7 +13,7 @@ inline std::u16string MousePrompt(std::u16string text, bool pc_mode = false) {
       at += to.size();
     }
   };
-  replace(u"press and hold <B> to dig", pc_mode ? u"click LMB to dig" : u"click RMB to dig");
+  replace(u"press and hold <B> to dig", pc_mode ? u"click LMB to dig" : u"hold RMB to dig");
   replace(u"Press <A>", u"Left-click");
   replace(u"Press <B>", u"Right-click");
   replace(u"<A>", u"LMB");

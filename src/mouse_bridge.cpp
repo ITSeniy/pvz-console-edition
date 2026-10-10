@@ -1059,6 +1059,9 @@ class MouseDispatch {
         if (console_shovel.held) {
           Call(sub_82190D80, controls, 1, 0, 0);
           Call(sub_82139AC0, board, 0, 0, 0);
+          // The level 5 lesson ends once its last plant is dug.
+          if (InShovelLesson(base, board) && Call(sub_82134748, board, 0, 0, 0) == 0)
+            Call(sub_8213D0F0, board, 18, 0, 0);
         }
         PVZ_TRACE("PvZ console shovel released after {} dug {} tutorial {} -> {}",
             elapsed, Read(base, board + 0x583C) != count, before, Read(base, board + 0x5620));
@@ -1666,16 +1669,14 @@ class MouseDispatch {
         MouseCursorType(widget, base) == 2) {
       if (event.down) { Call(sub_82139AC0, widget, 0, 0, 0); PlaySample(app, 0x82D0A43C); }
     } else if (event.click < 0 && PlantMouse(primary, base) && base[widget + 0x5691]) {
+      // Console holds RMB like B: native B starts the timed dig (controls
+      // state 6), the pad hook keeps B down while RMB is held, and the
+      // release lets StateExit dig only after a completed hold.
       if (event.down && local && !BoardPaused(base, widget) &&
           (GameScene(base, app) == kScenePlaying || shovel_lesson)) {
-        const auto count = Read(base, widget + 0x583C);
-        // Mouse digging uses the preserved native tool action on press.
-        Call(sub_821388A0, widget, int(local->x), int(local->y), 6);
-        console_shovel = {};
-        if (shovel_lesson && Call(sub_82134748, widget, 0, 0, 0) == 0)
-          Call(sub_8213D0F0, widget, 18, 0, 0);
-        PVZ_TRACE("PvZ console shovel press completed {} tutorial {} -> {}",
-            Read(base, widget + 0x583C) != count, tutorial, Read(base, widget + 0x5620));
+        console_shovel = {widget, primary, true};
+        Call(sub_8214CDC0, widget, 7, 0, 0);
+        PVZ_TRACE("PvZ console shovel hold started state {} tutorial {}", Read(base, primary + 0x68), tutorial);
       }
     } else {
       const auto bank = Read(base, widget + 0x1A4);
