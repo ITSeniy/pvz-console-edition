@@ -521,6 +521,11 @@ uint32_t MouseCursor(uint32_t board, uint8_t* base) {
   const auto controls = MouseControls(board, base);
   return controls ? Read(base, board + 0x1B8 + Read(base, controls + 0x9C) * 4) : 0;
 }
+// CursorObject type of the mouse player's hand; 0 (empty) without a cursor.
+uint32_t MouseCursorType(uint32_t board, uint8_t* base) {
+  const auto cursor = MouseCursor(board, base);
+  return cursor ? Read(base, cursor + 0x4C) : 0;
+}
 void RouteMouseGuestCall(PPCFunc* fn, PPCContext& work, uint8_t* base) {
   const auto user = pvz::MouseUserIndex();
   if (user < 0) return;
@@ -640,6 +645,7 @@ void CancelMouseGestures(PPCContext& ctx, uint8_t* base, uint32_t manager) {
       MouseSeedBank(board, old_selection.controls, base) == old_selection.bank)
     call(sub_82139AC0, board);
   pvz::CancelServiceMouse(ctx, base, board);
+  pvz::CancelChallengeMouse(base, TopRootWidget(manager, base));
   if (mouse_item_cursor.exchange(false)) pvz::RefreshHostSettings();
   const auto held = Read(base, manager + 0x114);
   call(sub_824A6208, manager, -1, -1);
@@ -785,12 +791,13 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
     const auto uses = Read(base, packet + 0x68);
     Write(base, controls + 0xBC, uint32_t(selection.packet));
     const auto app = Read(base, board + 0xF4);
-    if (Read(base, app + 0x9CC) == 31) {
-      Write(base, MouseCursor(board, base) + 0x44, Read(base, packet + 0x50));
-      Write(base, MouseCursor(board, base) + 0x4C, 1);
+    const auto whack_cursor = Read(base, app + 0x9CC) == 31 ? MouseCursor(board, base) : 0;
+    if (whack_cursor) {
+      Write(base, whack_cursor + 0x44, Read(base, packet + 0x50));
+      Write(base, whack_cursor + 0x4C, 1);
     }
     call(sub_8214CDC0, board, 6, 0, 0);
-    if (Read(base, app + 0x9CC) == 31) Write(base, MouseCursor(board, base) + 0x4C, 7);
+    if (const auto cursor = whack_cursor ? MouseCursor(board, base) : 0) Write(base, cursor + 0x4C, 7);
     const bool planted = selection.packet < 0 || Read(base, packet + 0x68) != uses;
     if (planted) {
       selection.packet = -1;
@@ -803,7 +810,8 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
   if (beghouled_mouse.board && (cancel || !MouseActive() || focused_root != beghouled_mouse.board ||
       base[focused_root + 0x1D9])) {
     const auto live = FindRootWidget(manager, 0x820B728C, base, true);
-    if (live == beghouled_mouse.board) base[Read(base, live + 0x1D4) + 0x28] = 0;
+    if (live == beghouled_mouse.board)
+      if (const auto challenge = Read(base, live + 0x1D4)) base[challenge + 0x28] = 0;
     beghouled_mouse = {};
   }
   const int fixture_sun = test_heavy_weapon_sun.exchange(-1);
@@ -1020,7 +1028,6 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
       }
     }
   };
-  if (cancel) pvz::CancelChallengeMouse(base, TopRootWidget(manager, base));
   if (!active_mouse) {
     pvz::UpdateServicePointer(ctx, base, TopRootWidget(manager, base), std::nullopt);
     // End mouse capture first, then restore a live focus for native navigation.
@@ -1466,7 +1473,7 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
           else {
             const auto cursor = MouseCursor(widget, base);
             const auto selected = Read(base, primary + 0xBC);
-            if (selected < Read(base, selection.bank + 0x40) && selected < 10) {
+            if (cursor && selected < Read(base, selection.bank + 0x40) && selected < 10) {
               call(sub_82190D80, primary, 1, 0, 0);
               Write(base, cursor + 0x44, Read(base, selection.bank + 0x50 + selected * 0x7C + 0x50));
               Write(base, cursor + 0x4C, 1);
@@ -1558,7 +1565,7 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
                 call(sub_8216EF50, coin, 0, 0, 0);
                 if (type == 16) {
                   selection.packet = -1;
-                  selection.usable_seed = Read(base, MouseCursor(widget, base) + 0x4C) == 2;
+                  selection.usable_seed = MouseCursorType(widget, base) == 2;
                   if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ mouse dropped seed picked {}", selection.usable_seed);
                 }
                 if (REXCVAR_GET(pvz_input_trace) && before != 7 && Read(base, coin + 0x84) == 7)
@@ -1633,7 +1640,7 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
                 if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ Vasebreaker click mode {} handled {}", game_mode, handled);
               } else if (selection.usable_seed) {
                 call(sub_8214CDC0, widget, 6, 0, 0);
-                selection.usable_seed = Read(base, MouseCursor(widget, base) + 0x4C) == 2;
+                selection.usable_seed = MouseCursorType(widget, base) == 2;
                 if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ mouse dropped seed placed {}", !selection.usable_seed);
                 HideUnselectedCursor(primary, base);
               } else if (selection.packet >= 0 &&
@@ -1675,7 +1682,7 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
                 REXLOG_INFO("PvZ console select packet {}", packet);
             }
           } else if (event.click < 0 && PlantMouse(primary, base) &&
-              Read(base, MouseCursor(widget, base) + 0x4C) == 2) {
+              MouseCursorType(widget, base) == 2) {
             if (event.down) { call(sub_82139AC0, widget, 0, 0, 0); play_sample(app, 0x82D0A43C); }
           } else if (event.click < 0 && PlantMouse(primary, base) && base[widget + 0x5691]) {
             if (event.down && local && !base[widget + 0x1D9] &&
@@ -1733,6 +1740,12 @@ void DispatchWidgets(PPCContext& ctx, uint8_t* base) {
     if (!enabled && !mouse_events.Pending()) return;
   }
   static uint32_t previous_root = 0;
+  // A screen change ends every gesture that started on the previous screen.
+  auto track_root = [&] {
+    const auto root = TopRootWidget(ctx.r3.u32, base);
+    if (previous_root && previous_root != root) CancelMouseGestures(ctx, base, ctx.r3.u32);
+    previous_root = root;
+  };
   bool dispatched = false;
   // Pop one at a time: a purchase callback can enter a nested modal loop.
   // Such a loop must still receive new input, and cancellations invalidate its
@@ -1749,12 +1762,7 @@ void DispatchWidgets(PPCContext& ctx, uint8_t* base) {
       lost_focus = mouse_events.TakeFocusLost();
       pointer = event->point;
     }
-    const auto root = TopRootWidget(ctx.r3.u32, base);
-    if (previous_root && previous_root != root) {
-      CancelMouseGestures(ctx, base, ctx.r3.u32);
-      pvz::CancelChallengeMouse(base, root);
-    }
-    previous_root = root;
+    track_root();
     if (event->kind == pvz::MouseEventKind::Button &&
         !mouse_buttons.Accept(event->click, event->down)) {
       if (REXCVAR_GET(pvz_input_trace))
@@ -1770,12 +1778,7 @@ void DispatchWidgets(PPCContext& ctx, uint8_t* base) {
     dispatched = true;
   }
   if (!dispatched && enabled) {
-    const auto root = TopRootWidget(ctx.r3.u32, base);
-    if (previous_root && previous_root != root) {
-      CancelMouseGestures(ctx, base, ctx.r3.u32);
-      pvz::CancelChallengeMouse(base, root);
-    }
-    previous_root = root;
+    track_root();
     DispatchWidgetEvent(ctx, base, nullptr, false);
   }
   const auto ready_root = TopRootWidget(ctx.r3.u32, base);
@@ -2005,10 +2008,9 @@ REX_HOOK_RAW(sub_8216EF50) {
       !PcMouseMode() && (ctx.lr == 0x8218C1C4 || ctx.lr == 0x821922F8) && Read(base, coin + 0x84) != 7;
   __imp__sub_8216EF50(ctx, base);
   if (slot_seed && PcMouseMode() && PlantMouse(primary, base)) {
-    const auto cursor = MouseCursor(board, base);
-    if (Read(base, cursor + 0x4C) == 2) {
+    if (MouseCursorType(board, base) == 2) {
       selection.packet = -1; selection.packets.clear(); selection.usable_seed = true;
-      if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ Slot Machine auto picked dropped seed {}", Read(base, cursor + 0x44));
+      if (REXCVAR_GET(pvz_input_trace)) REXLOG_INFO("PvZ Slot Machine auto picked dropped seed {}", Read(base, MouseCursor(board, base) + 0x44));
     }
   }
   if (trace_auto && Read(base, coin + 0x84) == 7)
@@ -2026,11 +2028,11 @@ REX_HOOK_RAW(sub_8216B330) {
   const auto app = board ? Read(base, board + 0xF4) : 0;
   if (PcMouseMode() && app && Read(base, app + 0x9CC) == 19 && Read(base, app + 0x9D0) == 3 &&
       !base[board + 0x1D9] && Read(base, coin + 0x80) == 16 && !base[coin + 0x5C] && !base[coin + 0x74] &&
-      PlantMouse(MouseControls(board, base), base) && Read(base, MouseCursor(board, base) + 0x4C) == 0 &&
+      PlantMouse(MouseControls(board, base), base) && MouseCursor(board, base) && MouseCursorType(board, base) == 0 &&
       std::find(slot_auto_attempted.begin(), slot_auto_attempted.end(), coin) == slot_auto_attempted.end()) {
     PPCContext work = ctx; work.r1.u32 -= 0x100; work.r3.u32 = coin; work.r4.u32 = 0;
     sub_8216EF50(work, base);
-    if (Read(base, MouseCursor(board, base) + 0x4C) == 2) slot_auto_attempted.push_back(coin);
+    if (MouseCursorType(board, base) == 2) slot_auto_attempted.push_back(coin);
   }
   __imp__sub_8216B330(ctx, base);
 }
@@ -2760,7 +2762,6 @@ REX_HOOK_RAW(sub_8220AFA8) {
   }
   ctx.r3.s64 = seed < 0 ? -1 : seed + (base[chooser + 0xEB8] ? 61 : 0);
 }
-REX_EXTERN(__imp__sub_82209D20);
 REX_EXTERN(__imp__sub_82206A18);
 REX_HOOK_RAW(sub_82206A18) {
   const auto dialog = ctx.r3.u32;
@@ -2782,9 +2783,6 @@ REX_HOOK_RAW(sub_82206A18) {
   __imp__sub_82206A18(ctx, base);
   base[app + 0x5A6] = native;
   if (seed < 0) { const auto tooltip = Read(base, dialog + 0x1C0); if (tooltip) base[tooltip + 0x64] = 0; }
-}
-REX_HOOK_RAW(sub_82209D20) {
-  __imp__sub_82209D20(ctx, base);
 }
 int HoveredChooserSeed(PPCContext& ctx, uint8_t* base, uint32_t chooser) {
   std::optional<pvz::Point> position;
