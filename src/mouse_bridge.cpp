@@ -182,16 +182,26 @@ bool IsGameButton(uint32_t vtable) {
   return vtable == kGameButton || vtable == kLawnStoneButton || vtable == kStretchableGameButton;
 }
 
+// Visible, enabled and not in GameButton's own disabled state.
+bool ButtonActive(uint32_t button, uint8_t* base) {
+  return base[button + 0x70] && !base[button + 0x72] && !base[button + 0x149];
+}
+
+// Direct children of a WidgetContainer in list order; visitor returns false to stop.
+template <class Visitor>
+void ForEachChild(uint8_t* base, uint32_t container, Visitor&& visitor, int limit = 128) {
+  int budget = limit;
+  pvz::guest::VisitChildren(base, container, budget, visitor);
+}
+
 uint32_t FindMenuButton(uint32_t menu, int id, uint8_t* base, bool enabled_only = true) {
-  const auto head = Read(base, menu + 0x18);
-  if (!head) return 0;
-  auto node = Read(base, head);
-  for (int i = 0; node && node != head && i < 128; ++i, node = Read(base, node)) {
-    const auto child = Read(base, node + 8);
-    if (child && IsGameButton(Read(base, child)) && Read(base, child + 0x6C) == uint32_t(id) &&
-        (!enabled_only || (base[child + 0x70] && !base[child + 0x72] && !base[child + 0x149]))) return child;
-  }
-  return 0;
+  uint32_t found = 0;
+  ForEachChild(base, menu, [&](uint32_t child) {
+    if (IsGameButton(Read(base, child)) && Read(base, child + 0x6C) == uint32_t(id) &&
+        (!enabled_only || ButtonActive(child, base))) found = child;
+    return !found;
+  });
+  return found;
 }
 
 bool LiveWidget(uint32_t manager, uint32_t widget, uint8_t* base) {
@@ -217,15 +227,12 @@ bool SamePackets(uint8_t* base) {
 
 
 uint32_t FindRootWidget(uint32_t manager, uint32_t vtable, uint8_t* base, bool include_disabled = false) {
-  const auto head = Read(base, manager + 0x18);
-  if (!head) return 0;
-  auto node = Read(base, head);
-  for (int i = 0; node && node != head && i < 128; ++i, node = Read(base, node)) {
-    const auto child = Read(base, node + 8);
-    if (child && Read(base, child) == vtable && base[child + 0x70] && (include_disabled || !base[child + 0x72]))
-      return child;
-  }
-  return 0;
+  uint32_t found = 0;
+  ForEachChild(base, manager, [&](uint32_t child) {
+    if (Read(base, child) == vtable && base[child + 0x70] && (include_disabled || !base[child + 0x72])) found = child;
+    return !found;
+  });
+  return found;
 }
 
 bool InactiveSeedChooser(uint32_t widget, uint8_t* base) {
@@ -240,15 +247,13 @@ bool InactiveSeedChooser(uint32_t widget, uint8_t* base) {
   return mode == kModeAdventure && board && Read(base, board) == kBoard && InShovelLesson(base, board);
 }
 
+// The last visible root screen; the help bar and a finished chooser are overlays.
 uint32_t TopRootWidget(uint32_t manager, uint8_t* base) {
-  const auto head = Read(base, manager + 0x18);
-  if (!head) return 0;
   uint32_t top = 0;
-  auto node = Read(base, head);
-  for (int i = 0; node && node != head && i < 64; ++i, node = Read(base, node)) {
-    const auto child = Read(base, node + 8);
-    if (child && base[child + 0x70] && Read(base, child) != kHelpBar && !InactiveSeedChooser(child, base)) top = child;
-  }
+  ForEachChild(base, manager, [&](uint32_t child) {
+    if (base[child + 0x70] && Read(base, child) != kHelpBar && !InactiveSeedChooser(child, base)) top = child;
+    return true;
+  }, 64);
   return top;
 }
 
@@ -337,14 +342,9 @@ uint32_t DrawnDialogButtonAt(uint32_t parent, pvz::Point local, uint8_t* base) {
     y += int32_t(Read(base, ancestor + 0x44));
     ancestor = Read(base, ancestor + 0x24);
   }
-  const auto head = Read(base, parent + 0x18);
   uint32_t painted = 0;
-  if (!head) return 0;
-  auto node = Read(base, head);
-  for (int i = 0; node && node != head && i < 128; ++i, node = Read(base, node)) {
-    const auto child = Read(base, node + 8);
-    if (!child || !IsGameButton(Read(base, child)) ||
-        !base[child + 0x70] || base[child + 0x72] || base[child + 0x149]) continue;
+  ForEachChild(base, parent, [&](uint32_t child) {
+    if (!IsGameButton(Read(base, child)) || !ButtonActive(child, base)) return true;
     double bx = x + (base[child + 0x198] ?
         Float(base, child + 0x19C) : int32_t(Read(base, child + 0x190)));
     double by = y + (base[child + 0x198] ?
@@ -355,14 +355,16 @@ uint32_t DrawnDialogButtonAt(uint32_t parent, pvz::Point local, uint8_t* base) {
     // not the animated hover pulse, so entering/leaving has stable bounds.
     const double sx = Float(base, child + 0x1C4);
     const double sy = Float(base, child + 0x1C8);
-    if (!std::isfinite(sx) || !std::isfinite(sy) || sx <= 0 || sy <= 0) continue;
+    if (!std::isfinite(sx) || !std::isfinite(sy) || sx <= 0 || sy <= 0) return true;
     bx += width * (1 - sx) * 0.5;
     by += height * (1 - sy) * 0.5;
     width = (base[child + 0x1B0] ? StoneButtonWidth(width, base) : width) * sx;
     height *= sy;
+    // Later children paint on top, so the last hit wins.
     if (width > 0 && height > 0 && local.x >= bx && local.y >= by &&
         local.x < bx + width && local.y < by + height) painted = child;
-  }
+    return true;
+  });
   return painted;
 }
 
@@ -845,10 +847,7 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
       logged_panel = int(Read(base, over + 0x118));
       REXLOG_INFO("PvZ menu panel {} offset {}", logged_panel,
           Float(base, over + 0x108));
-      const auto head = Read(base, over + 0x18);
-      auto node = Read(base, head);
-      for (int i = 0; node != head && i < 64; ++i, node = Read(base, node)) {
-        const auto child = Read(base, node + 8);
+      ForEachChild(base, over, [&](uint32_t child) {
         REXLOG_INFO("PvZ menu child {:08X} vt {:08X} rect {},{},{},{} flags {:08X}/{:08X} visible {}/{}/{}",
             child, Read(base, child), int32_t(Read(base, child + 0x40)), int32_t(Read(base, child + 0x44)),
             Read(base, child + 0x48), Read(base, child + 0x4C), Read(base, child + 0x54),
@@ -862,7 +861,8 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
               int32_t(Read(base, child + 0x90)), int32_t(Read(base, child + 0x94)),
               int32_t(Read(base, child + 0x98)), int32_t(Read(base, child + 0x9C)),
               Read(base, child + 0x1A4), Read(base, child + 0x1A8));
-      }
+        return true;
+      }, 64);
     }
   };
   if (!active_mouse) {
@@ -872,18 +872,14 @@ void DispatchWidgetEvent(PPCContext& ctx, uint8_t* base,
     if (changed_owner) {
       const auto root = TopRootWidget(manager, base);
       uint32_t first = 0;
-      int budget = 256;
-      auto clear = [&](auto&& self, uint32_t widget, int depth) -> void {
-        if (!widget || depth > 16 || budget-- <= 0) return;
+      auto clear = [&](uint32_t widget) {
         if (IsGameButton(Read(base, widget))) {
           base[widget + 0x75] = 0;
-          if (!first && base[widget + 0x70] && !base[widget + 0x72] && !base[widget + 0x149]) first = widget;
+          if (!first && ButtonActive(widget, base)) first = widget;
         }
-        const auto head = Read(base, widget + 0x18);
-        if (head) for (auto node = Read(base, head); node && node != head && budget > 0; node = Read(base, node))
-          self(self, Read(base, node + 8), depth + 1);
+        return true;
       };
-      clear(clear, root, 0);
+      if (root) { clear(root); pvz::guest::VisitWidgets(base, root, clear); }
       // MainMenu keeps off-screen panel buttons visible in its widget tree.
       // Pick a button from the current panel when PC hover left no focus.
       if (root && Read(base, root) == kMainMenu && StableMenu(root, base)) {
