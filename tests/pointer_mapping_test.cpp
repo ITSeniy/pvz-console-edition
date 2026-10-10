@@ -2,6 +2,7 @@
 #include "menu_mapping.h"
 #include "board_mapping.h"
 #include "heavy_weapon_pointer.h"
+#include <cmath>
 #include <cstdlib>
 #include <iostream>
 #include <limits>
@@ -13,19 +14,21 @@ void check(bool condition, std::source_location location = std::source_location:
 bool near(float actual, float expected) { return std::abs(actual - expected) < 0.01f; }
 
 int main() {
-  // Absolute mouse target is the carriage centre; aim retains the turret pivot.
-  auto heavy = pvz::MapHeavyWeaponPointer({700, 100}, 300, 500);
-  check(near(heavy.carriage_x, 640) && heavy.aim.x > 0 && heavy.aim.y > 0);
+  // Heavy Weapon (Deluxe steering). Carriage origin 300, Y 500: turret at 322,540.
+  auto heavy = pvz::MapHeavyWeaponPointer({322, 100}, 300, 500); // Straight above.
+  check(near(heavy.carriage_x, 300) && near(heavy.aim.x, 0) && near(heavy.aim.y, 1));
+  heavy = pvz::MapHeavyWeaponPointer({700, 100}, 300, 500); // Far up-right.
+  check(heavy.carriage_x > 300 && heavy.carriage_x <= 302.5f && heavy.aim.x > 0 && heavy.aim.y > 0);
   check(near(std::hypot(heavy.aim.x, heavy.aim.y), 1));
-  heavy = pvz::MapHeavyWeaponPointer({100, 100}, 300, 500);
-  check(near(heavy.carriage_x, 40) && heavy.aim.x < 0);
-  heavy = pvz::MapHeavyWeaponPointer({360, 100}, 300, 500);
-  check(near(heavy.carriage_x, 300) && near(heavy.aim.x, 0));
-  heavy = pvz::MapHeavyWeaponPointer({-240, 100}, 25, 500);
+  heavy = pvz::MapHeavyWeaponPointer({352, 520}, 300, 500); // Near the turret: aim only.
+  check(near(heavy.carriage_x, 300) && heavy.aim.x > 0.5f);
+  heavy = pvz::MapHeavyWeaponPointer({0, 590}, 300, 500); // Far left, below the hull.
+  check(near(heavy.carriage_x, 297.5f) && near(heavy.aim.x, -1) && near(heavy.aim.y, 0));
+  heavy = pvz::MapHeavyWeaponPointer({-240, 100}, 25, 500); // Left limit.
   check(near(heavy.carriage_x, 25) && heavy.aim.x < 0);
-  heavy = pvz::MapHeavyWeaponPointer({1040, 100}, 700, 500);
+  heavy = pvz::MapHeavyWeaponPointer({1040, 100}, 700, 500); // Right limit.
   check(near(heavy.carriage_x, 700) && heavy.aim.x > 0);
-  heavy = pvz::MapHeavyWeaponPointer({360, 650}, 300, 500);
+  heavy = pvz::MapHeavyWeaponPointer({322, 650}, 300, 500); // Below, exactly under.
   check(near(heavy.carriage_x, 300) && near(heavy.aim.x, 0) && near(heavy.aim.y, 1));
   auto point = pvz::MapPointer(640, 360, 1280, 720, true);
   check(point && near(point->x, 400) && near(point->y, 300));

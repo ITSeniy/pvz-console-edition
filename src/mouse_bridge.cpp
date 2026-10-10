@@ -2296,8 +2296,8 @@ REX_HOOK_RAW(sub_82165B58) {
   if (position && !firing)
     Write(base, challenge + 0x120, std::bit_cast<uint32_t>(-std::atan2(mapped.aim.x, mapped.aim.y)));
   const auto old_vx = Read(base, controls + 0x7C), old_vy = Read(base, controls + 0x80);
-  // Native .016 is an input multiplier; provide the displacement from the
-  // old carriage origin to the absolute mouse target through that input.
+  // Native .016 is an input multiplier; provide this update's Deluxe
+  // steering displacement of the carriage origin through that input.
   // Let the native update move the carriage, animate the wheels, rotate the
   // turret, fire on its existing cooldown, and process power-ups/collisions.
   Write(base, controls + 0x7C, std::bit_cast<uint32_t>((mapped.carriage_x - x) / .016f));
