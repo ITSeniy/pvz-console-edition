@@ -91,8 +91,9 @@ inline bool ParseReplayRow(std::string line, ReplayEvent& event) {
     case FixtureGardenCoin: return MapBoardPointer(event.point).has_value();
     case FixtureCoin: return integer(event.point.x, 1, 30);
     case Capture: return integer(event.point.x, 1, 32);
-    // y: 1/2 hold a trigger, 3 marks the press as keyboard Escape (Start).
-    case Controller: case Controller2: return integer(event.point.x, 0, 65535) && integer(event.point.y, 0, 3);
+    // y: 1/2 hold a trigger, 3 marks the press as keyboard Escape (Start),
+    // 4 also presses F12 (screenshot).
+    case Controller: case Controller2: return integer(event.point.x, 0, 65535) && integer(event.point.y, 0, 4);
     case ControllerLeft: case ControllerRight: case ControllerLeft2: case ControllerRight2:
       return integer(event.point.x, -32768, 32767) && integer(event.point.y, -32768, 32767);
     default: return true;

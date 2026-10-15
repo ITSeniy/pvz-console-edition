@@ -71,6 +71,7 @@ because the recompiled code is tied to this exact executable.
 | Wheel | — | cycle seed packets |
 | Middle button | — | butter a zombie (Co-op) |
 | `Escape` | pause | pause |
+| `F12` | screenshot (PNG in `screenshots`) | screenshot |
 
 Saves and settings live in `runtime-data\user`.
 

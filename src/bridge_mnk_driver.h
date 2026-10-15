@@ -7,6 +7,8 @@ namespace pvz {
 // Escape was pressed: the SDK maps it to Start of the mouse's player, which
 // the bridge then handles as PC's pause key.
 inline std::atomic_bool& KeyboardStart() { static std::atomic_bool pressed{false}; return pressed; }
+// F12 asks for a screenshot (frame_capture.cpp); the game never sees it.
+inline std::atomic_bool& ScreenshotRequested() { static std::atomic_bool pressed{false}; return pressed; }
 using namespace rex::input;
 using rex::X_STATUS;
 using rex::X_RESULT;
@@ -46,10 +48,11 @@ class BridgeMnkDriver final : public InputDriver,
     return inner_.GetDeviceKeystroke(id, flags, out);
   }
   // The mouse and the controller cover every action; the keyboard keeps only
-  // Escape (Start: pause and back). Key releases always pass, so a key held
+  // Escape (Start: pause and back) and F12 (screenshot). Key releases always pass, so a key held
   // across a settings change cannot stay pressed.
   void OnKeyDown(rex::ui::KeyEvent& e) override {
     if (e.virtual_key() == rex::ui::VirtualKey::kEscape) { KeyboardStart().store(true); inner_.OnKeyDown(e); }
+    if (e.virtual_key() == rex::ui::VirtualKey::kF12) ScreenshotRequested().store(true);
   }
   void OnKeyUp(rex::ui::KeyEvent& e) override { inner_.OnKeyUp(e); }
   void OnMouseDown(rex::ui::MouseEvent& e) override {

@@ -114,6 +114,7 @@ std::jthread StartInputReplay() {
           if (event.point.y == 1) sample.axes[4] = 255;
           if (event.point.y == 2) sample.axes[5] = 255;
           if (event.point.y == 3) pvz::KeyboardStart().store(true);
+          if (event.point.y == 4) pvz::ScreenshotRequested().store(true);
         } else {
           const int axis = action == ControllerLeft || action == ControllerLeft2 ? 0 : 2;
           sample.axes[axis] = int(event.point.x); sample.axes[axis + 1] = int(event.point.y);

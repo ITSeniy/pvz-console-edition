@@ -24,7 +24,7 @@
 
 REXCVAR_DEFINE_BOOL(pvz_vsync, true, "PvZ", "Synchronize host presentation without guest GPU wait throttling");
 REXCVAR_DEFINE_INT32(pvz_frame_limit, 60, "PvZ", "Frames per second without VSync; with VSync the display refresh paces frames (simulation keeps its native clock)").range(30, 240);
-REXCVAR_DEFINE_BOOL(pvz_skip_intro, true, "PvZ", "Skip startup intro videos (restart to replay)");
+REXCVAR_DEFINE_BOOL(pvz_skip_intro, false, "PvZ", "Skip startup intro videos (restart to replay)");
 REXCVAR_DEFINE_BOOL(pvz_full_version, false, "PvZ", "Full edition status from validated own-copy import");
 REXCVAR_DEFINE_STRING(pvz_unlock_package, "", "Diagnostics", "Replay-only: XBLA package for the in-game unlock instead of the file dialog");
 REXCVAR_DEFINE_STRING(pvz_import_answer, "", "Diagnostics", "Replay-only: answer the first-run import unattended (full or trial)");

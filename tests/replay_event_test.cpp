@@ -21,9 +21,11 @@ int main(int argc, char** argv) {
   }
   for (const auto* row : {"1,0,0,unknown", "-1,0,0,move", "1,nan,0,move",
       "1,0,0,move trailing", "1,51,0,fixture_level", "1,1.5,0,fixture_level",
-      "1,999999999999,0,controller", "1,3,0,fixture_mode", "1,0,4,controller", "1,0,0,fixture_garden_coin",
+      "1,999999999999,0,controller", "1,3,0,fixture_mode", "1,0,5,controller", "1,0,0,fixture_garden_coin",
       "1,0,0,fixture_coin", "1,31,0,fixture_coin", "1,0,0,capture", "1,33,0,capture"})
     check(!pvz::ParseReplayRow(row, event));
+  // Controller y 3/4: the press also stands for keyboard Escape / F12.
+  for (const auto* row : {"1,16,3,controller", "1,0,4,controller2"}) check(pvz::ParseReplayRow(row, event));
   auto parse = [](std::initializer_list<const char*> rows) {
     std::vector<pvz::ReplayEvent> result;
     for (auto row : rows) { pvz::ReplayEvent e; check(pvz::ParseReplayRow(row, e)); result.push_back(e); }

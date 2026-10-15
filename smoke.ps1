@@ -14,7 +14,7 @@ New-Item -ItemType Directory -Force -Path logs | Out-Null
 $gameRoot = [System.IO.Path]::GetFullPath($GameDataRoot).Replace('\', '/')
 $arguments = @('--game_data_root', $gameRoot, '--user_data_root', $testUserRoot,
     '--cache_root', "$profile/cache", '--log_file', $log, '--log_flush_interval', '1',
-    '--fullscreen=false')
+    '--fullscreen=false', '--pvz_skip_intro=true')
 if ($GameArgs) { $arguments += $GameArgs }
 $quotedArguments = $arguments | ForEach-Object { '"' + $_.Replace('"', '\"') + '"' }
 $process = Start-Process -FilePath "$PSScriptRoot/build/pvz-console-edition.exe" -ArgumentList $quotedArguments -WorkingDirectory $PSScriptRoot -WindowStyle Hidden -PassThru

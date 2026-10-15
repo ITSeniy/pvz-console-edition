@@ -145,6 +145,8 @@ Copy-Item -LiteralPath packaging/Start.bat,packaging/TESTING.md -Destination $pa
 # Adventure from 1-10: a fresh game-written profile with only the level set
 # (scripts/make_level_save.py). Full via pvz_test_unlock; Trial runs a demo.
 Copy-Item -LiteralPath packaging/Start-Level-1-10.bat -Destination $packageRoot
+# Screenshot mode: 2x render resolution, F12 saves a PNG to screenshots/.
+Copy-Item -LiteralPath packaging/Start-Screenshots.bat -Destination $packageRoot
 Copy-Item -LiteralPath packaging/saves -Destination (Join-Path $packageRoot 'saves') -Recurse
 $testResults = if ($Unvalidated) { 'packaging/MANUAL-TEST-RESULTS.md' } elseif ($TestUnlock) { 'packaging/TEST-UNLOCK-RESULTS.md' } else { 'packaging/MOUSE-HOOK-TEST-RESULTS.md' }
 Copy-Item -LiteralPath $testResults -Destination (Join-Path $packageRoot 'TEST-RESULTS.md')
