@@ -14,7 +14,7 @@ enum class ReplayAction {
   WaitShop, WaitAlmanac, WaitChooser, WaitChallenge, WaitIdle,
   ModePc, ModeConsole, PadPress, PadNeutral, PadDrift,
   Controller, ControllerLeft, ControllerRight, Controller2, ControllerLeft2, ControllerRight2, FixtureLevel, FixtureAward,
-  FixtureMode, FixtureHeavySun, FixtureSlotSeed, FixtureGardenCoin, TwistMatch, BeghouledMatch, FixtureVsync, BatchBegin, BatchEnd
+  FixtureMode, FixtureHeavySun, FixtureSlotSeed, FixtureGardenCoin, FixtureCoin, Capture, TwistMatch, BeghouledMatch, FixtureVsync, BatchBegin, BatchEnd
 };
 enum class ReplayGroup { Mouse, Wait, Mode, PadActivity, Controller, Fixture, Batch };
 struct ReplayActionInfo { std::string_view name; ReplayAction action; ReplayGroup group; };
@@ -57,6 +57,8 @@ inline constexpr ReplayActionInfo kReplayActions[] = {
   {"fixture_heavy_sun", ReplayAction::FixtureHeavySun, ReplayGroup::Fixture},
   {"fixture_slot_seed", ReplayAction::FixtureSlotSeed, ReplayGroup::Fixture},
   {"fixture_garden_coin", ReplayAction::FixtureGardenCoin, ReplayGroup::Fixture},
+  {"fixture_coin", ReplayAction::FixtureCoin, ReplayGroup::Fixture},
+  {"capture", ReplayAction::Capture, ReplayGroup::Fixture},
   {"click_twist_match", ReplayAction::TwistMatch, ReplayGroup::Fixture},
   {"swipe_beghouled_match", ReplayAction::BeghouledMatch, ReplayGroup::Fixture},
   {"fixture_vsync", ReplayAction::FixtureVsync, ReplayGroup::Fixture},
@@ -87,7 +89,10 @@ inline bool ParseReplayRow(std::string line, ReplayEvent& event) {
         event.point.x == 19 || event.point.x == 20 || event.point.x == 21 || event.point.x == 23 ||
         event.point.x == 24 || event.point.x == 25 || event.point.x == 31 || event.point.x == 32;
     case FixtureGardenCoin: return MapBoardPointer(event.point).has_value();
-    case Controller: case Controller2: return integer(event.point.x, 0, 65535) && integer(event.point.y, 0, 2);
+    case FixtureCoin: return integer(event.point.x, 1, 30);
+    case Capture: return integer(event.point.x, 1, 32);
+    // y: 1/2 hold a trigger, 3 marks the press as keyboard Escape (Start).
+    case Controller: case Controller2: return integer(event.point.x, 0, 65535) && integer(event.point.y, 0, 3);
     case ControllerLeft: case ControllerRight: case ControllerLeft2: case ControllerRight2:
       return integer(event.point.x, -32768, 32767) && integer(event.point.y, -32768, 32767);
     default: return true;

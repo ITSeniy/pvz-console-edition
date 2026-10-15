@@ -26,6 +26,15 @@ std::array<pvz::PadSample, 2> replay_pad{};
 std::array<uint32_t, 2> replay_packet{};
 std::mutex players_mutex;
 pvz::LocalPlayers players;
+// PlayStation pads by device, for the glyphs of each local player.
+std::unordered_map<uint64_t, bool> sony_devices;
+bool SonyDevice(const rex::input::DeviceInfo& device) {
+  auto name = device.name;
+  std::transform(name.begin(), name.end(), name.begin(), [](unsigned char c) { return char(std::tolower(c)); });
+  return (device.guid.size() >= 12 && device.guid.substr(8, 4) == "4c05") ||
+      name.find("dualshock") != std::string::npos || name.find("dualsense") != std::string::npos ||
+      name.find("ps3") != std::string::npos || name.find("ps4") != std::string::npos || name.find("ps5") != std::string::npos;
+}
 constexpr uint64_t replay_id = 0x50565A52504C;
 using namespace rex::input;
 class ReplayPad final : public InputDriver {
@@ -67,16 +76,15 @@ class Assignment final : public DeviceAssignment {
     devices_ = devices;
     pad_->id = DeviceId::kInvalid;
     pvz::PublishSonyController(false);
-    for (const auto& device : devices)
-      if (!device.synthetic && device.ordinal == 0) {
+    sony_devices.clear();
+    for (const auto& device : devices) {
+      if (device.synthetic) continue;
+      sony_devices[uint64_t(device.id)] = SonyDevice(device);
+      if (device.ordinal == 0) {
         pad_->id = device.id;
-        auto name = device.name;
-        std::transform(name.begin(), name.end(), name.begin(), [](unsigned char c) { return char(std::tolower(c)); });
-        const bool sony = (device.guid.size() >= 12 && device.guid.substr(8, 4) == "4c05") ||
-            name.find("dualshock") != std::string::npos || name.find("dualsense") != std::string::npos ||
-            name.find("ps3") != std::string::npos || name.find("ps4") != std::string::npos || name.find("ps5") != std::string::npos;
-        pvz::PublishSonyController(sony);
+        pvz::PublishSonyController(SonyDevice(device));
       }
+    }
   }
   void DevicesForUser(uint32_t user, std::vector<DeviceId>& out) const override {
     std::lock_guard lock(players_mutex);
@@ -207,4 +215,13 @@ void pvz::ObserveLocalMouse() {
     const auto user = players.Observe(LocalPlayers::mouse);
     if (user >= 0) REXLOG_INFO("PvZ local mouse joined player {}", user + 1);
   }
+}
+pvz::PadKind pvz::LocalPlayerPad(int user) {
+  std::lock_guard lock(players_mutex);
+  if (!players.Active() || user < 0 || user > 1) return PadKind::None;
+  const auto key = players.Player(user);
+  if (!key) return PadKind::None;
+  if (key == LocalPlayers::mouse) return PadKind::Mouse;
+  const auto found = sony_devices.find(key);
+  return found != sony_devices.end() && found->second ? PadKind::PlayStation : PadKind::Xbox;
 }

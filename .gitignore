@@ -20,3 +20,7 @@
 /CMakeUserPresets.json
 *.log
 __pycache__/
+
+# Xbox disc images and other local game data
+*.iso
+/Pvz_logo_stacked_rgb.png

@@ -72,7 +72,7 @@ try:
     check("Five native icon sizes", sizes == {(16,16),(24,24),(32,32),(48,48),(64,64)})
     version = resource(1, 16)
     check("Product name and version embedded", "pvz-console-edition".encode("utf-16le") in version and
-          "0.1.0".encode("utf-16le") in version and
+          "0.7.0".encode("utf-16le") in version and
           "pvz-console-edition.exe".encode("utf-16le") in version)
 finally:
     kernel.FreeLibrary(module)

@@ -12,6 +12,8 @@ void PublishTestMode(int mode); // Isolated audit fixtures.
 void PublishTestHeavyWeaponSun(int sun);
 void PublishTestSlotSeed(int seed); // Native dropped-packet fixture.
 void PublishTestGardenCoin(Point); // Native coin in an isolated garden.
+void PublishTestCoin(int type); // Native coin of this type on the playing lawn.
+void RequestReplayCapture(uint32_t frames); // Frames ~50 ms apart, with pvz_capture_frame.
 void PublishTestTwistClick(); // Click a currently legal match.
 void PublishTestBeghouledSwipe(); // Swipe a legal pair without changing the board.
 

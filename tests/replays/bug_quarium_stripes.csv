@@ -1,0 +1,13 @@
+0,400,300,wait_title
+1,400,500,left_down
+1.15,400,500,left_up
+2,400,300,wait_menu
+4,24,0,fixture_mode
+8,400,300,wait_board
+10,400,400,move
+11.00,400,300,mode_pc
+11.50,612,55,move
+11.52,16,0,capture
+14,400,400,move
+15,612,55,move
+15.02,16,0,capture

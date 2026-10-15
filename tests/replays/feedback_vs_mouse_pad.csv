@@ -11,13 +11,13 @@
 12.15,0,0,controller
 14,4096,0,controller
 14.15,0,0,controller
-16,512,555,left_down
-16.15,512,555,left_up
+16,250,300,left_down
+16.15,250,300,left_up
 18,400,300,wheel_up
 20,8,0,controller
 20.15,0,0,controller
-22,512,555,left_down
-22.15,512,555,left_up
+22,250,300,left_down
+22.15,250,300,left_up
 24,4096,0,controller
 24.15,0,0,controller
 28,260,500,left_down
@@ -29,6 +29,8 @@
 38.15,217,80,left_up
 40,300,300,left_down
 40.15,300,300,left_up
+41,300,300,left_down
+41.15,300,300,left_up
 42,400,300,right_down
 42.15,400,300,right_up
 44,4096,0,controller

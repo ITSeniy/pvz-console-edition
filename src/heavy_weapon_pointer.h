@@ -18,6 +18,9 @@ inline constexpr float kHeavyTurretX = 22, kHeavyTurretY = 40;
 // reaches full speed from 100 px, and moves at most 2.5 px per update.
 inline constexpr float kHeavyStop = 50, kHeavyFull = 100, kHeavySpeed = 2.5f;
 inline constexpr float kHeavyHull = 15; // Distance line below the turret (original 12).
+// Wheel animation runs at full rate for any nonzero carriage speed, while
+// the scaled approach only decays towards zero; settle below this speed.
+inline constexpr float kHeavyMinSpeed = .25f;
 
 // Aim from the turret to the cursor, then drive towards it as Deluxe does:
 // speed follows the aim angle, so the turret can aim without moving while the
@@ -36,7 +39,7 @@ inline HeavyWeaponPointer MapHeavyWeaponPointer(Point cursor, float x, float y) 
   float speed = angle * 180 / std::numbers::pi_v<float> / 18 * 1.25f;
   if (distance < kHeavyStop) speed = 0;
   else if (distance < kHeavyFull) speed *= (distance - kHeavyStop) / (kHeavyFull - kHeavyStop);
-  speed = std::clamp(speed, -kHeavySpeed, kHeavySpeed);
+  speed = std::abs(speed) < kHeavyMinSpeed ? 0 : std::clamp(speed, -kHeavySpeed, kHeavySpeed);
   return {std::clamp(x + speed, 25.0f, 700.0f), aim};
 }
 }

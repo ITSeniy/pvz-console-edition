@@ -19,7 +19,8 @@ if ((Get-FileHash assets/default.xex -Algorithm SHA256).Hash -ne $gameLock.xex_s
     throw 'Game image does not match config/game.lock.json.'
 }
 $required = @('build/pvz-console-edition.exe','build/rexruntimerd.dll','build/rexgpu-xenosrd.dll',
-    'build/TracyClientrd.dll','build/pc_defaults.toml','assets/main.pak','assets/en.pak')
+    'build/TracyClientrd.dll','build/pc_defaults.toml',
+    'build/mouse/help_menu_image_mouse_pc.ptx','build/mouse/help_menu_image_mouse_console.ptx','build/mouse/vs_mouse_player1.ptx','build/mouse/vs_mouse_player2.ptx','assets/main.pak','assets/en.pak')
 foreach ($file in $required) {
     if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Missing package file: $file" }
 }
@@ -115,7 +116,7 @@ $crt = Get-ChildItem -LiteralPath $redistRoot -Directory -Recurse |
     Sort-Object FullName -Descending | Select-Object -First 1
 if (-not $crt) { throw 'Visual C++ x64 app-local redistributable was not found.' }
 New-Item -ItemType Directory -Path $packageRoot | Out-Null
-New-Item -ItemType Directory -Path (Join-Path $packageRoot 'build'),(Join-Path $packageRoot 'config') | Out-Null
+New-Item -ItemType Directory -Path (Join-Path $packageRoot 'build'),(Join-Path $packageRoot 'build/mouse'),(Join-Path $packageRoot 'config') | Out-Null
 foreach ($file in $required | Where-Object { $_.StartsWith('build/') }) {
     Copy-Item -LiteralPath $file -Destination (Join-Path $packageRoot $file)
 }
@@ -125,21 +126,34 @@ Copy-Item -LiteralPath assets -Destination (Join-Path $packageRoot 'assets') -Re
 Copy-Item -LiteralPath run.ps1,README.md -Destination $packageRoot
 Copy-Item -LiteralPath Import-Game.ps1 -Destination $packageRoot
 New-Item -ItemType Directory -Path (Join-Path $packageRoot 'scripts') | Out-Null
-Copy-Item -LiteralPath scripts/import_game.py,scripts/extract_stfs.py -Destination (Join-Path $packageRoot 'scripts')
+Copy-Item -LiteralPath scripts/import_game.py,scripts/extract_stfs.py,scripts/extract_xiso.py -Destination (Join-Path $packageRoot 'scripts')
 New-Item -ItemType Directory -Force -Path (Join-Path $packageRoot 'docs') | Out-Null
 Copy-Item -LiteralPath docs/distribution.md -Destination (Join-Path $packageRoot 'docs')
 Copy-Item -LiteralPath docs/mouse-hook-implementation-2026-10-09.md,docs/mouse-hook-audit-2026-10-09.md -Destination (Join-Path $packageRoot 'docs')
+Copy-Item -LiteralPath docs/startup-performance-2026-10-11.md,docs/frame-pacing-2026-10-14.md,docs/feedback-2026-10-14.md,docs/bonus-games.md,docs/edge-cases-2026-10-14.md -Destination (Join-Path $packageRoot 'docs')
 # Ownership declarations are personal to the importer, including in tester ZIPs.
+# Ship a Trial import receipt instead, as after a first-run import answered
+# "trial": the in-game $ unlock then only asks the tester to confirm.
 $receipt = Join-Path $packageRoot 'assets/.pvz-import.toml'
 if (Test-Path -LiteralPath $receipt) { Remove-Item -LiteralPath $receipt }
+$receiptText = "schema_version = 1`ntitle_id = `"$($gameLock.title_id)`"`npackage_sha256 = `"$($gameLock.package_sha256)`"`n" +
+    "owner_confirmed_full_copy = false`n`n[files]`n`"default.xex`" = `"$($gameLock.xex_sha256)`"`n" +
+    "`"main.pak`" = `"$($gameLock.main_pak_sha256)`"`n`"en.pak`" = `"$($gameLock.en_pak_sha256)`"`n"
+[System.IO.File]::WriteAllText($receipt, $receiptText, (New-Object System.Text.UTF8Encoding $false))
 Copy-Item -LiteralPath config/game.lock.json -Destination (Join-Path $packageRoot 'config/game.lock.json')
 Copy-Item -LiteralPath packaging/Start.bat,packaging/TESTING.md -Destination $packageRoot
-$testResults = if ($TestUnlock) { 'packaging/TEST-UNLOCK-RESULTS.md' } else { 'packaging/MOUSE-HOOK-TEST-RESULTS.md' }
+# Adventure from 1-10: a fresh game-written profile with only the level set
+# (scripts/make_level_save.py). Full via pvz_test_unlock; Trial runs a demo.
+Copy-Item -LiteralPath packaging/Start-Level-1-10.bat -Destination $packageRoot
+Copy-Item -LiteralPath packaging/saves -Destination (Join-Path $packageRoot 'saves') -Recurse
+$testResults = if ($Unvalidated) { 'packaging/MANUAL-TEST-RESULTS.md' } elseif ($TestUnlock) { 'packaging/TEST-UNLOCK-RESULTS.md' } else { 'packaging/MOUSE-HOOK-TEST-RESULTS.md' }
 Copy-Item -LiteralPath $testResults -Destination (Join-Path $packageRoot 'TEST-RESULTS.md')
 if ($IncludeMinigamesProfile) {
     New-Item -ItemType Directory -Force -Path (Join-Path $packageRoot 'docs'),
         (Join-Path $packageRoot 'runtime-data/minigames-test/user') | Out-Null
     Copy-Item -LiteralPath Start-Minigames.bat -Destination $packageRoot
+    # Scenario launchers start from fresh copies of the same test save.
+    Copy-Item -LiteralPath Edge-Tests -Destination (Join-Path $packageRoot 'Edge-Tests') -Recurse
     foreach ($folder in @('584109FF','B13EBABEBABEBABE')) {
         Copy-Item -LiteralPath "runtime-data/minigames-test/user/$folder" -Recurse -Destination (
             Join-Path $packageRoot 'runtime-data/minigames-test/user')
@@ -192,7 +206,7 @@ $inventory = @(Get-ChildItem -LiteralPath $packageRoot -Recurse -File | ForEach-
 [ordered]@{ build = $name; created_at = (Get-Date).ToString('o'); sdk_version = '0.10.0';
     architecture = 'x64'; includes_game_assets = $true; includes_user_profile = $false;
     includes_minigames_test_profile = [bool]$IncludeMinigamesProfile;
-    heavy_weapon_control_model = 'absolute-center';
+    heavy_weapon_control_model = 'deluxe';
     mouse_item_control_model = 'drag-release';
     mouse_services_control_model = 'native-tools-store-almanac';
     mouse_shop_control_model = 'native-hover-focus-house';

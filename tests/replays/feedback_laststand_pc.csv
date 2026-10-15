@@ -23,12 +23,12 @@
 18.95,244,295,left_up
 19.9,277,295,left_down
 20.05,277,295,left_up
-23,400,522,left_down
-23.15,400,522,left_up
+23,316,525,left_down
+23.15,316,525,left_up
 25,325,380,left_down
 25.15,325,380,left_up
-26,400,522,left_down
-26.15,400,522,left_up
+26,316,525,left_down
+26.15,316,525,left_up
 28,400,300,wait_board
 29,1000,0,fixture_heavy_sun
 30,400,525,left_down

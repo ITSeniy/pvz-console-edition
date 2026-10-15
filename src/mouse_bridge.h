@@ -14,6 +14,12 @@ void PublishReplayMouseBatch(std::span<const MouseInputEvent> events);
 bool ReplayScreenReady(uint32_t vtable);
 bool ReplayInputIdle();
 bool MouseOwnsInput();
+// The mouse owns input and, in a local match, belongs to player 1: screen
+// texts, hints and help pictures then describe the mouse. With a pad as
+// player 1 they keep the console presentation.
+bool MouseOwnsMenus();
+// Select Second Player is on screen (as of the last widget update).
+bool SecondPlayerPromptOpen();
 bool HostCursorVisible();
 void PublishFocusLost();
 void PublishControllerActivity();

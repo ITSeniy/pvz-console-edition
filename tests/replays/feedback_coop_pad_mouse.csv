@@ -8,8 +8,8 @@
 8,476,405,move
 9,4096,0,controller2
 9.05,0,0,controller2
-12,400,300,left_down
-12.15,400,300,left_up
+12,4096,0,controller2
+12.15,0,0,controller2
 14,400,300,left_down
 14.15,400,300,left_up
 20,4096,0,controller2

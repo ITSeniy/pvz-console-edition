@@ -16,13 +16,17 @@ class PcMenuDialog final : public rex::ui::ImGuiDialog {
   ~PcMenuDialog() override { pvz::SetHostMenuOpen(false); }
   void Show(pvz::HostMenu menu) {
     menu_ = menu; active_ = true; selection_ = 0;
+    imgui_drawer()->AddDialog(this);
     pvz::SetHostMenuOpen(true);
     pvz::PublishPointer(std::nullopt);
     pvz::RefreshHostSettings();
   }
  private:
+  // A registered dialog keeps the presenter painting from the UI thread on
+  // every refresh, so the closed menu leaves the drawer (see achievement_toast.h).
   void Hide() {
     active_ = false; pvz::SetHostMenuOpen(false); pvz::RefreshHostSettings();
+    imgui_drawer()->RemoveDialog(this);
   }
   void OnDraw(ImGuiIO& io) override {
     if (!active_) return;

@@ -6,7 +6,7 @@
 #include <stdexcept>
 
 int main(int argc, char** argv) {
-  if (argc != 2) return 1;
+  if (argc < 2 || argc > 4) return 1;
   const auto root = std::filesystem::temp_directory_path() /
       ("pvz-edition-test-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
   std::filesystem::create_directory(root);
@@ -16,6 +16,7 @@ int main(int argc, char** argv) {
       std::error_code error;
       for (const auto& [name, hash] : pvz::kGameContentHashes) std::filesystem::remove(root / name, error);
       std::filesystem::remove(root / ".pvz-import.toml", error);
+      std::filesystem::remove(root / "not-a-package.bin", error);
       std::filesystem::remove(root, error);
     }
   } cleanup{root};
@@ -53,6 +54,42 @@ int main(int argc, char** argv) {
     { std::ofstream file(root / ".pvz-import.toml"); file << "invalid ["; }
     check(false, "Broken receipt stays Trial");
     check(true, "Explicit test unlock works independently of receipt", true);
+    { std::ofstream file(root / "not-a-package.bin", std::ios::binary); file << "CON not a package"; }
+    if (pvz::InspectGamePackage(root / "not-a-package.bin").ok) throw std::runtime_error("Other file accepted as package");
+    if (pvz::InspectGamePackage(root / "missing.bin").ok) throw std::runtime_error("Missing file accepted as package");
+    std::cout << "Non-packages are rejected: passed\n";
+    std::filesystem::copy_file(std::filesystem::path(argv[1]) / "main.pak", root / "main.pak");
+    std::filesystem::remove(root / ".pvz-import.toml");
+    const auto recorded = pvz::RecordFullEdition(root, std::string(64, 'b'));
+    if (!recorded.full) throw std::runtime_error("In-game unlock receipt: " + recorded.reason);
+    std::cout << "In-game unlock receipt enables Full: passed\n";
+    if (argc == 3 && std::filesystem::exists(argv[2])) {
+      const auto package = pvz::InspectGamePackage(argv[2]);
+      if (!package.ok || package.package_sha256.size() != 64)
+        throw std::runtime_error("Supported XBLA package rejected: " + package.error);
+      std::cout << "Supported XBLA package accepted: passed\n";
+      const auto imported = root / "first-run";
+      struct ImportCleanup {
+        std::filesystem::path path;
+        ~ImportCleanup() { std::error_code error; std::filesystem::remove_all(path, error); }
+      } import_cleanup{imported};
+      if (pvz::ImportGamePackage(root / "not-a-package.bin", imported).ok || std::filesystem::exists(imported / "default.xex"))
+        throw std::runtime_error("Rejected package wrote game files");
+      const auto extracted = pvz::ImportGamePackage(argv[2], imported);
+      if (!extracted.ok || extracted.package_sha256 != package.package_sha256)
+        throw std::runtime_error("First-run import failed: " + extracted.error);
+      if (pvz::RecordImport(imported, extracted.package_sha256, false).full ||
+          pvz::ImportedPackageSha256(imported) != extracted.package_sha256)
+        throw std::runtime_error("Trial answer did not record a trial import");
+      if (!pvz::RecordImport(imported, pvz::ImportedPackageSha256(imported), true).full)
+        throw std::runtime_error("Unlock after a trial import did not enable Full");
+      std::cout << "First-run import extracts files; trial then full receipt: passed\n";
+    }
+    if (argc == 4 && std::filesystem::exists(argv[3])) {
+      const auto disc = pvz::InspectGamePackage(argv[3]);
+      if (!disc.ok || !disc.disc) throw std::runtime_error("Xbox 360 disc image rejected: " + disc.error);
+      std::cout << "Xbox 360 disc image accepted as full: passed\n";
+    }
     return 0;
   } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }

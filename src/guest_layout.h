@@ -44,6 +44,9 @@ inline constexpr uint32_t kModeWhackAZombie = 31;
 inline constexpr uint32_t kModeLastStand = 32;
 inline constexpr uint32_t kModeZenGarden = 44;
 inline constexpr uint32_t kModeTreeOfWisdom = 51;
+inline constexpr uint32_t kModeVersus = 76;
+// Co-op boards: each player has a seed bank of their own.
+inline bool CoopMode(uint32_t mode) { return mode >= 77 && mode <= 89; }
 
 inline constexpr uint32_t kSceneLevelIntro = 2;
 inline constexpr uint32_t kScenePlaying = 3;
@@ -52,6 +55,12 @@ inline uint32_t BoardApp(uint8_t* base, uint32_t board) { return guest::Read(bas
 inline uint32_t GameMode(uint8_t* base, uint32_t app) { return guest::Read(base, app + 0x9CC); }
 inline uint32_t GameScene(uint8_t* base, uint32_t app) { return guest::Read(base, app + 0x9D0); }
 inline uint32_t BoardMode(uint8_t* base, uint32_t board) { return GameMode(base, BoardApp(base, board)); }
+// VS shows one SeedChooser per side; +EA8 is the signed-in user that owns it
+// (the zombie panel is user 0 when player 1 took the zombies).
+inline bool VersusChooser(uint8_t* base, uint32_t chooser) {
+  const auto app = guest::Read(base, chooser + 0xE60);
+  return app && GameMode(base, app) == kModeVersus;
+}
 inline bool BoardPaused(uint8_t* base, uint32_t board) { return base[board + 0x1D9] != 0; }
 // Adventure level 5 teaches the shovel through Board tutorial states 15..17.
 inline bool InShovelLesson(uint8_t* base, uint32_t board) {

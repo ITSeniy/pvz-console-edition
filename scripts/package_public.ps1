@@ -19,8 +19,9 @@ $packageRoot = Join-Path $outputRoot $name
 $archivePath = Join-Path $outputRoot "$name.zip"
 if ((Test-Path $packageRoot) -or (Test-Path $archivePath)) { throw 'Output already exists.' }
 $required = @($exe,'build/rexruntimerd.dll','build/rexgpu-xenosrd.dll',
-    'build/TracyClientrd.dll','build/pc_defaults.toml','run.ps1','Import-Game.ps1',
-    'config/game.lock.json','scripts/import_game.py','scripts/extract_stfs.py',
+    'build/TracyClientrd.dll','build/pc_defaults.toml',
+    'build/mouse/help_menu_image_mouse_pc.ptx','build/mouse/help_menu_image_mouse_console.ptx','build/mouse/vs_mouse_player1.ptx','build/mouse/vs_mouse_player2.ptx','run.ps1','Import-Game.ps1',
+    'config/game.lock.json','scripts/import_game.py','scripts/extract_stfs.py','scripts/extract_xiso.py',
     'docs/distribution.md')
 foreach ($file in $required) {
     if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Missing release file: $file" }

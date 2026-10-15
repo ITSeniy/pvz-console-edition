@@ -1,13 +1,17 @@
 #pragma once
 #include <array>
 #include <functional>
+#include <string>
 #include <cstdint>
 #include <rex/ppc/context.h>
 
 namespace pvz {
-enum class HostMenu { Achievements, Cheats, Quit };
+enum class HostMenu { Achievements, Cheats, Quit, Unlock };
 void SetHostMenuCallback(std::function<void(HostMenu)> callback);
 void RequestHostMenu(HostMenu menu);
+// Outcome of HostMenu::Unlock; the next WidgetManager update applies it.
+struct UnlockResult { bool full = false; std::string message; };
+void PostUnlockResult(UnlockResult result);
 void SetHostMenuOpen(bool open);
 bool HostMenuOpen();
 bool RouteHostMenuButton(uint32_t button, uint32_t player);

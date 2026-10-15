@@ -30,6 +30,10 @@ int main() {
   check(near(heavy.carriage_x, 700) && heavy.aim.x > 0);
   heavy = pvz::MapHeavyWeaponPointer({322, 650}, 300, 500); // Below, exactly under.
   check(near(heavy.carriage_x, 300) && near(heavy.aim.x, 0) && near(heavy.aim.y, 1));
+  // Settled: the approach does not creep forever with the wheels turning.
+  float carriage = 300;
+  for (int i = 0; i < 2000; ++i) carriage = pvz::MapHeavyWeaponPointer({600, 300}, carriage, 500).carriage_x;
+  check(near(pvz::MapHeavyWeaponPointer({600, 300}, carriage, 500).carriage_x, carriage) && carriage > 450);
   auto point = pvz::MapPointer(640, 360, 1280, 720, true);
   check(point && near(point->x, 400) && near(point->y, 300));
   point = pvz::MapBoardPointer({218, 80}); // Card at guest pixel 348.8,96

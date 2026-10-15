@@ -1,7 +1,7 @@
 # pvz-console-edition: импорт и редакции
 
 Продукт, EXE и новые архивы называются `pvz-console-edition`.
-Версия Windows ProductVersion/FileVersion — 0.1.0, FileDescription —
+Версия Windows ProductVersion/FileVersion — 0.7.0 (бета), FileDescription —
 Plants vs. Zombies Console Edition. ICO содержит размеры 16, 24, 32, 48 и
 64 пикселя; источник — исходная Xbox-миниатюра `game.png`.
 Иконка встроена в ресурсы Windows и применяется к игровому окну.
@@ -19,6 +19,62 @@ Plants vs. Zombies Console Edition. ICO содержит размеры 16, 24, 
 В XBLA бит лицензии сообщается отдельно от содержимого:
 [XamContentGetLicenseMask в Xenia](https://github.com/xenia-project/xenia/blob/master/src/xenia/kernel/xam/xam_content.cc).
 Само наличие `default.xex` не считается доказательством покупки.
+
+### Импорт при первом запуске
+
+Если в `game_data_root` нет `default.xex`, игра до загрузки XEX
+(`ReXApp::OnFinalizePaths`) показывает окно **Game Files**. Игрок выбирает
+файл пакета XBLA; C++-импорт (`ImportGamePackage`, `src/game_edition.cpp`)
+читает STFS, проверяет SHA-1 каждого блока, TitleID и SHA256 трёх основных
+файлов, и только после этого записывает все файлы пакета в `assets`. Затем
+игрок отвечает, купленная ли это полная версия: триал и полная версия XBLA —
+один и тот же пакет, так что ответ лишь выбирает Trial или Full в
+`.pvz-import.toml`. После этого запуск продолжается; Python не нужен.
+
+### Образ диска Xbox 360 (.iso)
+
+Вместо пакета можно выбрать образ диска Xbox 360 с игрой. Импорт находит
+раздел XDVDFS (смещения XGD3/XGD2/XGD1 или обычный XISO), ищет в нём файл
+в `Content/<профиль>/584109FF/000D0000/` и дальше работает с ним как с
+пакетом XBLA. Проверено на диске «Plants vs. Zombies (USA)» (сборник PopCap
+с Zuma и Peggle): `default.xex`, `main.pak`, `en.pak` в нём побайтово
+совпадают с загружаемой версией; отличается только заголовок пакета
+(лицензия), поэтому другой `package_sha256`. Диск означает полную версию:
+вопрос о покупке не задаётся, в квитанцию пишется `source = "disc"` и
+`owner_confirmed_full_copy = true`. `Import-Game.ps1` тоже принимает образ
+(`scripts/extract_xiso.py`). Список файлов на диске:
+
+```powershell
+python scripts/extract_xiso.py 'Plants vs. Zombies (USA) (En,Ja,Fr,De,Es,It).iso'
+```
+
+Полная версия не открывает лишнего: магазин Crazy Dave по **$** доступен
+только после того, как его открыло прохождение Adventure
+(`LawnApp::CanShowStore`, `821A9678`); до этого **$** показывает окно
+«Crazy Dave's Shop».
+
+### Дампы PS3
+
+Отдельно дамп PS3 игру не запускает. Порт — это перекомпилированный код
+Xbox 360, и при запуске ему нужен `default.xex`: исполняемый образ с
+данными, строками и таблицами, на которые опирается этот код. В дампе PS3
+(`NPUA-30059`, `EBOOT.BIN`, `main.pak`, `sounds.pak`, `compressed.pak`)
+XEX нет, а его `EBOOT.BIN` — код другой платформы. Ресурсы PS3 к тому же
+в другом формате (текстуры с другой раскладкой, звук в `sounds.pak`), то
+есть заменить ими файлы Xbox без XEX невозможно. Дамп PS3 используется
+только как источник значков DualShock (`scripts/extract_ps3_controller_assets.py`).
+
+В Trial подсолнух **$** и все «Get Full Game» предлагают разблокировку. При
+импортированных данных нужно только подтвердить покупку (**I Bought It**):
+квитанция переписывается с декларацией, `license_mask` становится 1, и штатная
+проверка `821AFCA0(app, 0)` выполняет переход trial → full без перезапуска. Без
+квитанции (данные положены вручную) игра просит выбрать пакет. В Full **$**
+открывает магазин Crazy Dave (кнопка Shop из Extras, id 16).
+
+Для автотестов: `--pvz_unlock_package=<файл>` подставляет файл вместо диалога,
+`--pvz_import_answer=full|trial` отвечает в окне первого запуска.
+
+### Import-Game.ps1 (запасной путь)
 
 ```powershell
 .\Import-Game.ps1 -Package 'C:\Games\PvZ\584109FF\000D0000\container' -Edition Full
@@ -59,7 +115,7 @@ Plants vs. Zombies Console Edition. ICO содержит размеры 16, 24, 
 Публичный архив формируется по явному списку: EXE, библиотеки, CRT,
 Trial-настройки, запуск, импорт, документация, хеши и лицензии библиотек.
 В него не попадают игровые PAK/XEX, сохранения, журналы и декларация владельца.
-Имя: `pvz-console-edition-0.1.0-win-x64-<дата>.zip`, рядом SHA256.
+Имя: `pvz-console-edition-0.7.0-win-x64-<дата>.zip`, рядом SHA256.
 Упаковщик проверяет метаданные EXE и свежесть сборки. Публикация на GitHub
 не выполняется автоматически.
 

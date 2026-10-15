@@ -19,12 +19,12 @@
 20,400,300,wheel_down
 22,4096,0,controller2
 22.15,0,0,controller2
-24,512,555,left_down
-24.15,512,555,left_up
+24,543,300,left_down
+24.15,543,300,left_up
 28,4096,0,controller2
 28.15,0,0,controller2
-30,512,555,left_down
-30.15,512,555,left_up
+30,543,300,left_down
+30.15,543,300,left_up
 36,400,300,wait_board
 38,450,80,left_down
 38.15,450,80,left_up

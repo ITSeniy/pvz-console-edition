@@ -1,4 +1,5 @@
 #include "challenge_mouse.h"
+#include "bonus_games.h"
 #include "mouse_bridge.h"
 #include "game_settings.h"
 #include "guest_memory.h"
@@ -178,7 +179,9 @@ REX_HOOK_RAW(sub_821684F0) {
   if (state.screen != screen) { state = {}; state.screen = screen; }
   state.rows = {};
   const auto saved = drawing_screen; drawing_screen = screen;
+  pvz::SetDrawingBonusPage(Read(base, screen + 0x258) == pvz::kBonusPage);
   __imp__sub_821684F0(ctx, base);
+  pvz::SetDrawingBonusPage(false);
   drawing_screen = saved;
 }
 REX_HOOK_RAW(sub_82167958) {
@@ -189,7 +192,10 @@ REX_HOOK_RAW(sub_82167958) {
   const auto screen = ctx.r3.u32;
   const auto selected = Read(base, screen + 0x5BC);
   if (pvz::MouseOwnsInput() && state.screen == screen) Write(base, screen + 0x5BC, uint32_t(state.hover));
-  __imp__sub_82167958(ctx, base);
+  {
+    pvz::BonusIconScope icon(base, screen, ctx.r5.s32);
+    __imp__sub_82167958(ctx, base);
+  }
   Write(base, screen + 0x5BC, selected);
   drawing_row = old_row; drawing_id = old_id;
   row_origin_x = old_x; row_origin_y = old_y;

@@ -348,9 +348,56 @@ void pvz::ScrollService(PPCContext& ctx, uint8_t* b, uint32_t screen, int steps)
     PVZ_TRACE("PvZ {} scroll tool {} -> {}", Tree(b, screen) ? "Tree" : "Zen", int32_t(before), int32_t(Read(b, controls + slot)));
   }
 }
+// VS Pick Sides (phase +114 = 1): LMB on the Plants or Zombies picture, or
+// between them, moves the mouse player's icon there through the native
+// left/right actions (2/3), which keep their guards for a taken side and
+// Ready. Sides at +120 per user: -1 undecided, 0 plants, 1 zombies.
+// Pick Sides with the mouse: a click on Plants, Zombies or between them
+// moves the player's badge there (native left/right, which keep their checks),
+// a second click on the side it already holds confirms it (native A), and
+// the right button takes back a confirmation (native B) or returns the badge
+// to the middle. Leaving the screen stays on Back.
+static bool PickSideClick(PPCContext& ctx, uint8_t* b, uint32_t screen, pvz::Point p, int button, bool down) {
+  const auto user = pvz::LocalPlayersActive() ? uint32_t(std::max(0, pvz::MouseUserIndex())) : Read(b, screen + 0x118);
+  const uint32_t slot = user == Read(b, screen + 0x118) ? 0 : 1;
+  const auto side = [&] { return int32_t(Read(b, screen + 0x120 + slot * 4)); };
+  const auto ready = [&] { return b[screen + 0x128 + slot] != 0; };
+  auto move = [&](int target) {
+    for (int step = 0; step < 2 && side() != target; ++step) {
+      const int current = side();
+      const bool left = target == 0 || (target < 0 && current == 1);
+      GuestCall(ctx, b, sub_8228B5C0, screen, left ? 2u : 3u, user, 0);
+      if (side() == current) break;
+    }
+  };
+  if (button < 0) {
+    if (!down) return true;
+    const int before = side();
+    if (ready()) GuestCall(ctx, b, sub_8228B5C0, screen, 7u, user, 0);
+    else if (before != -1) move(-1);
+    PVZ_TRACE("PvZ VS pick side cancel user {} side {} -> {} ready {}", user, before, side(), ready());
+    return true;
+  }
+  const auto local = pvz::MapUiPointer(p);
+  if (!local || local->y < 165 || local->y >= 470 || local->x < 45 || local->x >= 755) return false;
+  if (!down) return true;
+  const int target = local->x < 290 ? 0 : local->x >= 505 ? 1 : -1;
+  const int before = side();
+  if (target != -1 && before == target) {
+    if (!ready()) GuestCall(ctx, b, sub_8228B5C0, screen, 6u, user, 0);
+  } else {
+    // A confirmed side is taken back before the badge moves.
+    if (ready()) GuestCall(ctx, b, sub_8228B5C0, screen, 7u, user, 0);
+    if (!ready()) move(target);
+  }
+  PVZ_TRACE("PvZ VS pick side click user {} target {} side {} -> {} ready {}", user, target, before, side(), ready());
+  return true;
+}
+
 bool pvz::ServiceMouseButton(PPCContext& ctx, uint8_t* b, uint32_t screen, Point p, int button, bool down) {
   if (!screen) return false;
   const auto vt = Read(b, screen);
+  if (vt == kVSSetupMenu && Read(b, screen + 0x114) == 1 && button != 0 && PickSideClick(ctx, b, screen, p, button, down)) return true;
   if (vt == kHouseChooser) {
     if (button < 0) {
       capture = {};

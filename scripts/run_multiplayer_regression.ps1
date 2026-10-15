@@ -1,5 +1,6 @@
 [CmdletBinding()]
-param([string[]]$Cases=@('vs_mouse_pad','vs_pad_mouse','vs_two_pads','coop_mouse_pad','coop_pad_mouse','coop_two_pads'), [switch]$Append)
+param([string[]]$Cases=@('vs_mouse_pad','vs_pad_mouse','vs_two_pads','coop_mouse_pad','coop_pad_mouse','coop_two_pads',
+ 'vs_mouse_p2_sun','vs_custom_mouse_plants','vs_custom_mouse_zombies','vs_join_mouse','vs_join_pad','vs_pick_sides'), [switch]$Append)
 $ErrorActionPreference='Stop'
 Set-Location (Split-Path $PSScriptRoot -Parent)
 $root=Join-Path (Get-Location) ('runtime-data/multiplayer-regression/'+(Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
@@ -18,8 +19,10 @@ foreach($name in $Cases){
  $dir=Join-Path $root $name;New-Item -ItemType Directory -Path $dir|Out-Null
  Copy-Item -LiteralPath (Join-Path $baseline 'user') -Destination (Join-Path $dir 'user') -Recurse
  $csv=[System.IO.Path]::GetFullPath('tests/replays/feedback_'+$name+'.csv')
- $seconds=if($name.StartsWith('coop')){110}else{80}
- & ./smoke.ps1 -Seconds $seconds -UserDataRoot (Join-Path $dir 'user') --pvz_mouse_cursor=true --pvz_input_trace=true --pvz_test_unlock=true --pvz_replay_controller=true --pvz_cursor_mode=pc "--pvz_input_replay=$csv" "--pvz_capture_frame=$dir/frame.ppm" --pvz_capture_delay=30 --pvz_capture_count=16 --pvz_capture_interval=5
+ $seconds=if($name.StartsWith('coop')){110}elseif($name.StartsWith('vs_join')){45}else{80}
+ # Without diagnostic pads the join window waits for a controller (2P_JOIN_TEXT).
+ $pads=if($name -eq 'vs_join_mouse'){'false'}else{'true'}
+ & ./smoke.ps1 -Seconds $seconds -UserDataRoot (Join-Path $dir 'user') --pvz_mouse_cursor=true --pvz_input_trace=true --pvz_test_unlock=true "--pvz_replay_controller=$pads" --pvz_cursor_mode=pc "--pvz_input_replay=$csv" "--pvz_capture_frame=$dir/frame.ppm" --pvz_capture_delay=30 --pvz_capture_count=16 --pvz_capture_interval=5
  $result=Get-Content runtime-data/smoke-latest.json -Raw|ConvertFrom-Json
  if(-not $result.survived -or $result.fatal.Count){throw "Multiplayer run failed: $name"}
  if($hash -ne (Get-FileHash build/pvz-console-edition.exe -Algorithm SHA256).Hash.ToLowerInvariant()){throw 'Executable changed during regression.'}

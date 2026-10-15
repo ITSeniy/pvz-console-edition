@@ -1,0 +1,17 @@
+0,400,300,wait_title
+1,400,500,left_down
+1.15,400,500,left_up
+2,400,300,wait_menu
+4,230,410,left_down
+4.15,230,410,left_up
+6,400,300,wait_menu
+8,476,350,move
+9,4096,0,controller2
+9.15,0,0,controller2
+10,1,0,capture
+10.6,1,0,capture
+11.2,1,0,capture
+11.8,1,0,capture
+12,400,300,left_down
+12.15,400,300,left_up
+13,1,0,capture

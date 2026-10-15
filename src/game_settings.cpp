@@ -3,7 +3,9 @@
 #include "mouse_bridge.h"
 #include "input_backend.h"
 #include "pc_menus.h"
+#include "bonus_games.h"
 #include "widget_tree.h"
+#include "guest_layout.h"
 #include <rex/cvar.h>
 #include <rex/hook.h>
 #include <rex/logging.h>
@@ -21,9 +23,11 @@
 #include <cmath>
 
 REXCVAR_DEFINE_BOOL(pvz_vsync, true, "PvZ", "Synchronize host presentation without guest GPU wait throttling");
-REXCVAR_DEFINE_INT32(pvz_frame_limit, 60, "PvZ", "Limit rendered frames per second (simulation keeps its native clock)").range(30, 240);
+REXCVAR_DEFINE_INT32(pvz_frame_limit, 60, "PvZ", "Frames per second without VSync; with VSync the display refresh paces frames (simulation keeps its native clock)").range(30, 240);
 REXCVAR_DEFINE_BOOL(pvz_skip_intro, true, "PvZ", "Skip startup intro videos (restart to replay)");
-REXCVAR_DEFINE_BOOL(pvz_full_version, false, "PvZ", "Full edition status from validated own-copy import (restart required)");
+REXCVAR_DEFINE_BOOL(pvz_full_version, false, "PvZ", "Full edition status from validated own-copy import");
+REXCVAR_DEFINE_STRING(pvz_unlock_package, "", "Diagnostics", "Replay-only: XBLA package for the in-game unlock instead of the file dialog");
+REXCVAR_DEFINE_STRING(pvz_import_answer, "", "Diagnostics", "Replay-only: answer the first-run import unattended (full or trial)");
 REXCVAR_DEFINE_BOOL(pvz_test_unlock, false, "Diagnostics", "Enable Full access for test saves without an import receipt (restart required)");
 REXCVAR_DEFINE_BOOL(pvz_pause_on_focus_loss, true, "PvZ", "Pause gameplay when the game window loses focus");
 REXCVAR_DEFINE_STRING(pvz_display_mode, "windowed", "PvZ", "Display mode")
@@ -63,11 +67,14 @@ REX_EXTERN(sub_825DDB78); // guest operator new
 REX_EXTERN(sub_825F8F50); // guest operator delete
 REX_EXTERN(__imp__sub_82187F70); // GameButton destructor
 REX_EXTERN(sub_8220AE58); // SeedChooser button listener
+REX_EXTERN(sub_821ABDE8); // LawnApp::PlaySample(sound, ...)
+REX_EXTERN(sub_821A3B80); // LawnApp::DoPauseDialog(user)
 REX_EXTERN(sub_821A9608); // Almanac availability
 REX_EXTERN(sub_821A9678); // Shop availability
 REX_EXTERN(sub_82292DA8); // ZenGarden::OpenStore (save, modal, restore garden)
 REX_EXTERN(sub_82217888); // Store::GamepadButtonDown
 REX_EXTERN(sub_8228B5C0); // VSSetupMenu::GamepadButtonDown
+REX_EXTERN(sub_82491DE8); // XML WidgetContainer::GetWidget(id)
 REX_EXTERN(__imp__sub_82473000); // Widget::GamepadButtonDown
 REX_HOOK_RAW(sub_82473000) {
   if (pvz::LocalPlayersActive() && ctx.r3.u32 &&
@@ -93,6 +100,11 @@ REX_EXTERN(sub_8249B508); // Graphics::SetScale(x,y,centreX,centreY)
 namespace {
 constexpr uint32_t kHelpOptions = 0x820BAA54;
 constexpr uint32_t kMouseMode = 1002;
+// VS Menu, board coordinates: the window's free corner right of the zombie
+// bank (frame x 1100..1220), shared by the VS lawn and both choosers.
+constexpr int32_t kVersusMenuLeft = 860, kVersusMenuTop = -46;
+// LET'S ROCK! on the zombie chooser, relative to its panel.
+constexpr int32_t kZombieRockLeft = 53;
 struct SettingButton {
   uint32_t widget;
   std::string mode;
@@ -105,12 +117,26 @@ struct SettingButton {
 };
 std::unordered_map<uint32_t, SettingButton> buttons;
 std::unordered_map<uint32_t, std::array<uint32_t, 4>> chooser_buttons;
+// VS setup whose mode stones are hidden during Pick Sides.
+uint32_t vs_modes_hidden = 0;
+bool imported_package = false;
 struct NavigationButton { uint32_t widget, listener; };
 std::unordered_map<uint32_t, NavigationButton> navigation_buttons;
 std::unordered_map<uint32_t, NavigationButton> endless_buttons;
 std::unordered_map<uint32_t, NavigationButton> garden_shop_buttons, shop_prev_buttons, shop_next_buttons;
 std::unordered_map<uint32_t, NavigationButton> onslaught_buttons;
 std::unordered_map<uint32_t, NavigationButton> service_prev_buttons, service_next_buttons, service_ready_buttons;
+// Mail's Inbox/Read Messages switch: the controller's X (native action 8).
+std::unordered_map<uint32_t, NavigationButton> mail_read_buttons, mail_inbox_buttons;
+// Mini-Games -> Bonus Games (ChallengeScreen page 2), after all trophies.
+std::unordered_map<uint32_t, NavigationButton> bonus_buttons;
+// Credits: replay once the video ended (native X, action 8; state +DC 3).
+std::unordered_map<uint32_t, NavigationButton> credits_replay_buttons;
+// Screen rect of each added button. Paged screens slide their own position
+// during their Update, after WidgetManager's; reapplying the rect relative
+// to the parent just before drawing keeps the buttons still.
+struct PinnedRect { int32_t x, y; uint32_t width, height; };
+std::unordered_map<uint32_t, PinnedRect> pinned_buttons;
 std::unordered_map<uint32_t, uint32_t> navigation_listeners;
 std::filesystem::path settings_path;
 std::mutex settings_mutex, callback_mutex;
@@ -175,6 +201,14 @@ uint32_t Call(PPCContext& ctx, uint8_t* base, PPCFunc* fn,
   for (auto arg : args) registers[i++]->u64 = arg;
   fn(work, base);
   return work.r3.u32;
+}
+void Pin(PPCContext& ctx, uint8_t* base, uint32_t button, uint32_t parent, PinnedRect rect) {
+  pinned_buttons[button] = rect;
+  const auto x = uint32_t(rect.x - int32_t(Read(base, parent + 0x40)));
+  const auto y = uint32_t(rect.y - int32_t(Read(base, parent + 0x44)));
+  if (Read(base, button + 0x190) != x || Read(base, button + 0x194) != y ||
+      Read(base, button + 0x1A4) != rect.width || Read(base, button + 0x1A8) != rect.height)
+    Call(ctx, base, sub_82188E20, {button, x, y, rect.width, rect.height});
 }
 
 // Strings live in the hook's reserved caller area, above nested guest frames.
@@ -268,7 +302,8 @@ void Layout(PPCContext& ctx, uint8_t* base, uint32_t dialog, uint32_t button) {
 }
 void RemoveNavigation(PPCContext& ctx, uint8_t* base, uint32_t parent) {
   for (auto* collection : {&navigation_buttons, &endless_buttons, &garden_shop_buttons, &onslaught_buttons, &shop_prev_buttons, &shop_next_buttons,
-      &service_prev_buttons, &service_next_buttons, &service_ready_buttons}) {
+      &service_prev_buttons, &service_next_buttons, &service_ready_buttons, &mail_read_buttons, &mail_inbox_buttons,
+      &bonus_buttons, &credits_replay_buttons}) {
     const auto found = collection->find(parent);
     if (found == collection->end()) continue;
     const auto button = found->second.widget;
@@ -300,8 +335,12 @@ void pvz::UpdateMouseNavigation(PPCContext& ctx, uint32_t manager, uint8_t* base
     const bool board = vt == 0x820B728C, help = vt == 0x820BB22C || vt == 0x820C1D24 || vt == 0x820BBF94 ||
         vt == 0x820CB23C || vt == 0x820B466C || vt == 0x820C21A4 || vt == 0x820B96EC || vt == 0x820CC2EC || vt == 0x820B899C;
     if (!board && !help) continue;
-    const bool visible = (parent == foreground || vt == 0x820CB23C || board) && base[parent + 0x70] && rex::cvar::Query<bool>("pvz_mouse_cursor") && MouseOwnsInput() &&
-        (help || Read(base, Read(base, parent + 0xF4) + 0x9D0) == 3);
+    // Board +56A0 counts down the level-complete fade after the award is
+    // taken (-1 otherwise); PC disables its own Menu then. Hide ours.
+    // Local multiplayer: menus (Menu, Back) belong to player 1's device.
+    const bool dominant = !pvz::LocalPlayersActive() || pvz::MouseUserIndex() == 0;
+    const bool visible = (parent == foreground || vt == 0x820CB23C || board) && base[parent + 0x70] && rex::cvar::Query<bool>("pvz_mouse_cursor") && MouseOwnsInput() && dominant &&
+        (help || (Read(base, Read(base, parent + 0xF4) + 0x9D0) == 3 && int32_t(Read(base, parent + 0x56A0)) < 0));
     auto found = navigation_buttons.find(parent);
     if (found == navigation_buttons.end()) {
       if (!visible) continue;
@@ -309,7 +348,8 @@ void pvz::UpdateMouseNavigation(PPCContext& ctx, uint32_t manager, uint8_t* base
       // Use Help's verified no-op ButtonListener vtable; dispatch release below.
       const auto listener = Call(ctx, base, sub_825DDB78, {4});
       Write(base, listener, 0x820BB39C);
-      const auto button = WithLabel(ctx, base, board ? u"Menu" : u"Back", [&](uint32_t label) {
+      // Credits: Back leaves the music video, so it reads Skip.
+      const auto button = WithLabel(ctx, base, board ? u"Menu" : vt == 0x820B96EC ? u"Skip" : u"Back", [&](uint32_t label) {
         return Call(ctx, base, sub_82188F80, {board ? 1100u : 1101u, listener, parent, label});
       });
       found = navigation_buttons.emplace(parent, NavigationButton{button, listener}).first;
@@ -328,11 +368,13 @@ void pvz::UpdateMouseNavigation(PPCContext& ctx, uint32_t manager, uint8_t* base
     const bool zen = app && (Read(base, app + 0x9CC) == 44 || Read(base, app + 0x9CC) == 51);
     // Zen keeps PC's top-right Menu with Shop below it, moved past the Xbox
     // toolbar's extra garden icons into the window's free corner.
-    const auto x = uint32_t((zen ? 860 : board ? 680 : 650) - int32_t(Read(base, parent + 0x40)));
-    const auto y = uint32_t((zen ? -46 : board ? 4 : vt == 0x820CC2EC ? 585 : 548) - int32_t(Read(base, parent + 0x44)));
-    if (Read(base, button + 0x190) != x || Read(base, button + 0x194) != y ||
-        Read(base, button + 0x1A4) != 120 || Read(base, button + 0x1A8) != 46)
-      Call(ctx, base, sub_82188E20, {button, x, y, 120, 46});
+    // PC's Menu sits at y -10, clear of the zombies walking in the top row.
+    // VS has a bank on each side of the top row; Menu takes the free corner.
+    // Co-op's second bank reaches the same corner as VS's zombie bank.
+    const bool versus = app && (Read(base, app + 0x9CC) == pvz::layout::kModeVersus ||
+        pvz::layout::CoopMode(Read(base, app + 0x9CC)));
+    Pin(ctx, base, button, parent, {zen ? 860 : versus ? kVersusMenuLeft : board ? 680 : 650,
+        zen ? -46 : versus ? kVersusMenuTop : board ? -10 : vt == 0x820CC2EC ? 585 : vt == 0x820B96EC ? -36 : 548, 120, 46});
     auto service_button = [&](auto& collection, uint32_t id, std::u16string_view label, bool show,
         int left, int top, int width) {
       auto entry = collection.find(parent);
@@ -351,8 +393,7 @@ void pvz::UpdateMouseNavigation(PPCContext& ctx, uint32_t manager, uint8_t* base
       // GameButton constructor otherwise restricts presses to user zero.
       if (vt == 0x820CC2EC) Write(base, item + 0xC0, uint32_t(-1));
       base[item + 0x70] = show; base[item + 0x72] = !show || parent != foreground;
-      Call(ctx, base, sub_82188E20, {item, uint32_t(left - int32_t(Read(base, parent + 0x40))),
-          uint32_t(top - int32_t(Read(base, parent + 0x44))), uint32_t(width), 46});
+      Pin(ctx, base, item, parent, {left, top, uint32_t(width), 46});
     };
     if (zen || garden_shop_buttons.contains(parent))
       service_button(garden_shop_buttons, 1103, u"Shop", visible && zen && Call(ctx, base, sub_821A9678, {app}), 860, 6, 120);
@@ -366,14 +407,34 @@ void pvz::UpdateMouseNavigation(PPCContext& ctx, uint32_t manager, uint8_t* base
       service_button(shop_prev_buttons, 1104, u"<", visible, 170, 375, 110);
       service_button(shop_next_buttons, 1105, u">", visible, 590, 375, 110);
     }
-    const bool pages = vt == 0x820BB22C || vt == 0x820BBF94 || vt == 0x820C21A4 ||
-        vt == 0x820C1D24 || (vt == 0x820CC2EC && Read(base, parent + 0x114) == 1);
+    const bool pages = vt == 0x820BB22C || vt == 0x820BBF94 || vt == 0x820C21A4 || vt == 0x820C1D24;
     if (pages || service_prev_buttons.contains(parent)) {
-      service_button(service_prev_buttons, 1110, u"<", visible && pages, 360, vt == 0x820CC2EC ? 585 : 548, 80);
-      service_button(service_next_buttons, 1111, u">", visible && pages, 450, vt == 0x820CC2EC ? 585 : 548, 80);
+      service_button(service_prev_buttons, 1110, u"<", visible && pages, 360, 548, 80);
+      service_button(service_next_buttons, 1111, u">", visible && pages, 450, 548, 80);
     }
-    if (vt == 0x820CC2EC)
-      service_button(service_ready_buttons, 1112, u"Ready", visible && Read(base, parent + 0x114) == 1, 540, 585, 100);
+    if (vt == 0x820CC2EC) {
+      // Pick Sides (+114 = 1) is clicked directly (service_mouse.cpp): only
+      // Back remains. The mode stones (XML ids 9..11) belong to the next
+      // step; hide them until it starts.
+      const bool pick = Read(base, parent + 0x114) == 1;
+      if (pick || vs_modes_hidden == parent) {
+        for (uint32_t id : {9u, 10u, 11u})
+          if (const auto mode = Call(ctx, base, sub_82491DE8, {parent, id})) base[mode + 0x70] = !pick;
+        vs_modes_hidden = pick ? parent : 0;
+      }
+    }
+    if (vt == 0x820B96EC)
+      service_button(credits_replay_buttons, 1116, u"Replay", visible && Read(base, parent + 0xDC) == 3 &&
+          !base[parent + 0x148], 520, -36, 120);
+    if (vt == 0x820B899C && (Read(base, parent + 0x258) == pvz::kMiniGamesPage || bonus_buttons.contains(parent)))
+      service_button(bonus_buttons, 1115, u"Bonus Games", visible && Read(base, parent + 0x258) == pvz::kMiniGamesPage &&
+          pvz::BonusGamesUnlocked(ctx, base, parent), 40, 548, 240);
+    if (vt == 0x820C21A4) {
+      // MailScreen +1CC: 0 Inbox, 1 Read Messages.
+      const bool read = Read(base, parent + 0x1CC) == 1;
+      service_button(mail_read_buttons, 1113, u"Read Mail", visible && !read, 40, 548, 240);
+      service_button(mail_inbox_buttons, 1114, u"Inbox", visible && read, 40, 548, 240);
+    }
     if (vt == 0x820BBF94) {
       auto endless = endless_buttons.find(parent);
       if (endless == endless_buttons.end() && visible) {
@@ -388,8 +449,7 @@ void pvz::UpdateMouseNavigation(PPCContext& ctx, uint32_t manager, uint8_t* base
       if (endless != endless_buttons.end()) {
         const auto item = endless->second.widget;
         base[item + 0x70] = visible; base[item + 0x72] = !visible;
-        Call(ctx, base, sub_82188E20, {item, uint32_t(40 - int32_t(Read(base, parent + 0x40))),
-            uint32_t(548 - int32_t(Read(base, parent + 0x44))), 240, 46});
+        Pin(ctx, base, item, parent, {40, 548, 240, 46});
       }
     }
   }
@@ -442,7 +502,8 @@ REX_HOOK_RAW(sub_824AE488) {
     }
     return;
   }
-  for (auto* collection : {&service_prev_buttons, &service_next_buttons, &service_ready_buttons}) {
+  for (auto* collection : {&service_prev_buttons, &service_next_buttons, &service_ready_buttons,
+      &mail_read_buttons, &mail_inbox_buttons, &credits_replay_buttons}) {
     const auto entry = collection->find(parent);
     if (entry == collection->end() || entry->second.widget != button) continue;
     if (ctx.r4.u32 == 6 && base[button + 0x74] && !base[button + 0x72]) {
@@ -450,7 +511,10 @@ REX_HOOK_RAW(sub_824AE488) {
       const auto vt = Read(base, parent), user = vt == 0x820CC2EC ?
           (pvz::LocalPlayersActive() ? ctx.r5.u32 : Read(base, parent + 0x118)) : 0;
       const bool rows = vt == 0x820C1D24;
-      const auto action = collection == &service_ready_buttons ? 6u : collection == &service_prev_buttons ?
+      // Native X (action 8): Mail Inbox/Read switch, Credits replay.
+      const bool x_action = collection == &mail_read_buttons || collection == &mail_inbox_buttons ||
+          collection == &credits_replay_buttons;
+      const auto action = x_action ? 8u : collection == &service_ready_buttons ? 6u : collection == &service_prev_buttons ?
           (rows ? 0u : 2u) : (rows ? 1u : 3u);
       Call(ctx, base, vt == 0x820CC2EC ? sub_8228B5C0 :
           rex::runtime::ResolveIndirectFunction(Read(base, vt + 0xC0)), {parent, action, user, 0});
@@ -465,10 +529,26 @@ REX_HOOK_RAW(sub_824AE488) {
       const auto visible = base[parent + 0x71];
       base[parent + 0x71] = 1; // Native listener otherwise rejects child-button hover.
       const auto id = Read(base, button + 0x6C);
-      if (id == 1100) Call(ctx, base, sub_8214CDC0, {Read(base, parent + 0xE64), 5, Read(base, parent + 0xEA8), 0});
+      if (id == 1100) {
+        // Board's Start pauses only while playing (8214D3A0 needs scene 3),
+        // so on the chooser open the same pause menu as GamepadControls does:
+        // the pause sound, then LawnApp::DoPauseDialog(user) (821A3B80).
+        const auto app = Read(base, parent + 0xE60);
+        const auto owner = int32_t(Read(base, parent + 0xEA8));
+        const uint32_t user = owner >= 0 ? uint32_t(owner) : uint32_t(std::max(pvz::MouseUserIndex(), 0));
+        Call(ctx, base, sub_821ABDE8, {app, Read(base, 0x82D09E14), 1});
+        Call(ctx, base, sub_821A3B80, {app, user});
+      }
       else Call(ctx, base, sub_8220AE58, {parent + 0xD4, id});
       if (chooser_buttons.contains(parent)) base[parent + 0x71] = visible;
       if (rex::cvar::Query<bool>("pvz_input_trace")) REXLOG_INFO("PvZ chooser button {} activated", id);
+    }
+    return;
+  }
+  if (const auto bonus = bonus_buttons.find(parent); bonus != bonus_buttons.end() && bonus->second.widget == button) {
+    if (ctx.r4.u32 == 6 && base[button + 0x74] && !base[button + 0x72]) {
+      base[button + 0x74] = 0;
+      pvz::SwitchChallengePage(ctx, base, parent, pvz::kBonusPage);
     }
     return;
   }
@@ -529,12 +609,15 @@ REX_HOOK_RAW(sub_8219A2F0) {
   navigation_buttons.erase(ctx.r3.u32);
   service_prev_buttons.erase(ctx.r3.u32);
   service_next_buttons.erase(ctx.r3.u32);
+  mail_read_buttons.erase(ctx.r3.u32);
+  mail_inbox_buttons.erase(ctx.r3.u32);
   __imp__sub_8219A2F0(ctx, base);
 }
 REX_HOOK_RAW(sub_8219A070) { RemoveNavigation(ctx, base, ctx.r3.u32); __imp__sub_8219A070(ctx, base); }
 REX_HOOK_RAW(sub_82187F70) {
   const auto button = ctx.r3.u32;
   __imp__sub_82187F70(ctx, base);
+  pinned_buttons.erase(button);
   if (const auto found = navigation_listeners.find(button); found != navigation_listeners.end()) {
     Call(ctx, base, sub_825F8F50, {found->second});
     navigation_listeners.erase(found);
@@ -559,6 +642,7 @@ void pvz::ConfigureGameSettings(const std::filesystem::path& config_path,
     rex::cvar::SetFlagByName("keybind_start", "Escape");
     SavePreference("keybind_start", "\"Escape\"");
   }
+  imported_package = !ImportedPackageSha256(game_data_root).empty();
   const auto edition = EvaluateGameEdition(game_data_root, rex::cvar::Query<bool>("pvz_test_unlock"));
   const auto full = edition.full;
   // Only the explicit test switch bypasses import detection. Legacy status
@@ -569,24 +653,55 @@ void pvz::ConfigureGameSettings(const std::filesystem::path& config_path,
   REXLOG_INFO("PvZ edition: {} (license mask {}; {})", full ? "full" : "trial", reported, edition.reason);
   RefreshHostSettings();
 }
+bool pvz::HasImportedPackage() { return imported_package; }
 void pvz::SetHostSettingsCallback(std::function<void()> callback) {
   std::lock_guard lock(callback_mutex); host_callback = std::move(callback);
 }
 void pvz::RefreshHostSettings() {
   std::lock_guard lock(callback_mutex); if (host_callback) host_callback();
 }
+void pvz::PinNavigationButtons(PPCContext& ctx, uint8_t* base) {
+  // Walk the per-screen collections: their entries follow screen lifetimes.
+  for (auto* collection : {&navigation_buttons, &endless_buttons, &garden_shop_buttons, &onslaught_buttons,
+      &shop_prev_buttons, &shop_next_buttons, &service_prev_buttons, &service_next_buttons,
+      &service_ready_buttons, &mail_read_buttons, &mail_inbox_buttons, &bonus_buttons, &credits_replay_buttons})
+    for (const auto& [parent, entry] : *collection)
+      if (const auto pinned = pinned_buttons.find(entry.widget); pinned != pinned_buttons.end() &&
+          Read(base, entry.widget + 0x24) == parent)
+        Pin(ctx, base, entry.widget, parent, pinned->second);
+}
+void pvz::PinNavigationButton(PPCContext& ctx, uint8_t* base) {
+  const auto button = ctx.r3.u32;
+  const auto found = pinned_buttons.find(button);
+  if (found == pinned_buttons.end()) return;
+  if (const auto parent = Read(base, button + 0x24)) Pin(ctx, base, button, parent, found->second);
+}
 bool pvz::DrawChooserTextButton(PPCContext& ctx, uint8_t* base) {
   const auto button = ctx.r3.u32, parent = Read(base, button + 0x24);
   const auto found = chooser_buttons.find(parent);
   if (found == chooser_buttons.end() || found->second[0] != button) return false;
-  const std::array<uint32_t, 7> offsets{0xF4, 0xF8, 0xFC, 0x100, 0x104, 0x1AC, 0xF0};
-  std::array<uint32_t, 7> saved{};
+  // LET'S ROCK! as a caption in the console's white Dwarven Todcraft
+  // lettering, without the stone: GameButton's plain label path with
+  // FONT_DWARVENTODCRAFT18 and label colours 0 (normal) and 1 (highlighted).
+  const auto font = Read(base, 0x82D09FD0);
+  const auto colors = Read(base, button + 0x84);
+  if (!font || !colors || Read(base, button + 0x88) - colors < 0x20) return false;
+  const std::array<uint32_t, 8> saved_colors{Read(base, colors), Read(base, colors + 4), Read(base, colors + 8),
+      Read(base, colors + 12), Read(base, colors + 16), Read(base, colors + 20), Read(base, colors + 24), Read(base, colors + 28)};
+  const bool disabled = base[button + 0x72];
+  const std::array<uint32_t, 4> normal = disabled ? std::array<uint32_t, 4>{128, 128, 128, 255} :
+      std::array<uint32_t, 4>{255, 255, 255, 255};
+  const std::array<uint32_t, 4> hover{255, 236, 130, 255};
+  for (uint32_t i = 0; i < 4; ++i) { Write(base, colors + i * 4, normal[i]); Write(base, colors + 16 + i * 4, hover[i]); }
+  const std::array<uint32_t, 6> offsets{0xF4, 0xF8, 0xFC, 0x100, 0x104, 0xF0};
+  std::array<uint32_t, 6> saved{};
   for (size_t i = 0; i < offsets.size(); ++i) { saved[i] = Read(base, button + offsets[i]); Write(base, button + offsets[i], 0); }
-  const auto stone = base[button + 0x1B0]; base[button + 0x1B0] = 1;
-  Write(base, button + 0xF4, saved[0]);
+  Write(base, button + 0xF4, font);
+  const auto stone = base[button + 0x1B0]; base[button + 0x1B0] = 0;
   __imp__sub_82188310(ctx, base);
-  for (size_t i = 0; i < offsets.size(); ++i) Write(base, button + offsets[i], saved[i]);
   base[button + 0x1B0] = stone;
+  for (size_t i = 0; i < offsets.size(); ++i) Write(base, button + offsets[i], saved[i]);
+  for (uint32_t i = 0; i < 8; ++i) Write(base, colors + i * 4, saved_colors[i]);
   return true;
 }
 
@@ -655,8 +770,10 @@ REX_HOOK_RAW(sub_8219B8A0) {
   const std::array<uint32_t, 4> ids{100, 105, 103, 1100};
   // PC layout: LET'S ROCK inside the panel, Shop and Almanac to its lower
   // right on the lawn, Menu where Board keeps it in the top-right corner.
-  const std::array<uint32_t, 4> left{160, 680, 560, 680}, top{548, 572, 572, 4};
-  const std::array<uint32_t, 4> width{205, 120, 120, 120}, height{42, 40, 40, 46};
+  // LET'S ROCK is centred under the seed grid (frame x = guest x + 241).
+  const std::array<uint32_t, 4> left{130, 680, 560, 680}, top{548, 572, 572, uint32_t(-10)};
+  // Shop/Almanac share Menu's height, which centres their labels lower.
+  const std::array<uint32_t, 4> width{205, 120, 120, 120}, height{42, 46, 46, 46};
   for (int i = 0; i < 4; ++i) {
     const auto button = WithLabel(ctx, base, labels[i], [&](uint32_t label) {
       return Call(ctx, base, sub_82188F80, {ids[i], chooser + 0xD4, chooser, label});
@@ -680,15 +797,46 @@ REX_HOOK_RAW(sub_8220A0F8) {
     }
   }
   if (auto found = chooser_buttons.find(chooser); found != chooser_buttons.end()) {
-    const bool mouse = pvz::MouseOwnsInput() && Read(base, chooser + 0xE9C) == 0;
+    // VS: each side has its own chooser, owned by the signed-in user at +EA8.
+    // Only the mouse player's panel gets the mouse buttons; Shop and Almanac
+    // do not apply to a match, and Menu moves clear of both banks.
+    const bool versus = pvz::layout::VersusChooser(base, chooser);
+    const bool owner = !versus || !pvz::LocalPlayersActive() ||
+        int32_t(Read(base, chooser + 0xEA8)) == pvz::MouseUserIndex();
+    const bool mouse = pvz::MouseOwnsInput() && Read(base, chooser + 0xE9C) == 0 && owner;
+    // The chooser slides in from below (and out after LET'S ROCK!). Its lawn
+    // buttons (Shop, Almanac, Menu) are placed relative to it, so they would
+    // rise through the lawn with it; show them once it has settled at y 0.
+    // VS panels keep bobbing a few pixels around their resting place.
+    const int32_t x = int32_t(Read(base, chooser + 0x40)), y = int32_t(Read(base, chooser + 0x44));
+    const bool settled = versus ? std::abs(y) <= 8 : y == 0;
+    const auto chooser_app = Read(base, chooser + 0xE60);
+    const bool coop = chooser_app && pvz::layout::CoopMode(Read(base, chooser_app + 0x9CC));
+    if (versus || coop) {
+      // Menu stays in the free top-right corner beside the zombie (or second
+      // co-op) bank, as on the lawn; the zombie panel centres LET'S ROCK! on
+      // its narrower frame.
+      Pin(ctx, base, found->second[3], chooser, {kVersusMenuLeft, kVersusMenuTop, 120, 46});
+      if (base[chooser + 0xEB8]) Call(ctx, base, sub_82188E20, {found->second[0], uint32_t(kZombieRockLeft), 548, 205, 42});
+    }
+    // Shop and Almanac appear only once Adventure has opened them (Almanac
+    // from 2-5, Shop from 3-5, or after the game is finished), as on PC.
+    const auto app = Read(base, chooser + 0xE60), profile = Read(base, app + 0x9FC);
+    const int level = profile ? int(Read(base, profile + 0x21C)) : 0;
+    const bool finished = profile && (Read(base, profile + 0x218) & 1);
+    auto available = [&](int i) {
+      return (finished || level >= (i == 1 ? 25 : 15)) &&
+          Call(ctx, base, i == 1 ? sub_821A9678 : sub_821A9608, {app});
+    };
     for (int i = 0; i < 4; ++i) {
       const auto button = found->second[i];
-      base[button + 0x70] = mouse;
-      const auto app = Read(base, chooser + 0xE60), profile = Read(base, app + 0x9FC);
-      const int level = profile ? int(Read(base, profile + 0x21C)) : 0;
-      const bool finished = profile && (Read(base, profile + 0x218) & 1);
-      base[button + 0x72] = !mouse || (i == 0 ? !base[chooser + 0xD8] : i == 3 ? false :
-          ((!finished && level < (i == 1 ? 25 : 15)) || !Call(ctx, base, i == 1 ? sub_821A9678 : sub_821A9608, {app})));
+      const bool service = i == 1 || i == 2;
+      // Menu, Shop and Almanac open screens that belong to player 1's device.
+      const bool dominant = !pvz::LocalPlayersActive() || pvz::MouseUserIndex() == 0;
+      // VS starts by itself once both banks are full: no LET'S ROCK!.
+      base[button + 0x70] = mouse && (i == 0 ? !versus :
+          settled && dominant && !(versus && service) && (!service || available(i)));
+      base[button + 0x72] = !mouse || (i == 0 ? !base[chooser + 0xD8] : false);
     }
   }
 }

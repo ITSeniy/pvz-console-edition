@@ -20,8 +20,9 @@ def contains(name, text):
 check('console_beghouled_swipe_matches', bool(re.search(r'PvZ puzzle mode 21 state 2 matches [1-9]', logs.get('begh_console', ''))))
 check('console_twist_matches', bool(re.search(r'PvZ puzzle mode 25 state 2 matches [1-9]', logs.get('twist_console', ''))))
 for interval in (0, 1):
-    check('dxgi_present_interval_' + str(interval), contains('begh_console', f'PvZ DXGI Present: sync interval {interval},'))
-check('slot_pc_automatic_seed', logs.get('slot_pc', '').count('PvZ Slot Machine auto picked dropped seed') >= 2)
+    check('dxgi_present_policy_' + str(interval), contains('begh_console', f'PvZ DXGI Present policy: new frame interval {interval},'))
+check('slot_pc_click_only_seed', logs.get('slot_pc', '').count('PvZ mouse dropped seed picked true') >= 2
+      and 'PvZ Slot Machine auto picked dropped seed' not in logs.get('slot_pc', ''))
 check('slot_pc_plant', contains('slot_pc', 'PvZ mouse dropped seed placed true'))
 check('slot_pc_cancel', contains('slot_pc', 'PvZ mouse cancel seed'))
 check('slot_pc_cancel_keeps_hand_empty', 'PvZ Slot Machine auto picked dropped seed' not in logs.get('slot_pc', '').rsplit('PvZ mouse cancel seed', 1)[-1])
@@ -41,8 +42,8 @@ check('heavy_console_release', contains('heavy_console', 'PvZ Heavy Weapon LMB r
 check('vases_pc_break', bool(re.search(r'PvZ Vasebreaker click mode 52 handled [1-9]', logs.get('vases_pc', ''))))
 check('vases_pc_explicit_seed', contains('vases_pc', 'PvZ mouse dropped seed picked true'))
 check('vases_pc_place_seed', contains('vases_pc', 'PvZ mouse dropped seed placed true'))
-steps = re.findall(r'console shovel press completed (true|false) tutorial (\d+) -> (\d+)', logs.get('shovel_console', ''))
-check('shovel_three_press_digs', sum(step[0] == 'true' for step in steps) == 3)
+steps = re.findall(r'console shovel released after \S+ dug (true|false) tutorial (\d+) -> (\d+)', logs.get('shovel_console', ''))
+check('shovel_three_held_digs', sum(step[0] == 'true' for step in steps) == 3)
 check('shovel_tutorial_complete', any(step[0] == 'true' and step[2] == '18' for step in steps))
 check('shovel_game_ready', contains('shovel_console', 'PvZ replay wait_board ready'))
 check('windows_name_loaded', any('PvZ local player name ' in log for log in logs.values()))

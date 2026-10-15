@@ -3,6 +3,8 @@
 #include "widget_tree.h"
 #include "mouse_bridge.h"
 #include "input_backend.h"
+#include "game_settings.h"
+#include <rex/cvar.h>
 #include <rex/hook.h>
 #include <rex/logging.h>
 #include <rex/ppc/func.h>
@@ -10,6 +12,8 @@
 #include <atomic>
 #include <deque>
 #include <utility>
+#include <optional>
+#include <string>
 
 REX_EXTERN(__imp__sub_821C0630);
 REX_EXTERN(__imp__sub_82289228); // TypingCheck::Check
@@ -19,6 +23,9 @@ REX_EXTERN(sub_821256C0);
 REX_EXTERN(sub_821A3FF8); // LawnApp::DoDialog, modal result 1000/1001
 REX_EXTERN(sub_824A5F48);
 REX_EXTERN(sub_824A6208); // WidgetManager::MouseMove
+REX_EXTERN(__imp__sub_822CA130); // XamShowMarketplaceUI wrapper
+REX_EXTERN(sub_821AFCA0); // LawnApp license check; r4 = 0 runs the unlock transition
+REX_EXTERN(sub_821A9678); // LawnApp::CanShowStore
 
 namespace {
 using pvz::guest::Read;
@@ -34,6 +41,8 @@ std::atomic<uint32_t> held_buttons{0};
 // the current MainMenu instance has been handled.
 uint32_t return_panel = 1;
 bool menu_seen = false;
+// $ in the full game slides to Extras first and presses its Shop there.
+uint32_t pending_shop_menu = 0;
 // Override matching for exactly one native evaluation, on the guest thread.
 // All effects and Tree requirements still run inside Board::DoTypingCheck.
 thread_local uint32_t requested_check = 0;
@@ -45,22 +54,36 @@ uint32_t Call(PPCContext& ctx, uint8_t* b, PPCFunc* fn, std::initializer_list<ui
   size_t i = 0; for (auto arg : args) regs[i++]->u64 = arg;
   fn(work, b); return work.r3.u32;
 }
-uint32_t ConfirmExit(PPCContext& ctx, uint8_t* b, uint32_t app) {
-  const std::array<std::u16string_view, 4> text{u"Quit Plants vs. Zombies?",
-      u"Are you sure you want to quit the game?", u"Quit", u"Cancel"};
+// LawnApp::DoDialog with raw UTF-16 strings; it constructs its own copies.
+// Mode 1 shows two buttons (result 1000/1001), mode 3 one footer button.
+uint32_t NativeDialog(PPCContext& ctx, uint8_t* b, uint32_t app, uint32_t id,
+    std::array<std::u16string_view, 4> text, uint32_t mode) {
   std::array<uint32_t, 4> strings{};
   for (size_t i = 0; i < text.size(); ++i) {
-    const auto chars = ctx.r1.u32 - 0x500 + uint32_t(i * 0x100);
-    // DoDialog accepts raw UTF-16 pointers and constructs its own strings.
+    // Scratch between the hook's stack pointer and the callee frame (0x800).
+    const auto chars = ctx.r1.u32 - 0x7C0 + uint32_t(i * 0x1E0);
     strings[i] = chars;
-    for (size_t j = 0; j <= text[i].size(); ++j) {
-      const auto ch = j < text[i].size() ? text[i][j] : char16_t(0);
+    const size_t length = std::min<size_t>(text[i].size(), 0xEE);
+    for (size_t j = 0; j <= length; ++j) {
+      const auto ch = j < length ? text[i][j] : char16_t(0);
       b[chars + j * 2] = uint8_t(ch >> 8); b[chars + j * 2 + 1] = uint8_t(ch);
     }
   }
-  const auto result = Call(ctx, b, sub_821A3FF8,
-      {app, 42, strings[0], strings[1], strings[2], strings[3], 1});
-  return result;
+  return Call(ctx, b, sub_821A3FF8, {app, id, strings[0], strings[1], strings[2], strings[3], mode});
+}
+uint32_t ConfirmExit(PPCContext& ctx, uint8_t* b, uint32_t app) {
+  // The header sets LawnDialog's width; a short one keeps the minimum size.
+  return NativeDialog(ctx, b, app, 42, {u"Quit Game?",
+      u"Are you sure you want to quit the game?", u"Quit", u"Cancel"}, 1);
+}
+// Full-game unlock from the player's own XBLA package. The host picks and
+// checks the file; the guest applies it like a Marketplace purchase.
+std::atomic_bool unlock_busy{false};
+std::optional<pvz::UnlockResult> unlock_result;
+std::u16string Widen(std::string_view text) { return {text.begin(), text.end()}; }
+// Native depress accepts input only on a settled panel after the crow intro.
+bool StableMenuPanel(uint8_t* b, uint32_t menu) {
+  return Read(b, menu + 0x118) == Read(b, menu + 0x11C) && !b[menu + 0xD8] && int32_t(Read(b, menu + 0x168)) <= 0;
 }
 }
 void pvz::SetHostMenuCallback(std::function<void(HostMenu)> fn) {
@@ -68,6 +91,9 @@ void pvz::SetHostMenuCallback(std::function<void(HostMenu)> fn) {
 }
 void pvz::RequestHostMenu(HostMenu menu) {
   std::lock_guard lock(mutex); if (callback) callback(menu);
+}
+void pvz::PostUnlockResult(UnlockResult result) {
+  std::lock_guard lock(mutex); unlock_result = std::move(result);
 }
 void pvz::SetHostMenuOpen(bool value) { open.store(value); buttons.store(0); held_buttons.store(0); }
 bool pvz::HostMenuOpen() { return open.load(); }
@@ -98,6 +124,24 @@ void pvz::UpdatePcMenus(PPCContext& ctx, uint8_t* b, uint32_t manager) {
     else if (vt == 0x820BAA54) app = Read(b, widget + 0x1A4);
     return !app;
   });
+  std::optional<UnlockResult> unlocked;
+  if (app) { std::lock_guard lock(mutex); unlocked = std::exchange(unlock_result, std::nullopt); }
+  if (unlocked) {
+    if (unlocked->full) {
+      // XamContentGetLicenseMask now reports bit 0. A non-cached check runs
+      // the native trial-to-full transition (821AFD38), as after a purchase.
+      rex::cvar::SetFlagByName("pvz_full_version", "true");
+      rex::cvar::SetFlagByName("license_mask", "1");
+      const auto full = Call(ctx, b, sub_821AFCA0, {app, 0});
+      REXLOG_INFO("PvZ full game unlocked in game; native license check {}", full);
+      NativeDialog(ctx, b, app, 43, {u"Full Game Unlocked!",
+          u"Thank you! Every level, mode and plant is now available.", u"OK", u""}, 3);
+    } else if (!unlocked->message.empty()) {
+      REXLOG_INFO("PvZ in-game unlock failed: {}", unlocked->message);
+      NativeDialog(ctx, b, app, 43, {u"Unlock Full Game", Widen(unlocked->message), u"OK", u""}, 3);
+    }
+    unlock_busy.store(false);
+  }
   CheatState snapshot;
   if (app) {
     snapshot.available = true;
@@ -132,8 +176,48 @@ REX_HOOK_RAW(sub_822CA128) {
   pvz::RequestHostMenu(pvz::HostMenu::Achievements);
   ctx.r3.u64 = 0;
 }
+REX_HOOK_RAW(sub_822CA130) {
+  // Every "Unlock Full Game" / "Get Full Game" path ends in Marketplace.
+  const auto app = Read(base, 0x82D0BC88);
+  if (!app) { __imp__sub_822CA130(ctx, base); return; }
+  if (rex::cvar::Query<bool>("pvz_full_version")) {
+    NativeDialog(ctx, base, app, 43, {u"Full Game",
+        u"The full game is unlocked.\nAdditional content is unavailable in this PC build.", u"OK", u""}, 3);
+  } else if (!unlock_busy.load()) {
+    // Imported game files were already checked; only the purchase remains.
+    const auto result = pvz::HasImportedPackage() ?
+        NativeDialog(ctx, base, app, 43, {u"Unlock Full Game",
+            u"The trial and the full version share the same game files.\n\n"
+            u"Unlock only if you bought the full version of Plants vs. Zombies.", u"I Bought It", u"Cancel"}, 1) :
+        NativeDialog(ctx, base, app, 43, {u"Unlock Full Game",
+            u"Choose your Plants vs. Zombies package or Xbox 360 disc image.\n\n"
+            u"By continuing, you confirm it is your own full copy.", u"Choose File", u"Cancel"}, 1);
+    REXLOG_INFO("PvZ unlock prompt result {}", result);
+    if (result == 1000 && !unlock_busy.exchange(true)) pvz::RequestHostMenu(pvz::HostMenu::Unlock);
+  }
+  ctx.r3.u64 = 0;
+}
 REX_HOOK_RAW(sub_821C0630) {
   const auto menu = ctx.r3.u32 - 0xD4;
+  // The full game's $ opens Crazy Dave's shop (Extras' Shop, 16) instead of
+  // Marketplace, but only once Adventure has opened it (LawnApp::CanShowStore,
+  // 821A9678): a full import, such as from a disc, must not skip that.
+  // The trial keeps the native unlock path.
+  if (ctx.r4.u32 == 6 && rex::cvar::Query<bool>("pvz_full_version")) {
+    const auto app = Read(base, menu + 0x110);
+    if (!app || !Call(ctx, base, sub_821A9678, {app})) {
+      if (app && StableMenuPanel(base, menu))
+        NativeDialog(ctx, base, app, 43, {u"Crazy Dave's Shop",
+            u"Crazy Dave opens his shop as you progress through Adventure. Keep playing!", u"OK", u""}, 3);
+      return;
+    }
+    // Shop (16) lives on Extras: pressing it from the main panel plays its
+    // animation off screen. Slide to Extras (8); RestoreMenuPanel presses
+    // Shop once that panel settles.
+    if (!StableMenuPanel(base, menu)) return;
+    pending_shop_menu = menu;
+    ctx.r4.u64 = 8;
+  }
   // Native depress accepts input only on a settled panel after the intro.
   if (Read(base, menu + 0x118) == Read(base, menu + 0x11C) && !base[menu + 0xD8] &&
       int32_t(Read(base, menu + 0x168)) <= 0) return_panel = Read(base, menu + 0x118);
@@ -192,7 +276,15 @@ void pvz::RestoreMenuPanel(PPCContext& ctx, uint8_t* b, uint32_t manager) {
     if (Read(b, child) == 0x820C2784 && b[child + 0x70]) menu = child;
     return !menu;
   });
-  if (!menu) { menu_seen = false; return; }
+  if (!menu) { menu_seen = false; pending_shop_menu = 0; return; }
+  if (pending_shop_menu) {
+    if (pending_shop_menu != menu) { pending_shop_menu = 0; }
+    else if (Read(b, menu + 0x118) == 2 && StableMenuPanel(b, menu)) {
+      pending_shop_menu = 0;
+      Call(ctx, b, __imp__sub_821C0630, {menu + 0xD4, 16u});
+      REXLOG_INFO("PvZ $ opened the shop from Extras");
+    }
+  }
   // Wait for the new menu to settle on its main panel (1).
   if (menu_seen || Read(b, menu + 0x118) != 1 || Read(b, menu + 0x11C) != 1 || b[menu + 0xD8]) return;
   menu_seen = true;

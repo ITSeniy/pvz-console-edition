@@ -1,3 +1,4 @@
+#include "bridge_mnk_driver.h"
 #include "mouse_bridge.h"
 #include "replay_fixtures.h"
 #include "input_activity.h"
@@ -112,6 +113,7 @@ std::jthread StartInputReplay() {
           sample.buttons = uint16_t(event.point.x);
           if (event.point.y == 1) sample.axes[4] = 255;
           if (event.point.y == 2) sample.axes[5] = 255;
+          if (event.point.y == 3) pvz::KeyboardStart().store(true);
         } else {
           const int axis = action == ControllerLeft || action == ControllerLeft2 ? 0 : 2;
           sample.axes[axis] = int(event.point.x); sample.axes[axis + 1] = int(event.point.y);
@@ -150,6 +152,8 @@ std::jthread StartInputReplay() {
           case FixtureHeavySun: pvz::PublishTestHeavyWeaponSun(int(event.point.x)); break;
           case FixtureSlotSeed: pvz::PublishTestSlotSeed(int(event.point.x)); break;
           case FixtureGardenCoin: pvz::PublishTestGardenCoin(event.point); break;
+          case FixtureCoin: pvz::PublishTestCoin(int(event.point.x)); break;
+          case Capture: pvz::RequestReplayCapture(uint32_t(event.point.x)); break;
           case TwistMatch: pvz::PublishTestTwistClick(); break;
           case BeghouledMatch: pvz::PublishTestBeghouledSwipe(); break;
           case FixtureVsync:

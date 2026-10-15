@@ -1,7 +1,9 @@
 #include "controller_assets.h"
 #include "mouse_bridge.h"
+#include "input_backend.h"
 #include <rex/cvar.h>
 #include <rex/hook.h>
+#include <rex/filesystem.h>
 #include <rex/logging.h>
 #include <rex/ppc/func.h>
 #include <rex/system/kernel_state.h>
@@ -11,7 +13,9 @@
 #include <filesystem>
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 
+REXCVAR_DECLARE(std::string, pvz_cursor_mode);
 REXCVAR_DEFINE_STRING(pvz_controller_glyphs, "auto", "PvZ", "Controller glyphs: auto, xbox or playstation")
     .allowed({"auto", "xbox", "playstation"});
 REXCVAR_DEFINE_BOOL(pvz_asset_audit, false, "Diagnostics", "Dump native strings and seed textures for inspection");
@@ -33,6 +37,18 @@ std::array<uint32_t, 2> empty_atlases{};
 bool empty_attempted = false;
 uint32_t mouse_rmb = 0;
 bool mouse_rmb_attempted = false;
+// How to Play "Controls": our mouse illustrations (resources/mouse, shipped
+// next to the EXE) replace the controller while the mouse owns input.
+constexpr uint32_t kHelpControllerImage = 0x82D09E1C;
+std::array<uint32_t, 2> mouse_help{}; // PC, Console
+bool mouse_help_attempted = false;
+// VS Pick Sides: the mouse player's icon replaces its controller (gamepad0
+// for player 1, gamepad1 for player 2) while a local match is set up.
+std::array<uint32_t, 2> mouse_players{};
+bool mouse_players_attempted = false;
+bool MouseHelpImage(uint32_t image) {
+  return image && (image == mouse_help[0] || image == mouse_help[1] || image == mouse_players[0] || image == mouse_players[1]);
+}
 
 uint32_t LoadImage(PPCContext& ctx, uint8_t* base, uint32_t app, std::string_view name) {
   const auto chars = ctx.r1.u32 - 0x180, string = ctx.r1.u32 - 0x80;
@@ -58,7 +74,9 @@ REX_HOOK_RAW(sub_824B2D20) {
   constexpr std::string_view prefix = "pc/dualshock/";
   const auto name = path.starts_with(prefix) ? path.substr(prefix.size()) : std::string{};
   const bool known = std::any_of(assets.begin(), assets.end(), [&](const auto& a) { return name == std::string(a.name) + ".ptx"; }) ||
-      name == "a_button.ptx" || name == "help_buttons_empty.ptx" || name == "help_buttons_small_empty.ptx" || name == "mouse_rmb.ptx";
+      name == "a_button.ptx" || name == "help_buttons_empty.ptx" || name == "help_buttons_small_empty.ptx" || name == "mouse_rmb.ptx" ||
+      name == "help_menu_image_mouse_pc.ptx" || name == "help_menu_image_mouse_console.ptx" ||
+      name == "vs_mouse_player1.ptx" || name == "vs_mouse_player2.ptx";
   if (!known) {
     const auto out = ctx.r5.u32, length = ctx.r6.u32;
     __imp__sub_824B2D20(ctx, base);
@@ -78,7 +96,11 @@ REX_HOOK_RAW(sub_824B2D20) {
     return;
   }
   const auto out = ctx.r5.u32, length = ctx.r6.u32;
-  std::ifstream file(std::filesystem::path(rex::cvar::Query<std::string>("game_data_root")) / path, std::ios::binary | std::ios::ate);
+  // Our own art ships with the EXE; game-derived assets stay in game data.
+  const auto source = name.starts_with("help_menu_image_mouse_") || name.starts_with("vs_mouse_player") ?
+      rex::filesystem::GetExecutableFolder() / "mouse" / name :
+      std::filesystem::path(rex::cvar::Query<std::string>("game_data_root")) / path;
+  std::ifstream file(source, std::ios::binary | std::ios::ate);
   const auto size = file ? std::streamoff(file.tellg()) : 0;
   if (size <= 16 || size > 2 * 1024 * 1024) { Write(base, out, 0); Write(base, length, 0); ctx.r3.u64 = 0; return; }
   // XG texture headers reference physical pages. Packed PTX data normally
@@ -122,6 +144,7 @@ uint32_t pvz::ResolveControllerImage(uint32_t image, uint8_t* base) {
     std::replace(image_name.begin(), image_name.end(), '\\', '/');
     std::transform(image_name.begin(), image_name.end(), image_name.begin(), [](unsigned char c) { return char(std::tolower(c)); });
   }
+  if (MouseHelpImage(image)) return image;
   for (size_t i = 0; i < assets.size(); ++i) {
     const auto& asset = assets[i];
     const bool named = image_name == std::string("images/") + asset.name ||
@@ -130,7 +153,8 @@ uint32_t pvz::ResolveControllerImage(uint32_t image, uint8_t* base) {
         !(i < empty_atlases.size() && image == empty_atlases[i])) continue;
     // Font render commands cache their atlas pointer. Resolve it at drawing
     // time too, so a previously cached B or A changes with the input owner.
-    if (i < empty_atlases.size() && pvz::MouseOwnsInput()) return 0;
+    if (i < empty_atlases.size() && Read(base, i ? 0x828923D0 : 0x828923CC) == empty_atlases[i] &&
+        pvz::MouseOwnsInput() && !pvz::SecondPlayerPromptOpen()) return 0;
     return Read(base, asset.global);
   }
   return image;
@@ -138,18 +162,56 @@ uint32_t pvz::ResolveControllerImage(uint32_t image, uint8_t* base) {
 
 void pvz::UpdateControllerAssets(PPCContext& ctx, uint8_t* base) {
   const auto mode = REXCVAR_GET(pvz_controller_glyphs);
-  const bool sony = mode == "playstation" || (mode == "auto" && sony_controller.load());
+  const bool sony_mode = mode == "playstation" || (mode == "auto" && sony_controller.load());
   const auto app = Read(base, 0x82D0BC88);
   if (!app || !Read(base, 0x82D0AA18)) return;
   if (pvz::MouseOwnsInput() && !mouse_rmb_attempted) {
     mouse_rmb_attempted = true; mouse_rmb = LoadImage(ctx, base, app, "mouse_rmb");
     REXLOG_INFO("PvZ mouse RMB glyph loaded {}", bool(mouse_rmb));
   }
-  for (auto& asset : assets) {
+  if (pvz::MouseOwnsInput() && !mouse_help_attempted) {
+    mouse_help_attempted = true;
+    const auto original = Read(base, kHelpControllerImage);
+    for (size_t i = 0; i < mouse_help.size(); ++i) {
+      mouse_help[i] = LoadImage(ctx, base, app, i ? "help_menu_image_mouse_console" : "help_menu_image_mouse_pc");
+      if (mouse_help[i] && original) {
+        Write(base, mouse_help[i] + 0x2C, Read(base, original + 0x2C));
+        Write(base, mouse_help[i] + 0x30, Read(base, original + 0x30));
+      }
+    }
+    REXLOG_INFO("PvZ mouse help images loaded {} {}", bool(mouse_help[0]), bool(mouse_help[1]));
+  }
+  // Select Second Player asks for A on any controller: its inline glyphs stay
+  // visible with the mouse and alternate Xbox / PlayStation once a second.
+  const bool prompt = pvz::SecondPlayerPromptOpen();
+  const bool cross = prompt && (std::chrono::duration_cast<std::chrono::seconds>(
+      std::chrono::steady_clock::now().time_since_epoch()).count() & 1);
+  const int mouse_player = pvz::LocalMouseAssigned() ? pvz::MouseUserIndex() : -1;
+  if (mouse_player >= 0 && !mouse_players_attempted) {
+    mouse_players_attempted = true;
+    for (size_t i = 0; i < mouse_players.size(); ++i) {
+      mouse_players[i] = LoadImage(ctx, base, app, i ? "vs_mouse_player2" : "vs_mouse_player1");
+      if (mouse_players[i] && Read(base, assets[2 + i].global)) {
+        Write(base, mouse_players[i] + 0x2C, Read(base, Read(base, assets[2 + i].global) + 0x2C));
+        Write(base, mouse_players[i] + 0x30, Read(base, Read(base, assets[2 + i].global) + 0x30));
+      }
+    }
+    REXLOG_INFO("PvZ VS mouse player icons loaded {} {}", bool(mouse_players[0]), bool(mouse_players[1]));
+  }
+  for (size_t index = 0; index < assets.size(); ++index) {
+    auto& asset = assets[index];
     const auto current = Read(base, asset.global);
     if (!current) continue;
-    if (current != asset.sony) asset.original = current;
-    if (sony && !asset.attempted) {
+    if (current != asset.sony && !MouseHelpImage(current)) asset.original = current;
+    const bool glyphs = index < empty_atlases.size();
+    // VS player icons show each local player's own pad.
+    bool own = sony_mode;
+    if ((index == 2 || index == 3) && mode == "auto") {
+      const auto pad = pvz::LocalPlayerPad(int(index - 2));
+      if (pad == PadKind::Xbox || pad == PadKind::PlayStation) own = pad == PadKind::PlayStation;
+    }
+    const bool sony = prompt && glyphs ? cross : own;
+    if ((sony || (prompt && glyphs)) && !asset.attempted) {
       asset.attempted = true;
       asset.sony = LoadImage(ctx, base, app, asset.name);
       if (asset.sony) {
@@ -160,7 +222,8 @@ void pvz::UpdateControllerAssets(PPCContext& ctx, uint8_t* base) {
             Read(base, asset.original + 0x24), Read(base, asset.original + 0x28), asset.original, asset.sony);
       } else REXLOG_ERROR("PvZ could not load PlayStation asset {}", asset.name);
     }
-    Write(base, asset.global, sony && asset.sony ? asset.sony : asset.original);
+    const bool mouse_icon = (index == 2 || index == 3) && mouse_player == int(index - 2) && mouse_players[index - 2];
+    Write(base, asset.global, mouse_icon ? mouse_players[index - 2] : sony && asset.sony ? asset.sony : asset.original);
   }
   // Inline font glyphs also draw the B badge on the shovel. Transparent
   // atlases preserve layout while mouse owns input; gamepad restores them.
@@ -174,17 +237,53 @@ void pvz::UpdateControllerAssets(PPCContext& ctx, uint8_t* base) {
       }
     }
   }
-  Write(base, 0x828923CC, pvz::MouseOwnsInput() && empty_atlases[0] ? empty_atlases[0] : Read(base, 0x82D0AA18));
-  Write(base, 0x828923D0, pvz::MouseOwnsInput() && empty_atlases[1] ? empty_atlases[1] : Read(base, 0x82D0A6D0));
+  const auto mouse_image = mouse_help[REXCVAR_GET(pvz_cursor_mode) == "pc" ? 0 : 1];
+  if (pvz::MouseOwnsMenus() && mouse_image) Write(base, kHelpControllerImage, mouse_image);
+  // Local multiplayer with a pad player: its glyphs (menu hints, the tool
+  // badges on the lawn) stay visible.
+  const bool pad_player = pvz::LocalPlayersActive() &&
+      (pvz::LocalPlayerPad(0) == PadKind::Xbox || pvz::LocalPlayerPad(0) == PadKind::PlayStation ||
+       pvz::LocalPlayerPad(1) == PadKind::Xbox || pvz::LocalPlayerPad(1) == PadKind::PlayStation);
+  const bool hide = pvz::MouseOwnsMenus() && !prompt && !pad_player;
+  Write(base, 0x828923CC, hide && empty_atlases[0] ? empty_atlases[0] : Read(base, 0x82D0AA18));
+  Write(base, 0x828923D0, hide && empty_atlases[1] ? empty_atlases[1] : Read(base, 0x82D0A6D0));
 }
 uint32_t pvz::MouseRmbImage() { return mouse_rmb; }
+
+// Select Second Player draws its inline glyphs one by one from the button
+// atlas (cel 0 A, cel 1 B). Only a glyph whose controller is not known yet
+// alternates Xbox / PlayStation: A until player 2 has joined. B (cancel)
+// belongs to player 1, and after the join every glyph shows the pads in use.
+uint32_t pvz::ResolvePromptGlyph(uint32_t image, uint32_t rect, uint8_t* base) {
+  if (!image || !rect || !pvz::SecondPlayerPromptOpen()) return image;
+  int atlas = -1;
+  for (int i = 0; i < 2; ++i)
+    if (image == assets[i].original || image == assets[i].sony) atlas = i;
+  if (atlas < 0 || !assets[atlas].sony) return image;
+  const int32_t width = int32_t(Read(base, rect + 8));
+  const int cel = width > 0 ? int32_t(Read(base, rect)) / width : -1;
+  const auto mode = REXCVAR_GET(pvz_controller_glyphs);
+  auto kind = [&](int user) {
+    const auto pad = pvz::LocalPlayerPad(user);
+    if (pad != PadKind::Xbox && pad != PadKind::PlayStation) return -1;
+    return mode == "playstation" ? 1 : mode == "xbox" ? 0 : pad == PadKind::PlayStation ? 1 : 0;
+  };
+  const int first = kind(0), second = kind(1);
+  // LawnApp +AB4: the signed-in second user, -1 until player 2 has joined.
+  const auto app = Read(base, 0x82D0BC88);
+  const bool joined = app && int32_t(Read(base, app + 0xAB4)) != -1;
+  int sony = cel == 1 ? (first >= 0 ? first : second) : joined ? (second >= 0 ? second : first) : -1;
+  if (sony < 0) sony = int(std::chrono::duration_cast<std::chrono::seconds>(
+      std::chrono::steady_clock::now().time_since_epoch()).count() & 1);
+  return sony ? assets[atlas].sony : assets[atlas].original;
+}
 
 // The atlas renderer bypasses Graphics image hooks. Adapt only the temporary
 // transform used by DrawTrack; animation definitions and hit testing are intact.
 REX_EXTERN(__imp__sub_821E0068);
 REX_HOOK_RAW(sub_821E0068) {
   const auto reanimation = ctx.r3.u32, transform = ctx.r5.u32;
-  const bool drawing = ctx.lr == 0x821E08B0 && pvz::MouseOwnsInput();
+  const bool drawing = ctx.lr == 0x821E08B0 && pvz::MouseOwnsMenus();
   __imp__sub_821E0068(ctx, base);
   if (!drawing) return;
   auto image = Read(base, transform + 0x20);

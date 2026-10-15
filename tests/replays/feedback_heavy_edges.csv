@@ -1,0 +1,21 @@
+# Steer into both sidebars, then wait for wheel animation to settle.
+0,400,300,wait_title
+1,400,500,left_down
+1.15,400,500,left_up
+2,400,300,wait_menu
+4,20,0,fixture_mode
+8,400,300,wait_board
+9,1000,0,fixture_heavy_sun
+10,780,300,move
+16,780,300,left_down
+18,780,300,left_up
+20,20,300,move
+30,650,250,move
+40,650,250,move
+44,0,0,cancel
+48,650,250,move
+50,400,300,mode_console
+52,780,300,move
+58,20,300,move
+68,400,250,move
+80,400,250,move

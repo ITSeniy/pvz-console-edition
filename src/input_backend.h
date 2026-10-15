@@ -12,4 +12,7 @@ bool LocalPlayersActive();
 bool LocalMouseAssigned();
 int MouseUserIndex();
 void ObserveLocalMouse();
+// The device a local player (0, 1) uses: none yet, the mouse, or a pad.
+enum class PadKind { None, Mouse, Xbox, PlayStation };
+PadKind LocalPlayerPad(int user);
 }

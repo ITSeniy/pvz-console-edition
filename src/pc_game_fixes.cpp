@@ -1,14 +1,24 @@
 #include "mouse_bridge.h"
 #include "pc_text.h"
+#include "input_backend.h"
 #include "pc_text_runtime.h"
+#include "bonus_games.h"
 #include <rex/hook.h>
 #include <rex/cvar.h>
 #include <rex/logging.h>
+#include <rex/runtime.h>
+#include "guest_call.h"
 #include <rex/ppc/func.h>
 #include <fstream>
 #include <filesystem>
 #include <unordered_map>
 #include <mutex>
+#include <vector>
+#include <bit>
+#include <array>
+#include <algorithm>
+#include <chrono>
+#include <string>
 
 namespace {
 uint32_t Read(uint8_t* base, uint32_t at) { return __builtin_bswap32(*reinterpret_cast<uint32_t*>(base + at)); }
@@ -28,9 +38,7 @@ std::u16string Binding(const char* name) {
   return {value.begin(), value.end()};
 }
 pvz::TextBindings Bindings() {
-  return {Binding("keybind_x"), Binding("keybind_y"), Binding("keybind_start"),
-      Binding("keybind_left_shoulder"), Binding("keybind_right_shoulder"),
-      Binding("keybind_left_trigger"), Binding("keybind_right_trigger")};
+  return {Binding("keybind_start")};
 }
 std::mutex advice_mutex;
 std::unordered_map<std::u16string, std::u16string> advice_keys;
@@ -58,10 +66,13 @@ REX_HOOK_RAW(sub_82284C60) {
     return;
   }
   pvz::TextBindings bindings;
-  const bool mouse = pvz::MouseOwnsInput();
+  bool mouse = pvz::MouseOwnsMenus();
+  // Select Second Player addresses player 1's device, whoever clicked last.
+  if (key.starts_with(u"2P_") && pvz::LocalPlayersActive()) mouse = pvz::MouseUserIndex() == 0;
   if (mouse) bindings = Bindings();
-  const auto adapted = pvz::PcGameText(key, original, mouse,
+  auto adapted = pvz::PcGameText(key, original, mouse,
       rex::cvar::Query<std::string>("pvz_cursor_mode") == "pc", bindings);
+  if (key == u"PICK_CHALLENGE" && pvz::DrawingBonusPage()) adapted = u"Bonus Games";
   if (adapted == original || adapted.size() > 8192) return;
   // Assign the returned copy, never the localization table entry. A new lookup
   // can therefore restore controller markup after an input-owner switch.
@@ -110,3 +121,85 @@ REX_HOOK_RAW(sub_82139DE8) {
   __imp__sub_82139DE8(ctx, base);
   if (pause) Write(base, board + 0x5694, coin_bank);
 }
+
+REX_EXTERN(__imp__sub_821A5DB8); // LawnApp::Update
+REX_EXTERN(sub_82139DE8);        // Board::Pause(bool)
+using pvz::GuestCall;
+REX_HOOK_RAW(sub_821A5DB8) {
+  const auto app = ctx.r3.u32;
+  __imp__sub_821A5DB8(ctx, base);
+  // Exit Game saves the board (+AAE pending) behind the Saving dialog (59).
+  // This update finishes the exit once the save is idle, but only while
+  // dialog 59 still exists. Host saves complete instantly and the dialog
+  // can already be gone, which left Exit Game waiting forever. Finish the
+  // same way: clear +AAE and, without other dialogs, unpause the Board, whose
+  // Update then returns to the menu.
+  if (!base[app + 0xAAE]) return;
+  const auto status = Read(base, app + 0xA54);
+  if (!status || (base[status + 0xC59] && Read(base, status) != 0)) return; // still saving
+  const auto error = Read(base, status + 0xC5C);
+  if (error == 2 || error == 6) return; // native error path handles these
+  auto dialog = [&](uint32_t id) {
+    return GuestCall(ctx, base, rex::runtime::ResolveIndirectFunction(Read(base, Read(base, app) + 0x130)), app, id);
+  };
+  if (dialog(59)) return; // native path still owns it
+  base[app + 0xAAE] = 0;
+  const auto board = Read(base, app + 0x900);
+  if (!board || dialog(55) || dialog(49) || dialog(48)) return;
+  if (const auto pending = Read(base, status + 0xC14)) {
+    GuestCall(ctx, base, rex::runtime::ResolveIndirectFunction(Read(base, Read(base, pending))), pending, 1);
+    Write(base, status + 0xC14, 0);
+  }
+  GuestCall(ctx, base, sub_82139DE8, board, 0);
+  REXLOG_INFO("PvZ board save finished without its dialog: exit continues");
+}
+
+// Looping foley across a pause. TodFoley::GamePause(true) (8227FCA0) calls
+// the sound instance's Stop, which on Xbox also releases its voice (+10), so
+// GamePause(false) cannot restart it: the rain of It's Raining Seeds and
+// Dark Stormy Night stayed silent after any pause, including the automatic
+// pause when the window is minimized. Start such a loop again on resume.
+REX_EXTERN(__imp__sub_8227FCA0); // TodFoley::GamePause(bool)
+REX_EXTERN(__imp__sub_8227FC10); // TodFoley::StopFoley(type)
+REX_EXTERN(sub_821A8258);        // LawnApp::PlayFoley(type)
+namespace {
+constexpr uint32_t kFoleyParams = 0x82D0BCC8, kFoleyCount = 0x82D0BCCC;
+constexpr uint32_t kFoleyTypeSize = 164, kFoleyInstanceSize = 20, kFoleyInstances = 8;
+std::vector<uint32_t> paused_loops;
+bool LoopingOnPause(uint8_t* base, uint32_t type) {
+  const auto flags = Read(base, Read(base, kFoleyParams) + type * 52 + 48);
+  return (flags & 1) && (flags & 4); // FOLEYFLAGS_LOOP, FOLEYFLAGS_MUTE_ON_PAUSE
+}
+bool FoleyActive(uint8_t* base, uint32_t foley, uint32_t type, bool voice) {
+  for (uint32_t i = 0; i < kFoleyInstances; ++i) {
+    const auto at = foley + type * kFoleyTypeSize + i * kFoleyInstanceSize;
+    const auto instance = Read(base, at);
+    if (Read(base, at + 4) && instance && (!voice || Read(base, instance + 16))) return true;
+  }
+  return false;
+}
+}
+REX_HOOK_RAW(sub_8227FCA0) {
+  const auto foley = ctx.r3.u32;
+  const bool pausing = (ctx.r4.u32 & 0xFF) != 0;
+  const auto types = std::min<uint32_t>(Read(base, kFoleyCount), 256);
+  if (pausing) {
+    paused_loops.clear();
+    for (uint32_t type = 0; type < types; ++type)
+      if (LoopingOnPause(base, type) && FoleyActive(base, foley, type, true)) paused_loops.push_back(type);
+  }
+  __imp__sub_8227FCA0(ctx, base);
+  if (pausing) return;
+  const auto app = Read(base, 0x82D0BC88);
+  for (const auto type : std::exchange(paused_loops, {}))
+    if (app && Read(base, app + 2360) == foley && !FoleyActive(base, foley, type, true)) {
+      GuestCall(ctx, base, sub_821A8258, app, type);
+      REXLOG_INFO("PvZ looping foley {} restarted after pause", type);
+    }
+}
+REX_HOOK_RAW(sub_8227FC10) {
+  // A loop stopped during the pause (level exit) must not come back.
+  std::erase(paused_loops, ctx.r4.u32);
+  __imp__sub_8227FC10(ctx, base);
+}
+

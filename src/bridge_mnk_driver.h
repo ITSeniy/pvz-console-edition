@@ -4,6 +4,9 @@
 #include <atomic>
 
 namespace pvz {
+// Escape was pressed: the SDK maps it to Start of the mouse's player, which
+// the bridge then handles as PC's pause key.
+inline std::atomic_bool& KeyboardStart() { static std::atomic_bool pressed{false}; return pressed; }
 using namespace rex::input;
 using rex::X_STATUS;
 using rex::X_RESULT;
@@ -42,7 +45,12 @@ class BridgeMnkDriver final : public InputDriver,
   X_RESULT GetDeviceKeystroke(DeviceId id, uint32_t flags, X_INPUT_KEYSTROKE* out) override {
     return inner_.GetDeviceKeystroke(id, flags, out);
   }
-  void OnKeyDown(rex::ui::KeyEvent& e) override { inner_.OnKeyDown(e); }
+  // The mouse and the controller cover every action; the keyboard keeps only
+  // Escape (Start: pause and back). Key releases always pass, so a key held
+  // across a settings change cannot stay pressed.
+  void OnKeyDown(rex::ui::KeyEvent& e) override {
+    if (e.virtual_key() == rex::ui::VirtualKey::kEscape) { KeyboardStart().store(true); inner_.OnKeyDown(e); }
+  }
   void OnKeyUp(rex::ui::KeyEvent& e) override { inner_.OnKeyUp(e); }
   void OnMouseDown(rex::ui::MouseEvent& e) override {
     if (!rex::cvar::Query<bool>("pvz_mouse_cursor")) inner_.OnMouseDown(e);

@@ -3,7 +3,7 @@
 # SDK boilerplate is pinned alongside the project; guest code is generated.
 
 cmake_minimum_required(VERSION 3.25)
-project(pvz-console-edition VERSION 0.1.0 LANGUAGES CXX)
+project(pvz-console-edition VERSION 0.7.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -26,8 +26,10 @@ set(PVZ_SOURCES
     src/camera_compat.cpp
     src/mouse_bridge.cpp
     src/challenge_mouse.cpp
+    src/bonus_games.cpp
     src/service_mouse.cpp
     src/frame_capture.cpp
+    src/hitch_profiler.cpp
     src/input_replay.cpp
     src/replay_fixtures.cpp
     src/input_backend.cpp
@@ -49,11 +51,19 @@ if(WIN32)
     configure_file(resources/app.rc.in ${CMAKE_CURRENT_BINARY_DIR}/app.rc @ONLY)
     add_executable(pvz WIN32 ${PVZ_SOURCES})
     target_sources(pvz PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/app.rc)
-    target_link_libraries(pvz PRIVATE bcrypt advapi32)
+    target_link_libraries(pvz PRIVATE bcrypt advapi32 comdlg32)
 else()
     add_executable(pvz ${PVZ_SOURCES})
 endif()
 set_target_properties(pvz PROPERTIES OUTPUT_NAME "pvz-console-edition")
+# The SDK builds its runtime with SSE4.1, but adds that flag only for GNU-style
+# compilers; clang-cl would otherwise emulate SSSE3/SSE4.1 vector operations
+# in the recompiled code through SSE2. RelWithDebInfo also limits inlining
+# (/Ob1), which the many small recompiled helpers depend on.
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC"
+   AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+    target_compile_options(pvz PRIVATE -msse4.1 /Ob2)
+endif()
 target_include_directories(pvz PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 include(CTest)
@@ -96,7 +106,9 @@ if(BUILD_TESTING)
         target_include_directories(game_edition_test PRIVATE src ${CMAKE_CURRENT_BINARY_DIR})
         target_link_libraries(game_edition_test PRIVATE rex::runtime bcrypt)
         rexglue_apply_target_settings(game_edition_test)
-        add_test(NAME game_edition COMMAND game_edition_test ${CMAKE_CURRENT_SOURCE_DIR}/assets)
+        add_test(NAME game_edition COMMAND game_edition_test ${CMAKE_CURRENT_SOURCE_DIR}/assets
+            "${CMAKE_CURRENT_SOURCE_DIR}/Plants vs. Zombies (World) (XBLA)/584109FF/000D0000/281104A67F7C961E2736A5F6F524D43FC81EB79158"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Plants vs. Zombies (USA) (En,Ja,Fr,De,Es,It).iso")
     endif()
 endif()
 
@@ -104,7 +116,15 @@ rexglue_setup_target(pvz GPU_PLUGINS xenos)
 add_custom_command(TARGET pvz POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         ${CMAKE_CURRENT_SOURCE_DIR}/config/pc_defaults.toml
-        $<TARGET_FILE_DIR:pvz>/pc_defaults.toml)
+        $<TARGET_FILE_DIR:pvz>/pc_defaults.toml
+    # Our own mouse help illustrations (scripts/make_mouse_help_images.py).
+    COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:pvz>/mouse
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${CMAKE_CURRENT_SOURCE_DIR}/resources/mouse/help_menu_image_mouse_pc.ptx
+        ${CMAKE_CURRENT_SOURCE_DIR}/resources/mouse/help_menu_image_mouse_console.ptx
+        ${CMAKE_CURRENT_SOURCE_DIR}/resources/mouse/vs_mouse_player1.ptx
+        ${CMAKE_CURRENT_SOURCE_DIR}/resources/mouse/vs_mouse_player2.ptx
+        $<TARGET_FILE_DIR:pvz>/mouse)
 
 add_executable(pvz_inspect EXCLUDE_FROM_ALL scripts/inspect_xex.cpp)
 target_link_libraries(pvz_inspect PRIVATE rex::runtime)

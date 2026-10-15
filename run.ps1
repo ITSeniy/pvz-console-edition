@@ -8,12 +8,13 @@ $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 $exe = Join-Path $PSScriptRoot 'build/pvz-console-edition.exe'
 if (-not (Test-Path -LiteralPath $exe)) { throw 'Run ./setup.ps1 -Build first.' }
-if (-not (Test-Path -LiteralPath (Join-Path $GameDataRoot 'default.xex'))) {
-    throw 'Import your Xbox game first: ./Import-Game.ps1 -Package <container> -Edition Trial or Full. See docs/distribution.md.'
-}
-$gameLock = Get-Content config/game.lock.json -Raw | ConvertFrom-Json
-if ((Get-FileHash -LiteralPath (Join-Path $GameDataRoot 'default.xex') -Algorithm SHA256).Hash -ne $gameLock.xex_sha256) {
-    throw 'Unsupported default.xex. See config/game.lock.json.'
+# Without game files the game opens its first-run import window itself.
+$xex = Join-Path $GameDataRoot 'default.xex'
+if (Test-Path -LiteralPath $xex) {
+    $gameLock = Get-Content config/game.lock.json -Raw | ConvertFrom-Json
+    if ((Get-FileHash -LiteralPath $xex -Algorithm SHA256).Hash -ne $gameLock.xex_sha256) {
+        throw 'Unsupported default.xex. See config/game.lock.json.'
+    }
 }
 New-Item -ItemType Directory -Force -Path runtime-data,logs | Out-Null
 # Start-Process fixes the working directory below. Relative CLI paths avoid
@@ -21,7 +22,7 @@ New-Item -ItemType Directory -Force -Path runtime-data,logs | Out-Null
 $logArgument = "logs/run-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
 $mouseArguments = @()
 if ($Mouse -or $CursorMode) {
-    $mouseArguments = @('--pvz_mouse_cursor=true', '--keybind_a=Space', '--keybind_b=Backspace')
+    $mouseArguments = @('--pvz_mouse_cursor=true')
     if ($CursorMode) { $mouseArguments += "--pvz_cursor_mode=$($CursorMode.ToLowerInvariant())" }
 }
 $arguments = @('--game_data_root', $GameDataRoot, '--user_data_root', $UserDataRoot,

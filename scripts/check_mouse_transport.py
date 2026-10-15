@@ -14,7 +14,7 @@ up_move = any(a[2:7] == ('1', '398', '405', '1', 'false') and
 checks = {
     'native_run': 'Direct3D 12 device and OS features' in log and not any(
         bad in log.lower() for bad in ('[fatal]', '[critical]', 'access violation', 'timed out', 'invalid input replay')),
-    'completed': 'PvZ replay completed tests/replays/mouse_transport.csv' in log,
+    'completed': bool(re.search(r'PvZ replay completed (?:.*[/\\])?mouse_transport\.csv', log)),
     'three_atomic_batches': log.count('PvZ replay batch published') == 3,
     'processed_up_before_later_move': up_move,
     'options_opened_three_times': log.count('PvZ menu activate button 5') == 3,

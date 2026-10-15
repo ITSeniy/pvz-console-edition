@@ -1,0 +1,15 @@
+# Hold over the reanimated top edge, leave, then reenter.
+0,400,300,wait_title
+1,400,500,left_down
+1.15,400,500,left_up
+2,400,300,wait_menu
+4,230,410,left_down
+4.15,230,410,left_up
+8,300,337,move
+16,300,280,move
+18,300,337,move
+26,300,280,move
+28,300,337,mode_console
+36,300,280,move
+38,300,337,move
+46,300,280,move
