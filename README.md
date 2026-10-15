@@ -97,14 +97,28 @@ Found something else? Open an issue and attach the newest file from the `logs` f
 
 ## Roadmap
 
+The long-term goal is the ultimate console edition of Plants vs. Zombies: everything
+the console releases offered, in one place, on the platforms you play on.
+
+**Done**
 - [x] Mouse controls for every screen and mode
 - [x] Local Versus and Co-op with a mouse + gamepad
 - [x] First-run import from an XBLA package or a disc image
+
+**Next**
+- [ ] Higher rendering resolutions and widescreen-friendly UI
+- [ ] PC-style mouse art (cursor, tool icons) instead of console leftovers
 - [ ] Local leaderboard for Survival Endless
 - [ ] Wider controller testing (DualSense, Switch Pro, two pads at once)
 - [ ] Fix the Zombiquarium hover artifact in the renderer
 - [ ] Choose the game language (the other language packs are already in the game data)
 - [ ] Rebindable keyboard shortcuts
+
+**Later**
+- [ ] Online play: Versus and Co-op over the network, leaderboards, mail
+- [ ] Features from other console releases, such as Zombatar from the PS Vita version
+- [ ] macOS and Linux builds
+- [ ] Mobile (Android, iOS) and Nintendo Switch — under consideration, no promises
 - [ ] Release 1.0
 
 ## Building from source
