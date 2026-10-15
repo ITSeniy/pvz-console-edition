@@ -24,6 +24,19 @@ package or a disc image. The program reads them on first launch.
 > Version **0.7.0** is a beta. It is playable from start to finish, but rough edges remain.
 > See [Known issues](#known-issues).
 
+## Screenshots
+
+<table>
+  <tr>
+    <td><img src="docs/images/screenshots/main-menu.jpg" alt="Main menu"></td>
+    <td><img src="docs/images/screenshots/survival-pool.jpg" alt="Survival: Pool"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/screenshots/raining-seeds.jpg" alt="It's Raining Seeds"></td>
+    <td><img src="docs/images/screenshots/heavy-weapon.jpg" alt="Heavy Weapon"></td>
+  </tr>
+</table>
+
 ## What you get
 
 - **The whole console game.** Adventure, every mini-game, puzzle and survival mode, Zen

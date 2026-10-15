@@ -24,6 +24,19 @@
 > Версия **0.7.0** — бета. Игру можно пройти от начала до конца, но шероховатости остались.
 > Смотрите [Известные проблемы](#известные-проблемы).
 
+## Скриншоты
+
+<table>
+  <tr>
+    <td><img src="docs/images/screenshots/main-menu.jpg" alt="Главное меню"></td>
+    <td><img src="docs/images/screenshots/survival-pool.jpg" alt="Выживание: бассейн"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/screenshots/raining-seeds.jpg" alt="Мини-игра It's Raining Seeds"></td>
+    <td><img src="docs/images/screenshots/heavy-weapon.jpg" alt="Heavy Weapon"></td>
+  </tr>
+</table>
+
 ## Что внутри
 
 - **Вся консольная игра.** Приключение, все мини-игры, головоломки и режимы выживания,
