@@ -149,6 +149,11 @@ the repository cannot be built without it.
 Technical notes, hook addresses and test reports are in [docs/](docs/). Start with
 [docs/technical-notes.md](docs/technical-notes.md).
 
+## AI assistance
+
+This project was built with the help of AI tools, mainly [Claude Code](https://claude.com/claude-code).
+They were used for reverse engineering, writing code and documentation, and testing.
+
 ## Legal
 
 This is an unofficial fan project. It is not affiliated with or endorsed by PopCap Games,
