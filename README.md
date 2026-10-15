@@ -58,6 +58,9 @@ package or a disc image. The program reads them on first launch.
   Frames are not doubled, so there is no judder on 75 Hz or 100 Hz monitors.
 - **Easy setup.** On first launch, point it at your game package or a disc `.iso` and it
   imports and checks the files itself. A disc copy unlocks the full game right away.
+- **Six languages.** English, German, Spanish, French, Italian and Japanese, from the
+  game's own language packs. Pick one in *Options → PC Settings → Language*; it applies
+  on the next launch.
 - **Small PC touches.** A quit confirmation, achievements and cheat codes in a PC menu,
   `Escape` for pause, and a "Skip" button on the credits.
 
@@ -96,6 +99,8 @@ These are the problems we know about in 0.7.0:
   game explains this instead of failing. Survival Endless has no local leaderboard yet.
 - **Zombiquarium:** thin dark lines flash around the *Menu* button for a frame or two on
   hover. This looks like a renderer edge case, not a game bug.
+- **PC additions are in English.** In the other languages the game itself is translated,
+  but our buttons (*Menu*, *PC Settings*, *LET'S ROCK!*) and mouse hints stay in English.
 - **I, Zombie:** very fast repeated clicks can occasionally miss a placement.
 - **Physical controllers** were tested less than the mouse. In particular, DualShock and
   DualSense glyphs and two real gamepads in one match need more testing.
@@ -118,6 +123,7 @@ the console releases offered, in one place, on the platforms you play on.
 - [x] Mouse controls for every screen and mode
 - [x] Local Versus and Co-op with a mouse + gamepad
 - [x] First-run import from an XBLA package or a disc image
+- [x] Choose the game language (English, German, Spanish, French, Italian, Japanese)
 
 **Next**
 - [ ] Higher rendering resolutions and widescreen-friendly UI
@@ -125,7 +131,7 @@ the console releases offered, in one place, on the platforms you play on.
 - [ ] Local leaderboard for Survival Endless
 - [ ] Wider controller testing (DualSense, Switch Pro, two pads at once)
 - [ ] Fix the Zombiquarium hover artifact in the renderer
-- [ ] Choose the game language (the other language packs are already in the game data)
+- [ ] Translate the PC additions (buttons, mouse hints) into the game's languages
 - [ ] Rebindable keyboard shortcuts
 
 **Later**

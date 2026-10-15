@@ -7,6 +7,7 @@ pvz_test_unlock = false
 pvz_skip_intro = false
 pvz_pause_on_focus_loss = true
 pvz_display_mode = "windowed"
+pvz_language = "en"
 vsync = false
 pvz_vsync = true
 pvz_frame_limit = 60

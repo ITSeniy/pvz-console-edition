@@ -32,6 +32,8 @@ REXCVAR_DEFINE_BOOL(pvz_test_unlock, false, "Diagnostics", "Enable Full access f
 REXCVAR_DEFINE_BOOL(pvz_pause_on_focus_loss, true, "PvZ", "Pause gameplay when the game window loses focus");
 REXCVAR_DEFINE_STRING(pvz_display_mode, "windowed", "PvZ", "Display mode")
     .allowed({"windowed", "fullscreen", "borderless"});
+REXCVAR_DEFINE_STRING(pvz_language, "en", "PvZ", "Game language: en, de, es, fr, it or jp (restart required)")
+    .allowed({"en", "de", "es", "fr", "it", "jp"});
 
 REX_EXTERN(sub_82188F80); // MakeDialogButton(id, listener, parent, label)
 REX_EXTERN(sub_82188EE0); // DialogButton::SetLabel
@@ -100,6 +102,25 @@ REX_EXTERN(sub_8249B508); // Graphics::SetScale(x,y,centreX,centreY)
 namespace {
 constexpr uint32_t kHelpOptions = 0x820BAA54;
 constexpr uint32_t kMouseMode = 1002;
+// Rows after Mouse use 1003..1006; 1007 is Cheats.
+constexpr uint32_t kLanguageRow = 1008;
+uint32_t ExtraRowId(size_t i) { return i < 4 ? kMouseMode + uint32_t(i) + 1 : kLanguageRow; }
+// XConfig USER_LANGUAGE ids. The game reads the setting once at startup
+// (826163F0, stored at LawnApp +804) and mounts <code>.pak by it (8219F528).
+struct Language { std::string_view code; uint32_t id; std::u16string_view name; };
+constexpr std::array kLanguages{Language{"en", 1, u"English"}, Language{"de", 3, u"German"},
+    Language{"es", 5, u"Spanish"}, Language{"fr", 4, u"French"}, Language{"it", 6, u"Italian"},
+    Language{"jp", 2, u"Japanese"}};
+size_t LanguageIndex(std::string_view code) {
+  for (size_t i = 0; i < kLanguages.size(); ++i) if (kLanguages[i].code == code) return i;
+  return 0;
+}
+// The language this launch runs in; a new choice applies on the next launch.
+std::string running_language = "en";
+std::filesystem::path language_root;
+bool LanguageAvailable(std::string_view code) {
+  return code == "en" || std::filesystem::exists(language_root / (std::string(code) + ".pak"));
+}
 // VS Menu, board coordinates: the window's free corner right of the zombie
 // bank (frame x 1100..1220), shared by the VS lawn and both choosers.
 constexpr int32_t kVersusMenuLeft = 860, kVersusMenuTop = -46;
@@ -109,12 +130,17 @@ struct SettingButton {
   uint32_t widget;
   std::string mode;
   bool page = false;
-  std::array<uint32_t, 4> extra{};
+  std::array<uint32_t, 5> extra{};
   std::array<uint8_t, 4> visible{};
   std::array<std::array<uint32_t, 4>, 5> navigation{};
   uint32_t cheats = 0;
   uint32_t return_focus = 0;
 };
+// Every widget we add to the dialog: the page button, its rows and Cheats.
+std::array<uint32_t, 7> AddedWidgets(const SettingButton& setting) {
+  return {setting.widget, setting.extra[0], setting.extra[1], setting.extra[2], setting.extra[3],
+      setting.extra[4], setting.cheats};
+}
 std::unordered_map<uint32_t, SettingButton> buttons;
 std::unordered_map<uint32_t, std::array<uint32_t, 4>> chooser_buttons;
 // VS setup whose mode stones are hidden during Pick Sides.
@@ -236,14 +262,19 @@ void UpdateLabel(PPCContext& ctx, uint8_t* base, SettingButton& button) {
   const bool vsync = rex::cvar::Query<bool>("pvz_vsync");
   const bool pause = REXCVAR_GET(pvz_pause_on_focus_loss);
   const auto display = REXCVAR_GET(pvz_display_mode);
-  const auto signature = mode + display + std::to_string(vsync) + std::to_string(pause) + std::to_string(button.page) + std::to_string(REXCVAR_GET(pvz_skip_intro));
+  const auto language = REXCVAR_GET(pvz_language);
+  const auto signature = mode + display + language + std::to_string(vsync) + std::to_string(pause) + std::to_string(button.page) + std::to_string(REXCVAR_GET(pvz_skip_intro));
   if (button.mode == signature) return;
-  const std::array<std::u16string_view, 5> labels{
+  // A language other than the running one is mounted on the next launch.
+  const auto language_label = std::u16string(language == running_language ? u"Language: " : u"Next launch: ") +
+      std::u16string(kLanguages[LanguageIndex(language)].name);
+  const std::array<std::u16string_view, 6> labels{
       button.page ? (mode == "console" ? u"Mouse: Console" : u"Mouse: PC") : u"PC Settings",
       vsync ? u"VSync: On" : u"VSync: Off",
       pause ? u"Pause if unfocused: On" : u"Pause if unfocused: Off",
       display == "windowed" ? u"Display: Windowed" : display == "fullscreen" ? u"Display: Fullscreen" : u"Display: Borderless",
-      REXCVAR_GET(pvz_skip_intro) ? u"Skip intro: On" : u"Skip intro: Off"};
+      REXCVAR_GET(pvz_skip_intro) ? u"Skip intro: On" : u"Skip intro: Off",
+      language_label};
   for (size_t i = 0; i < labels.size(); ++i) {
     const auto widget = i ? button.extra[i - 1] : button.widget;
     if (widget) WithLabel(ctx, base, labels[i], [&](uint32_t label) {
@@ -263,14 +294,14 @@ void Layout(PPCContext& ctx, uint8_t* base, uint32_t dialog, uint32_t button) {
   }
   const auto credits = Read(base, dialog + 0x1D0);
   const auto back = Read(base, dialog + 0x1D4);
-  // The PC page has six rows above Back. Keep Back at its native position
-  // inside the dialog frame; the rows are slightly shorter to fit above it.
-  constexpr uint32_t kPageTop = 114, kPageStep = 42, kPageRow = 40;
+  // The PC page has seven rows above Back. Keep Back at its native position
+  // inside the dialog frame; the rows are shorter to fit above it.
+  constexpr uint32_t kPageTop = 114, kPageStep = 36, kPageRow = 34;
   const auto x = Read(base, back + 0x190), width = Read(base, back + 0x1A4);
   Call(ctx, base, sub_82188E20, {back, x, 371, width, 46});
   base[setting.cheats + 0x70] = setting.page;
   base[setting.cheats + 0x72] = !setting.page;
-  Call(ctx, base, sub_82188E20, {setting.cheats, x, kPageTop + 5 * kPageStep, width, kPageRow});
+  Call(ctx, base, sub_82188E20, {setting.cheats, x, kPageTop + uint32_t(setting.extra.size() + 1) * kPageStep, width, kPageRow});
   if (setting.page) Call(ctx, base, sub_82188E20, {button, x, kPageTop, width, kPageRow});
   else Call(ctx, base, sub_82188E20, {button, x, 306, width, 46});
   for (size_t i = 0; i < setting.extra.size(); ++i) {
@@ -284,7 +315,8 @@ void Layout(PPCContext& ctx, uint8_t* base, uint32_t dialog, uint32_t button) {
     base[original + 0x70] = setting.page ? 0 : setting.visible[i];
   }
   if (setting.page) {
-    const std::array row{button, setting.extra[0], setting.extra[1], setting.extra[2], setting.extra[3], setting.cheats, back};
+    const std::array row{button, setting.extra[0], setting.extra[1], setting.extra[2], setting.extra[3],
+        setting.extra[4], setting.cheats, back};
     for (size_t i = 0; i < row.size(); ++i) {
       Write(base, row[i] + 0xB0, row[(i + row.size() - 1) % row.size()]);
       Write(base, row[i] + 0xB4, row[(i + 1) % row.size()]);
@@ -653,6 +685,20 @@ void pvz::ConfigureGameSettings(const std::filesystem::path& config_path,
   REXLOG_INFO("PvZ edition: {} (license mask {}; {})", full ? "full" : "trial", reported, edition.reason);
   RefreshHostSettings();
 }
+void pvz::ApplyGameLanguage(const std::filesystem::path& game_data_root) {
+  // The SDK reads user_language for the title's achievement strings while
+  // loading the XEX, and the game reads XConfig USER_LANGUAGE at startup.
+  language_root = game_data_root;
+  auto language = REXCVAR_GET(pvz_language);
+  if (!LanguageAvailable(language)) {
+    REXLOG_WARN("PvZ language {}: {}.pak is missing from the game data, using English", language, language);
+    language = "en";
+  }
+  running_language = language;
+  const auto id = kLanguages[LanguageIndex(language)].id;
+  rex::cvar::SetFlagByName("user_language", std::to_string(id));
+  REXLOG_INFO("PvZ language: {} (user_language {})", language, id);
+}
 bool pvz::HasImportedPackage() { return imported_package; }
 void pvz::SetHostSettingsCallback(std::function<void()> callback) {
   std::lock_guard lock(callback_mutex); host_callback = std::move(callback);
@@ -883,7 +929,7 @@ REX_HOOK_RAW(sub_82198850) {
       setting.visible[i] = base[Read(base, dialog + 0x1C4 + uint32_t(i * 4)) + 0x70];
     for (size_t i = 0; i < setting.extra.size(); ++i) {
       setting.extra[i] = WithLabel(ctx, base, u"PC Settings", [&](uint32_t label) {
-        return Call(ctx, base, sub_82188F80, {uint32_t(kMouseMode + i + 1), dialog + 0xD4, dialog, label});
+        return Call(ctx, base, sub_82188F80, {ExtraRowId(i), dialog + 0xD4, dialog, label});
       });
     }
     REXLOG_INFO("PvZ in-game mouse setting added to dialog {:08X}", dialog);
@@ -891,9 +937,7 @@ REX_HOOK_RAW(sub_82198850) {
   auto& button = found->second;
   UpdateLabel(ctx, base, button);
   Layout(ctx, base, dialog, button.widget);
-  if (Read(base, button.widget + 0x24) != dialog)
-    Call(ctx, base, sub_82493E10, {dialog, button.widget});
-  for (auto widget : {button.extra[0], button.extra[1], button.extra[2], button.extra[3], button.cheats})
+  for (auto widget : AddedWidgets(button))
     if (Read(base, widget + 0x24) != dialog) Call(ctx, base, sub_82493E10, {dialog, widget});
 }
 REX_HOOK_RAW(sub_821988D0) {
@@ -902,7 +946,7 @@ REX_HOOK_RAW(sub_821988D0) {
   const auto entry = buttons.find(dialog);
   const auto return_focus = entry != buttons.end() ? entry->second.return_focus : 0;
   if (const auto found = buttons.find(dialog); found != buttons.end())
-    for (auto widget : {found->second.widget, found->second.extra[0], found->second.extra[1], found->second.extra[2], found->second.extra[3], found->second.cheats})
+    for (auto widget : AddedWidgets(found->second))
       if (Read(base, widget + 0x24) == dialog) Call(ctx, base, sub_824930D0, {dialog, widget});
   __imp__sub_821988D0(ctx, base);
   if (!pvz::MouseOwnsInput() && manager && pvz::guest::LiveWidget(base, manager, return_focus))
@@ -925,7 +969,7 @@ REX_HOOK_RAW(sub_82198938) {
 REX_HOOK_RAW(sub_82198720) {
   const auto dialog = ctx.r3.u32;
   if (const auto found = buttons.find(dialog); found != buttons.end()) {
-    for (auto widget : {found->second.widget, found->second.extra[0], found->second.extra[1], found->second.extra[2], found->second.extra[3], found->second.cheats}) {
+    for (auto widget : AddedWidgets(found->second)) {
       if (Read(base, widget + 0x24) == dialog) Call(ctx, base, sub_824930D0, {dialog, widget});
       Call(ctx, base, sub_82187918, {widget, 1});
     }
@@ -950,10 +994,16 @@ REX_HOOK_RAW(sub_82198B30) {
     if (id == 1007 && setting.page) { pvz::RequestHostMenu(pvz::HostMenu::Cheats); return; }
     if (id == kMouseMode && !setting.page) setting.page = true;
     else if ((id == 4 || id == 1000) && setting.page) setting.page = false;
-    else if (id >= kMouseMode && id <= kMouseMode + 4 && setting.page) {
+    else if (((id >= kMouseMode && id <= kMouseMode + 4) || id == kLanguageRow) && setting.page) {
       std::string key, value;
       bool quoted = false;
-      if (id == kMouseMode) { key = "pvz_cursor_mode"; quoted = true;
+      if (id == kLanguageRow) { key = "pvz_language"; quoted = true;
+        // Cycle through the languages whose pak the imported game has.
+        auto next = LanguageIndex(REXCVAR_GET(pvz_language));
+        do next = (next + 1) % kLanguages.size();
+        while (next && !LanguageAvailable(kLanguages[next].code));
+        value = kLanguages[next].code;
+      } else if (id == kMouseMode) { key = "pvz_cursor_mode"; quoted = true;
         value = rex::cvar::Query<std::string>("pvz_cursor_mode") == "pc" ? "console" : "pc";
       } else if (id == kMouseMode + 1) { key = "pvz_vsync";
         value = rex::cvar::Query<bool>(key) ? "false" : "true";

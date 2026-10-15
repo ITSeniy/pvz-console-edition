@@ -110,6 +110,9 @@ class PvzApp : public rex::ReXApp {
     }
   }
 
+  void OnLoadXexImage(std::string&) override {
+    pvz::ApplyGameLanguage(runtime()->game_data_root());
+  }
   void OnPostLaunchModule(rex::system::XThread*) override {
     frame_capture_ = StartFrameCapture(runtime());
     input_replay_ = StartInputReplay();

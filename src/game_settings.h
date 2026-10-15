@@ -8,6 +8,9 @@ bool RequestIntroSkip();
 // True when the game data came from a checked package import (first launch
 // or Import-Game.ps1): the in-game unlock then only confirms ownership.
 bool HasImportedPackage();
+// Before the XEX loads: selects the game language (pvz_language) through
+// the SDK's user_language. Falls back to English without that language's pak.
+void ApplyGameLanguage(const std::filesystem::path& game_data_root);
 void ConfigureGameSettings(const std::filesystem::path& config_path,
                            const std::filesystem::path& game_data_root);
 void SetHostSettingsCallback(std::function<void()> callback);
