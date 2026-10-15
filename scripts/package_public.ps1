@@ -26,8 +26,20 @@ $required = @($exe,'build/rexruntimerd.dll','build/rexgpu-xenosrd.dll',
 foreach ($file in $required) {
     if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Missing release file: $file" }
 }
+# Same order as build.bat: PVZ_VS, vswhere, then the standard install folders
+# (vswhere finds nothing when the installer's instance registry is missing).
+$vsRoot = $env:PVZ_VS
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
-$vsRoot = & $vswhere -latest -products * -property installationPath
+if (-not $vsRoot -and (Test-Path -LiteralPath $vswhere)) {
+    $vsRoot = & $vswhere -latest -prerelease -products * -property installationPath
+}
+if (-not $vsRoot) {
+    $vsRoot = Get-ChildItem -LiteralPath (Join-Path $env:ProgramFiles 'Microsoft Visual Studio'),
+        (Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio') -Directory -ErrorAction SilentlyContinue |
+        Get-ChildItem -Directory | Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'VC/Auxiliary/Build/vcvars64.bat') } |
+        Select-Object -Last 1 -ExpandProperty FullName
+}
+if (-not $vsRoot) { throw 'Visual Studio with C++ tools was not found. Set PVZ_VS to its installation folder.' }
 $crt = Get-ChildItem -LiteralPath (Join-Path $vsRoot 'VC/Redist/MSVC') -Directory -Recurse |
     Where-Object { $_.Name -match '^Microsoft\.VC\d+\.CRT$' -and $_.Parent.Name -eq 'x64' } |
     Sort-Object FullName -Descending | Select-Object -First 1
@@ -44,7 +56,7 @@ Copy-Item -LiteralPath packaging/PUBLIC-README.md -Destination (Join-Path $packa
 Copy-Item -LiteralPath tools/rexglue-sdk/win-amd64/licenses -Destination (Join-Path $packageRoot 'licenses') -Recurse
 Copy-Item -LiteralPath third_party/rexglue-LICENSE.txt -Destination (Join-Path $packageRoot 'licenses/RexGlue-LICENSE.txt')
 $inventory = @(Get-ChildItem -LiteralPath $packageRoot -Recurse -File | ForEach-Object {
-    [ordered]@{ path = [System.IO.Path]::GetRelativePath($packageRoot,$_.FullName).Replace('\','/');
+    [ordered]@{ path = $_.FullName.Substring($packageRoot.Length + 1).Replace('\','/');
         bytes = $_.Length; sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }
 })
 if ($inventory.path -match '(^assets/|^runtime-data/|^logs/|\.pvz-import\.toml)') {
