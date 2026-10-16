@@ -60,7 +60,7 @@ package or a disc image. The program reads them on first launch.
   imports and checks the files itself. A disc copy unlocks the full game right away.
 - **Six languages.** English, German, Spanish, French, Italian and Japanese, from the
   game's own language packs. Pick one in *Options → PC Settings → Language*; it applies
-  on the next launch.
+  on the next launch. The port's own buttons, mouse hints and menus follow it too.
 - **Small PC touches.** A quit confirmation, achievements and cheat codes in a PC menu,
   `Escape` for pause, and a "Skip" button on the credits.
 
@@ -99,8 +99,8 @@ These are the problems we know about in 0.7.0:
   game explains this instead of failing. Survival Endless has no local leaderboard yet.
 - **Zombiquarium:** thin dark lines flash around the *Menu* button for a frame or two on
   hover. This looks like a renderer edge case, not a game bug.
-- **PC additions are in English.** In the other languages the game itself is translated,
-  but our buttons (*Menu*, *PC Settings*, *LET'S ROCK!*) and mouse hints stay in English.
+- **The first-run import window is in English**, as are the rare file-check errors of the
+  in-game unlock. Everything else the port adds follows the game language.
 - **I, Zombie:** very fast repeated clicks can occasionally miss a placement.
 - **Physical controllers** were tested less than the mouse. In particular, DualShock and
   DualSense glyphs and two real gamepads in one match need more testing.
@@ -124,6 +124,7 @@ the console releases offered, in one place, on the platforms you play on.
 - [x] Local Versus and Co-op with a mouse + gamepad
 - [x] First-run import from an XBLA package or a disc image
 - [x] Choose the game language (English, German, Spanish, French, Italian, Japanese)
+- [x] PC additions (buttons, mouse hints, PC menus) in every game language
 
 **Next**
 - [ ] Higher rendering resolutions and widescreen-friendly UI
@@ -131,7 +132,6 @@ the console releases offered, in one place, on the platforms you play on.
 - [ ] Local leaderboard for Survival Endless
 - [ ] Wider controller testing (DualSense, Switch Pro, two pads at once)
 - [ ] Fix the Zombiquarium hover artifact in the renderer
-- [ ] Translate the PC additions (buttons, mouse hints) into the game's languages
 - [ ] Rebindable keyboard shortcuts
 
 **Later**

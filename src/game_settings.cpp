@@ -6,6 +6,7 @@
 #include "bonus_games.h"
 #include "widget_tree.h"
 #include "guest_layout.h"
+#include "pc_text_runtime.h"
 #include <rex/cvar.h>
 #include <rex/hook.h>
 #include <rex/logging.h>
@@ -107,10 +108,14 @@ constexpr uint32_t kLanguageRow = 1008;
 uint32_t ExtraRowId(size_t i) { return i < 4 ? kMouseMode + uint32_t(i) + 1 : kLanguageRow; }
 // XConfig USER_LANGUAGE ids. The game reads the setting once at startup
 // (826163F0, stored at LawnApp +804) and mounts <code>.pak by it (8219F528).
-struct Language { std::string_view code; uint32_t id; std::u16string_view name; };
-constexpr std::array kLanguages{Language{"en", 1, u"English"}, Language{"de", 3, u"German"},
-    Language{"es", 5, u"Spanish"}, Language{"fr", 4, u"French"}, Language{"it", 6, u"Italian"},
-    Language{"jp", 2, u"Japanese"}};
+// In pvz::Language order. Each language goes by its own name where the
+// running language's font can draw it (the Japanese font lacks ñ and ç).
+struct GameLanguage { std::string_view code; uint32_t id; pvz::Localized name; };
+constexpr std::array kLanguages{GameLanguage{"en", 1, {u"English"}}, GameLanguage{"de", 3, {u"Deutsch"}},
+    GameLanguage{"es", 5, {u"Español", {}, {}, {}, {}, u"スペイン語"}},
+    GameLanguage{"fr", 4, {u"Français", {}, {}, {}, {}, u"フランス語"}},
+    GameLanguage{"it", 6, {u"Italiano"}},
+    GameLanguage{"jp", 2, {u"Japanese", u"Japanisch", u"Japonés", u"Japonais", u"Giapponese", u"日本語"}}};
 size_t LanguageIndex(std::string_view code) {
   for (size_t i = 0; i < kLanguages.size(); ++i) if (kLanguages[i].code == code) return i;
   return 0;
@@ -121,6 +126,11 @@ std::filesystem::path language_root;
 bool LanguageAvailable(std::string_view code) {
   return code == "en" || std::filesystem::exists(language_root / (std::string(code) + ".pak"));
 }
+constexpr pvz::Localized kPcSettingsText{u"PC Settings", u"PC-Einstellungen", u"Opciones de PC",
+    u"Options PC", u"Opzioni PC", u"PC設定"};
+// Spanish names Board's Menu "Menú principal", too wide for the button.
+constexpr pvz::Localized kMenuText{u"Menu", {}, u"Menú"};
+constexpr pvz::Localized kCheatsText{u"Cheats", u"Cheats", u"Trucos", u"Codes", u"Trucchi", u"チート"};
 // VS Menu, board coordinates: the window's free corner right of the zombie
 // bank (frame x 1100..1220), shared by the VS lawn and both choosers.
 constexpr int32_t kVersusMenuLeft = 860, kVersusMenuTop = -46;
@@ -265,16 +275,38 @@ void UpdateLabel(PPCContext& ctx, uint8_t* base, SettingButton& button) {
   const auto language = REXCVAR_GET(pvz_language);
   const auto signature = mode + display + language + std::to_string(vsync) + std::to_string(pause) + std::to_string(button.page) + std::to_string(REXCVAR_GET(pvz_skip_intro));
   if (button.mode == signature) return;
+  const auto ui = pvz::RunningLanguage();
+  const auto text = [&](const pvz::Localized& value) { return std::u16string(value(ui)); };
   // A language other than the running one is mounted on the next launch.
-  const auto language_label = std::u16string(language == running_language ? u"Language: " : u"Next launch: ") +
-      std::u16string(kLanguages[LanguageIndex(language)].name);
-  const std::array<std::u16string_view, 6> labels{
-      button.page ? (mode == "console" ? u"Mouse: Console" : u"Mouse: PC") : u"PC Settings",
-      vsync ? u"VSync: On" : u"VSync: Off",
-      pause ? u"Pause if unfocused: On" : u"Pause if unfocused: Off",
-      display == "windowed" ? u"Display: Windowed" : display == "fullscreen" ? u"Display: Fullscreen" : u"Display: Borderless",
-      REXCVAR_GET(pvz_skip_intro) ? u"Skip intro: On" : u"Skip intro: Off",
-      language_label};
+  constexpr pvz::Localized current{u"Language: ", u"Sprache: ", u"Idioma: ", u"Langue : ", u"Lingua: ", u"言語:"};
+  constexpr pvz::Localized next{u"Next launch: ", u"Ab Neustart: ", u"Al reiniciar: ", u"Au redémarrage : ",
+      u"Al riavvio: ", u"次回起動時:"};
+  constexpr pvz::Localized console{u"Mouse: Console", u"Maus: Konsole", u"Ratón: Consola", u"Souris : console",
+      u"Mouse: console", u"マウス:コンソール"};
+  constexpr pvz::Localized pc{u"Mouse: PC", u"Maus: PC", u"Ratón: PC", u"Souris : PC", u"Mouse: PC", u"マウス:PC"};
+  constexpr pvz::Localized vsync_on{u"VSync: On", u"VSync: An", u"VSync: Sí", u"VSync : oui", u"VSync: Sì", u"VSync:オン"};
+  constexpr pvz::Localized vsync_off{u"VSync: Off", u"VSync: Aus", u"VSync: No", u"VSync : non", u"VSync: No", u"VSync:オフ"};
+  constexpr pvz::Localized pause_on{u"Pause if unfocused: On", u"Pause im Hintergrund: An", u"Pausa en segundo plano: Sí",
+      u"Pause si inactif : oui", u"Pausa in background: Sì", u"非アクティブ時ポーズ:オン"};
+  constexpr pvz::Localized pause_off{u"Pause if unfocused: Off", u"Pause im Hintergrund: Aus", u"Pausa en segundo plano: No",
+      u"Pause si inactif : non", u"Pausa in background: No", u"非アクティブ時ポーズ:オフ"};
+  constexpr pvz::Localized windowed{u"Display: Windowed", u"Anzeige: Fenster", u"Pantalla: Ventana",
+      u"Affichage : fenêtré", u"Schermo: finestra", u"画面:ウィンドウ"};
+  constexpr pvz::Localized fullscreen{u"Display: Fullscreen", u"Anzeige: Vollbild", u"Pantalla: Completa",
+      u"Affichage : plein écran", u"Schermo: intero", u"画面:フルスクリーン"};
+  constexpr pvz::Localized borderless{u"Display: Borderless", u"Anzeige: Randlos", u"Pantalla: Sin bordes",
+      u"Affichage : sans bordure", u"Schermo: senza bordi", u"画面:ボーダーレス"};
+  constexpr pvz::Localized intro_on{u"Skip intro: On", u"Intro überspringen: An", u"Saltar intro: Sí",
+      u"Passer l'intro : oui", u"Salta intro: Sì", u"イントロをスキップ:オン"};
+  constexpr pvz::Localized intro_off{u"Skip intro: Off", u"Intro überspringen: Aus", u"Saltar intro: No",
+      u"Passer l'intro : non", u"Salta intro: No", u"イントロをスキップ:オフ"};
+  const std::array<std::u16string, 6> labels{
+      button.page ? text(mode == "console" ? console : pc) : text(kPcSettingsText),
+      text(vsync ? vsync_on : vsync_off),
+      text(pause ? pause_on : pause_off),
+      text(display == "windowed" ? windowed : display == "fullscreen" ? fullscreen : borderless),
+      text(REXCVAR_GET(pvz_skip_intro) ? intro_on : intro_off),
+      text(language == running_language ? current : next) + text(kLanguages[LanguageIndex(language)].name)};
   for (size_t i = 0; i < labels.size(); ++i) {
     const auto widget = i ? button.extra[i - 1] : button.widget;
     if (widget) WithLabel(ctx, base, labels[i], [&](uint32_t label) {
@@ -381,7 +413,10 @@ void pvz::UpdateMouseNavigation(PPCContext& ctx, uint32_t manager, uint8_t* base
       const auto listener = Call(ctx, base, sub_825DDB78, {4});
       Write(base, listener, 0x820BB39C);
       // Credits: Back leaves the music video, so it reads Skip.
-      const auto button = WithLabel(ctx, base, board ? u"Menu" : vt == 0x820B96EC ? u"Skip" : u"Back", [&](uint32_t label) {
+      constexpr pvz::Localized skip{u"Skip", u"Überspringen", u"Saltar", u"Passer", u"Salta", u"スキップ"};
+      const auto text = board ? pvz::PortText(kMenuText, u"MENU_BUTTON") :
+          vt == 0x820B96EC ? pvz::PortText(skip) : pvz::PortText({u"Back"}, u"BACK");
+      const auto button = WithLabel(ctx, base, text, [&](uint32_t label) {
         return Call(ctx, base, sub_82188F80, {board ? 1100u : 1101u, listener, parent, label});
       });
       found = navigation_buttons.emplace(parent, NavigationButton{button, listener}).first;
@@ -428,11 +463,11 @@ void pvz::UpdateMouseNavigation(PPCContext& ctx, uint32_t manager, uint8_t* base
       Pin(ctx, base, item, parent, {left, top, uint32_t(width), 46});
     };
     if (zen || garden_shop_buttons.contains(parent))
-      service_button(garden_shop_buttons, 1103, u"Shop", visible && zen && Call(ctx, base, sub_821A9678, {app}), 860, 6, 120);
+      service_button(garden_shop_buttons, 1103, pvz::PortText({u"Shop"}, u"SHOP_BUTTON"), visible && zen && Call(ctx, base, sub_821A9678, {app}), 860, 6, 120);
     const bool last_stand = app && Read(base, app + 0x9CC) == 32;
     if (last_stand || onslaught_buttons.contains(parent)) {
       const auto challenge = last_stand ? Read(base, parent + 0x1D4) : 0;
-      service_button(onslaught_buttons, 1107, u"Start Onslaught", visible && last_stand &&
+      service_button(onslaught_buttons, 1107, pvz::PortText({u"Start Onslaught"}, u"START_ONSLAUGHT"), visible && last_stand &&
           !base[parent + 0x1D9] && challenge && Read(base, challenge + 0x74) == 0, 285, 548, 230);
     }
     if (vt == 0x820CB23C) {
@@ -456,23 +491,26 @@ void pvz::UpdateMouseNavigation(PPCContext& ctx, uint32_t manager, uint8_t* base
       }
     }
     if (vt == 0x820B96EC)
-      service_button(credits_replay_buttons, 1116, u"Replay", visible && Read(base, parent + 0xDC) == 3 &&
+      service_button(credits_replay_buttons, 1116, pvz::PortText({u"Replay", u"Nochmal", u"Repetir", u"Rejouer", u"Rivedi", u"リプレイ"}), visible && Read(base, parent + 0xDC) == 3 &&
           !base[parent + 0x148], 520, -36, 120);
     if (vt == 0x820B899C && (Read(base, parent + 0x258) == pvz::kMiniGamesPage || bonus_buttons.contains(parent)))
-      service_button(bonus_buttons, 1115, u"Bonus Games", visible && Read(base, parent + 0x258) == pvz::kMiniGamesPage &&
+      service_button(bonus_buttons, 1115, pvz::PortText(pvz::kBonusGamesText), visible && Read(base, parent + 0x258) == pvz::kMiniGamesPage &&
           pvz::BonusGamesUnlocked(ctx, base, parent), 40, 548, 240);
     if (vt == 0x820C21A4) {
       // MailScreen +1CC: 0 Inbox, 1 Read Messages.
       const bool read = Read(base, parent + 0x1CC) == 1;
-      service_button(mail_read_buttons, 1113, u"Read Mail", visible && !read, 40, 548, 240);
-      service_button(mail_inbox_buttons, 1114, u"Inbox", visible && read, 40, 548, 240);
+      service_button(mail_read_buttons, 1113, pvz::PortText({u"Read Mail", u"Gelesene Post", u"Correo leído",
+          u"Messages lus", u"Posta letta", u"開封済みメール"}), visible && !read, 40, 548, 240);
+      service_button(mail_inbox_buttons, 1114, pvz::PortText({u"Inbox"}, u"INBOX"), visible && read, 40, 548, 240);
     }
     if (vt == 0x820BBF94) {
       auto endless = endless_buttons.find(parent);
       if (endless == endless_buttons.end() && visible) {
         const auto listener = Call(ctx, base, sub_825DDB78, {4});
         Write(base, listener, 0x820BB39C);
-        const auto item = WithLabel(ctx, base, u"Survival Endless", [&](uint32_t label) {
+        const auto text = pvz::PortText({u"Survival Endless", u"Überleben: Endlos", u"Superv. infinita",
+            u"Survie : sans fin", u"Sopravv. infinita", u"エンドレスサバイバル"});
+        const auto item = WithLabel(ctx, base, text, [&](uint32_t label) {
           return Call(ctx, base, sub_82188F80, {1102u, listener, parent, label});
         });
         endless = endless_buttons.emplace(parent, NavigationButton{item, listener}).first;
@@ -699,6 +737,7 @@ void pvz::ApplyGameLanguage(const std::filesystem::path& game_data_root) {
   rex::cvar::SetFlagByName("user_language", std::to_string(id));
   REXLOG_INFO("PvZ language: {} (user_language {})", language, id);
 }
+pvz::Language pvz::RunningLanguage() { return Language(LanguageIndex(running_language)); }
 bool pvz::HasImportedPackage() { return imported_package; }
 void pvz::SetHostSettingsCallback(std::function<void()> callback) {
   std::lock_guard lock(callback_mutex); host_callback = std::move(callback);
@@ -812,7 +851,10 @@ REX_HOOK_RAW(sub_8219B8A0) {
   __imp__sub_8219B8A0(ctx, base);
   if (Read(base, chooser) != 0x820CA94C || chooser_buttons.contains(chooser)) return;
   std::array<uint32_t, 4> items{};
-  const std::array<std::u16string_view, 4> labels{u"LET'S ROCK!", u"SHOP", u"ALMANAC", u"MENU"};
+  const std::array labels{pvz::PortText({u"LET'S ROCK!"}, u"LETS_ROCK_BUTTON"),
+      pvz::PortText({u"SHOP", u"LADEN", u"TIENDA", u"MAGASIN", u"NEGOZIO", u"ショップ"}),
+      pvz::PortText({u"ALMANAC", u"LEXIKON", u"ALMANAQUE", u"ALMANACH", u"ENCICLOPEDIA", u"図鑑"}),
+      pvz::PortText({u"MENU", u"MENÜ", u"MENÚ", u"MENU", u"MENU", u"メニュー"})};
   const std::array<uint32_t, 4> ids{100, 105, 103, 1100};
   // PC layout: LET'S ROCK inside the panel, Shop and Almanac to its lower
   // right on the lawn, Menu where Board keeps it in the top-right corner.
@@ -904,12 +946,12 @@ REX_HOOK_RAW(sub_82198850) {
   if (Read(base, dialog) != kHelpOptions) return;
   auto found = buttons.find(dialog);
   if (found == buttons.end()) {
-    const auto widget = WithLabel(ctx, base, u"Mouse: PC", [&](uint32_t label) {
+    const auto widget = WithLabel(ctx, base, kPcSettingsText(pvz::RunningLanguage()), [&](uint32_t label) {
       return Call(ctx, base, sub_82188F80, {kMouseMode, dialog + 0xD4, dialog, label});
     });
     found = buttons.emplace(dialog, SettingButton{widget, ""}).first;
     auto& setting = found->second;
-    setting.cheats = WithLabel(ctx, base, u"Cheats", [&](uint32_t label) {
+    setting.cheats = WithLabel(ctx, base, kCheatsText(pvz::RunningLanguage()), [&](uint32_t label) {
       return Call(ctx, base, sub_82188F80, {1007, dialog + 0xD4, dialog, label});
     });
     const auto app = Read(base, dialog + 0x1A4), manager = Read(base, dialog + 0x20);
@@ -928,7 +970,7 @@ REX_HOOK_RAW(sub_82198850) {
     for (size_t i = 0; i < setting.visible.size(); ++i)
       setting.visible[i] = base[Read(base, dialog + 0x1C4 + uint32_t(i * 4)) + 0x70];
     for (size_t i = 0; i < setting.extra.size(); ++i) {
-      setting.extra[i] = WithLabel(ctx, base, u"PC Settings", [&](uint32_t label) {
+      setting.extra[i] = WithLabel(ctx, base, kPcSettingsText(pvz::RunningLanguage()), [&](uint32_t label) {
         return Call(ctx, base, sub_82188F80, {ExtraRowId(i), dialog + 0xD4, dialog, label});
       });
     }

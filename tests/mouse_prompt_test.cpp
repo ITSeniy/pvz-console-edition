@@ -38,5 +38,34 @@ int main() {
   check(pvz::PcGameText(u"ADVICE_BEGHOULED_DRAG_TO_MATCH_3", u"Hold <X>", false, true) == u"Hold <X>");
   check(pvz::PcGameText(u"SAVING_LONG", u"console", false, false).find(u"console") == std::u16string::npos);
   check(pvz::PcGameText(u"PLANT_DESCRIPTION", plain, true, true) == plain);
+  // Other languages: their own phrases, the game's text where nothing is
+  // added, and no English mixed in.
+  using pvz::Language;
+  check(pvz::MousePrompt(u"Drücke <A> über dem Gras, <S>.", false, Language::De) == u"Klicke über dem Gras, Escape.");
+  check(pvz::MousePrompt(u"<B> Hauptmenü", false, Language::De) == u"Rechtsklick: Hauptmenü");
+  check(pvz::MousePrompt(u"芝生の上で<A>を押して、<B>でキャンセル", false, Language::Jp) ==
+      u"芝生の上で左クリックして、右クリックでキャンセル");
+  check(pvz::MousePrompt(u"¡Pulsa <A> en la hierba!", false, Language::Es) == u"¡Haz clic en la hierba!");
+  check(pvz::PcGameText(u"CROW_SELECTION_7", u"Spiel verlassen.", false, true, {}, Language::De) == u"Spiel verlassen.");
+  check(pvz::PcGameText(u"CROW_SELECTION_7", u"Return to Game Library.", false, true) == u"Exit the game.");
+  check(pvz::PcGameText(u"MAILBOX_EMPTY", u"Du hast KEINE neuen Nachrichten!", false, true, {}, Language::De)
+      .find(u"Briefe") != std::u16string::npos);
+  check(pvz::PcGameText(u"HELP_TEXT_5_1",
+      u"Willkommen zu Hause! Deppie Dave renoviert ab und zu!\r\n\r\nHäuser von Xbox LIVE-Freunden siehst du mit <l>.",
+      true, true, {}, Language::De) == u"Willkommen zu Hause! Deppie Dave renoviert ab und zu!");
+  check(pvz::PcGameText(u"HELP_TEXT_5_1", u"ようこそ!お家をリフォームしてくれるよ。<l>ボタンでXbox LIVEの",
+      true, true, {}, Language::Jp) == u"ようこそ!お家をリフォームしてくれるよ。");
+  check(pvz::PcGameText(u"2P_JOIN_TEXT", u"Joueur 2\r\nAppuyez sur <A>.\r\n\r\nAppuyez sur <B> pour annuler.",
+      true, true, {}, Language::Fr) == u"Joueur 2\r\nAppuyez sur <A>.\r\n\r\nFaites un clic droit pour annuler.");
+  check(pvz::PcGameText(u"2P_JOIN_TEXT", u"Giocatore 2\r\nCollega un controller e premi <A>\r\n\r\nPremi <B> per annullare",
+      false, true, {}, Language::It).find(u"premi <A>\no fai clic sinistro") != std::u16string::npos);
+  check(pvz::PcGameText(u"ADVICE_CLICK_SEED_PACKET", u"<L>と<R>", true, true, {}, Language::Jp) ==
+      u"プラントをクリックして選ぼう!");
+  check(pvz::PcGameText(u"ADVICE_CLICK_ON_GRASS", u"Press <A> on the grass to plant your seed!", true, true) ==
+      u"Left-click on the grass to plant your seed!");
+  check(pvz::PcGameText(u"ADVICE_BEGHOULED_TWIST_TO_MATCH_3", u"<X>", true, false, {}, Language::It) ==
+      u"Fai clic per ruotare le piante e abbinarne 3 dello stesso tipo.");
+  check(pvz::PcGameText(u"HELP_TEXT_2_B", u"<B> Graben", true, true, {}, Language::De).empty());
+  check(pvz::PcGameText(u"HELP_TEXT_2_B", u"<B> Graben", true, false, {}, Language::De) == u"Rechte Taste: Nebenaktion");
   std::cout << "mouse prompt checks passed\n";
 }

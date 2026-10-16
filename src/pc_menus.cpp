@@ -4,6 +4,7 @@
 #include "mouse_bridge.h"
 #include "input_backend.h"
 #include "game_settings.h"
+#include "pc_text_runtime.h"
 #include <rex/cvar.h>
 #include <rex/hook.h>
 #include <rex/logging.h>
@@ -57,7 +58,7 @@ uint32_t Call(PPCContext& ctx, uint8_t* b, PPCFunc* fn, std::initializer_list<ui
 // LawnApp::DoDialog with raw UTF-16 strings; it constructs its own copies.
 // Mode 1 shows two buttons (result 1000/1001), mode 3 one footer button.
 uint32_t NativeDialog(PPCContext& ctx, uint8_t* b, uint32_t app, uint32_t id,
-    std::array<std::u16string_view, 4> text, uint32_t mode) {
+    std::array<std::u16string, 4> text, uint32_t mode) {
   std::array<uint32_t, 4> strings{};
   for (size_t i = 0; i < text.size(); ++i) {
     // Scratch between the hook's stack pointer and the callee frame (0x800).
@@ -71,10 +72,16 @@ uint32_t NativeDialog(PPCContext& ctx, uint8_t* b, uint32_t app, uint32_t id,
   }
   return Call(ctx, b, sub_821A3FF8, {app, id, strings[0], strings[1], strings[2], strings[3], mode});
 }
+std::u16string OkText() { return pvz::PortText({u"OK"}, u"DIALOG_BUTTON_OK"); }
+std::u16string CancelText() { return pvz::PortText({u"Cancel"}, u"BUTTON_CANCEL"); }
+std::u16string UnlockTitle() { return pvz::PortText({u"Unlock Full Game"}, u"UNLOCK_FULL_VERSION"); }
 uint32_t ConfirmExit(PPCContext& ctx, uint8_t* b, uint32_t app) {
   // The header sets LawnDialog's width; a short one keeps the minimum size.
-  return NativeDialog(ctx, b, app, 42, {u"Quit Game?",
-      u"Are you sure you want to quit the game?", u"Quit", u"Cancel"}, 1);
+  return NativeDialog(ctx, b, app, 42, {
+      pvz::PortText({u"Quit Game?", u"Spiel beenden?", u"¿Salir del juego?", u"Quitter le jeu ?",
+          u"Uscire dal gioco?", u"終了しますか?"}),
+      pvz::PortText({u"Are you sure you want to quit the game?"}, u"QUIT_MESSAGE"),
+      pvz::PortText({u"Quit"}, u"QUIT_BUTTON"), CancelText()}, 1);
 }
 // Full-game unlock from the player's own XBLA package. The host picks and
 // checks the file; the guest applies it like a Marketplace purchase.
@@ -134,11 +141,19 @@ void pvz::UpdatePcMenus(PPCContext& ctx, uint8_t* b, uint32_t manager) {
       rex::cvar::SetFlagByName("license_mask", "1");
       const auto full = Call(ctx, b, sub_821AFCA0, {app, 0});
       REXLOG_INFO("PvZ full game unlocked in game; native license check {}", full);
-      NativeDialog(ctx, b, app, 43, {u"Full Game Unlocked!",
-          u"Thank you! Every level, mode and plant is now available.", u"OK", u""}, 3);
+      NativeDialog(ctx, b, app, 43, {
+          pvz::PortText({u"Full Game Unlocked!", u"Vollversion freigeschaltet!", u"¡Juego completo desbloqueado!",
+              u"Jeu complet débloqué !", u"Gioco completo sbloccato!", u"完全版を解除しました!"}),
+          pvz::PortText({u"Thank you! Every level, mode and plant is now available.",
+              u"Vielen Dank! Alle Level, Modi und Pflanzen sind jetzt verfügbar.",
+              u"¡Gracias! Ya tienes disponibles todos los niveles, modos y plantas.",
+              u"Merci ! Tous les niveaux, modes et plantes sont maintenant disponibles.",
+              u"Grazie! Ora tutti i livelli, le modalità e le piante sono disponibili.",
+              u"ありがとう!すべてのステージ、モード、\nプラントが遊べるようになりました。"}),
+          OkText(), u""}, 3);
     } else if (!unlocked->message.empty()) {
       REXLOG_INFO("PvZ in-game unlock failed: {}", unlocked->message);
-      NativeDialog(ctx, b, app, 43, {u"Unlock Full Game", Widen(unlocked->message), u"OK", u""}, 3);
+      NativeDialog(ctx, b, app, 43, {UnlockTitle(), Widen(unlocked->message), OkText(), u""}, 3);
     }
     unlock_busy.store(false);
   }
@@ -181,17 +196,48 @@ REX_HOOK_RAW(sub_822CA130) {
   const auto app = Read(base, 0x82D0BC88);
   if (!app) { __imp__sub_822CA130(ctx, base); return; }
   if (rex::cvar::Query<bool>("pvz_full_version")) {
-    NativeDialog(ctx, base, app, 43, {u"Full Game",
-        u"The full game is unlocked.\nAdditional content is unavailable in this PC build.", u"OK", u""}, 3);
+    NativeDialog(ctx, base, app, 43, {
+        pvz::PortText({u"Full Game", u"Vollversion", u"Juego completo", u"Jeu complet", u"Gioco completo", u"完全版"}),
+        pvz::PortText({u"The full game is unlocked.\nAdditional content is unavailable in this PC build.",
+            u"Das vollständige Spiel ist freigeschaltet.\nZusatzinhalte gibt es in dieser PC-Version nicht.",
+            u"El juego completo está desbloqueado.\nEl contenido adicional no está disponible en esta versión para PC.",
+            u"Le jeu complet est débloqué.\nLe contenu supplémentaire n'est pas disponible dans cette version PC.",
+            u"Il gioco completo è sbloccato.\nI contenuti aggiuntivi non sono disponibili in questa versione per PC.",
+            u"完全版は解除されています。\nこのPC版では追加コンテンツは使えません。"}),
+        OkText(), u""}, 3);
   } else if (!unlock_busy.load()) {
     // Imported game files were already checked; only the purchase remains.
     const auto result = pvz::HasImportedPackage() ?
-        NativeDialog(ctx, base, app, 43, {u"Unlock Full Game",
+        NativeDialog(ctx, base, app, 43, {UnlockTitle(), pvz::PortText({
             u"The trial and the full version share the same game files.\n\n"
-            u"Unlock only if you bought the full version of Plants vs. Zombies.", u"I Bought It", u"Cancel"}, 1) :
-        NativeDialog(ctx, base, app, 43, {u"Unlock Full Game",
+            u"Unlock only if you bought the full version of Plants vs. Zombies.",
+            u"Testversion und Vollversion verwenden dieselben Spieldateien.\n\n"
+            u"Schalte es nur frei, wenn du die Vollversion von Pflanzen gegen Zombies gekauft hast.",
+            u"La versión de prueba y la completa usan los mismos archivos.\n\n"
+            u"Desbloquéalo solo si compraste la versión completa de Plantas contra Zombis.",
+            u"La version d'essai et la version complète utilisent les mêmes fichiers.\n\n"
+            u"Ne déverrouillez le jeu que si vous avez acheté la version complète de Plantes contre Zombies.",
+            u"La versione di prova e quella completa usano gli stessi file.\n\n"
+            u"Sbloccalo solo se hai acquistato la versione completa di Piante contro zombi.",
+            u"体験版と完全版のゲームファイルは同じです。\n\n"
+            u"プラント vs. ゾンビ の完全版を購入した場合のみ\n解除してください。"}),
+            pvz::PortText({u"I Bought It", u"Gekauft", u"Lo he comprado", u"Je l'ai acheté", u"L'ho acquistato",
+                u"購入しました"}), CancelText()}, 1) :
+        NativeDialog(ctx, base, app, 43, {UnlockTitle(), pvz::PortText({
             u"Choose your Plants vs. Zombies package or Xbox 360 disc image.\n\n"
-            u"By continuing, you confirm it is your own full copy.", u"Choose File", u"Cancel"}, 1);
+            u"By continuing, you confirm it is your own full copy.",
+            u"Wähle dein Pflanzen gegen Zombies-Paket oder Xbox 360-Disc-Image.\n\n"
+            u"Wenn du fortfährst, bestätigst du, dass es deine eigene Vollversion ist.",
+            u"Elige tu paquete de Plantas contra Zombis o la imagen de disco de Xbox 360.\n\n"
+            u"Al continuar, confirmas que es tu propia copia completa.",
+            u"Choisissez votre paquet Plantes contre Zombies ou votre image disque Xbox 360.\n\n"
+            u"En continuant, vous confirmez qu'il s'agit de votre propre copie complète.",
+            u"Scegli il pacchetto di Piante contro zombi o l'immagine del disco Xbox 360.\n\n"
+            u"Continuando, confermi che si tratta della tua copia completa.",
+            u"プラント vs. ゾンビ のパッケージか\nXbox 360 のディスクイメージを選んでください。\n\n"
+            u"このファイルが自分の完全版である場合のみ\n続けてください。"}),
+            pvz::PortText({u"Choose File", u"Datei wählen", u"Elegir archivo", u"Choisir un fichier",
+                u"Scegli file", u"ファイルを選ぶ"}), CancelText()}, 1);
     REXLOG_INFO("PvZ unlock prompt result {}", result);
     if (result == 1000 && !unlock_busy.exchange(true)) pvz::RequestHostMenu(pvz::HostMenu::Unlock);
   }
@@ -207,8 +253,16 @@ REX_HOOK_RAW(sub_821C0630) {
     const auto app = Read(base, menu + 0x110);
     if (!app || !Call(ctx, base, sub_821A9678, {app})) {
       if (app && StableMenuPanel(base, menu))
-        NativeDialog(ctx, base, app, 43, {u"Crazy Dave's Shop",
-            u"Crazy Dave opens his shop as you progress through Adventure. Keep playing!", u"OK", u""}, 3);
+        NativeDialog(ctx, base, app, 43, {
+            pvz::PortText({u"Crazy Dave's Shop", u"Deppie Daves Laden", u"Tienda de Crazy Dave",
+                u"Magasin de Dave le Dingo", u"Negozio di Dave il pazzo", u"クレイジーデイブのショップ"}),
+            pvz::PortText({u"Crazy Dave opens his shop as you progress through Adventure. Keep playing!",
+                u"Deppie Dave öffnet seinen Laden, wenn du im Abenteuer weiterkommst. Spiel weiter!",
+                u"Crazy Dave abrirá su tienda a medida que avances en el modo Aventura. ¡Sigue jugando!",
+                u"Dave le Dingo ouvre son magasin au fil du mode Aventure. Continuez à jouer !",
+                u"Dave il pazzo aprirà il negozio man mano che procedi nell'Avventura. Continua a giocare!",
+                u"アドベンチャーを進めると、\nクレイジーデイブがショップを開くよ。\nプレイを続けよう!"}),
+            OkText(), u""}, 3);
       return;
     }
     // Shop (16) lives on Extras: pressing it from the main panel plays its

@@ -3,6 +3,7 @@
 #include "input_backend.h"
 #include "pc_text_runtime.h"
 #include "bonus_games.h"
+#include "game_settings.h"
 #include <rex/hook.h>
 #include <rex/cvar.h>
 #include <rex/logging.h>
@@ -42,6 +43,44 @@ pvz::TextBindings Bindings() {
 }
 std::mutex advice_mutex;
 std::unordered_map<std::u16string, std::u16string> advice_keys;
+// LawnStrings of the running language, as the game loads them.
+std::mutex strings_mutex;
+std::unordered_map<std::u16string, std::u16string> game_strings;
+// "[KEY]" lines open an entry; its value runs to the next one.
+void ParseGameStrings(std::u16string_view text) {
+  std::lock_guard lock(strings_mutex);
+  std::u16string key, value;
+  const auto flush = [&] {
+    while (!value.empty() && (value.back() == u'\n' || value.back() == u' ')) value.pop_back();
+    if (!key.empty()) game_strings[key] = value;
+    value.clear();
+  };
+  for (size_t at = 0; at < text.size();) {
+    auto end = text.find(u'\n', at);
+    if (end == std::u16string_view::npos) end = text.size();
+    auto line = text.substr(at, end - at);
+    if (line.ends_with(u'\r')) line.remove_suffix(1);
+    at = end + 1;
+    if (line.size() > 2 && line.front() == u'[' && line.back() == u']') {
+      flush(); key = line.substr(1, line.size() - 2); continue;
+    }
+    if (!key.empty() && (!value.empty() || !line.empty())) value.append(line).push_back(u'\n');
+  }
+  flush();
+}
+}
+
+std::u16string pvz::GameString(std::u16string_view key) {
+  std::lock_guard lock(strings_mutex);
+  const auto found = game_strings.find(std::u16string(key));
+  return found != game_strings.end() ? found->second : std::u16string{};
+}
+std::u16string pvz::PortText(const Localized& text, std::u16string_view key) {
+  const auto language = RunningLanguage();
+  if (const auto own = text.In(language); !own.empty()) return std::u16string(own);
+  if (language != Language::En && !key.empty())
+    if (auto game = GameString(key); !game.empty()) return game;
+  return std::u16string(text.en);
 }
 
 std::u16string pvz::AdaptMouseMessage(std::u16string text, bool pc) {
@@ -49,7 +88,7 @@ std::u16string pvz::AdaptMouseMessage(std::u16string text, bool pc) {
   { std::lock_guard lock(advice_mutex);
     if (auto found = advice_keys.find(text); found != advice_keys.end()) key = found->second;
   }
-  return PcGameText(key, std::move(text), true, pc, Bindings());
+  return PcGameText(key, std::move(text), true, pc, Bindings(), RunningLanguage());
 }
 
 REX_EXTERN(__imp__sub_82284C60);
@@ -71,8 +110,8 @@ REX_HOOK_RAW(sub_82284C60) {
   if (key.starts_with(u"2P_") && pvz::LocalPlayersActive()) mouse = pvz::MouseUserIndex() == 0;
   if (mouse) bindings = Bindings();
   auto adapted = pvz::PcGameText(key, original, mouse,
-      rex::cvar::Query<std::string>("pvz_cursor_mode") == "pc", bindings);
-  if (key == u"PICK_CHALLENGE" && pvz::DrawingBonusPage()) adapted = u"Bonus Games";
+      rex::cvar::Query<std::string>("pvz_cursor_mode") == "pc", bindings, pvz::RunningLanguage());
+  if (key == u"PICK_CHALLENGE" && pvz::DrawingBonusPage()) adapted = pvz::PortText(pvz::kBonusGamesText);
   if (adapted == original || adapted.size() > 8192) return;
   // Assign the returned copy, never the localization table entry. A new lookup
   // can therefore restore controller markup after an input-owner switch.
@@ -99,10 +138,15 @@ REX_HOOK_RAW(sub_82285B70) {
 
 REX_EXTERN(__imp__sub_82284848);
 REX_HOOK_RAW(sub_82284848) {
+  // The game's string table loader; r3 holds the whole UTF-16 LawnStrings.
+  const auto text = ctx.r3.u32;
+  uint32_t size = 0;
+  while (size < 2 * 1024 * 1024 && (base[text + size] || base[text + size + 1])) size += 2;
+  std::u16string strings(size / 2, char16_t(0));
+  for (uint32_t i = 0; i < size / 2; ++i)
+    strings[i] = char16_t((unsigned(base[text + i * 2]) << 8) | base[text + i * 2 + 1]);
+  ParseGameStrings(strings);
   if (rex::cvar::Query<bool>("pvz_asset_audit")) {
-    const auto text = ctx.r3.u32;
-    uint32_t size = 0;
-    while (size < 2 * 1024 * 1024 && (base[text + size] || base[text + size + 1])) size += 2;
     std::filesystem::create_directories("runtime-data/diagnostics");
     std::ofstream out("runtime-data/diagnostics/lawnstrings-native.bin", std::ios::binary);
     out.write(reinterpret_cast<const char*>(base + text), size);

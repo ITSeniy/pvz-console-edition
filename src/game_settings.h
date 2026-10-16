@@ -1,4 +1,5 @@
 #pragma once
+#include "pc_locale.h"
 #include <filesystem>
 #include <functional>
 #include <rex/ppc/context.h>
@@ -11,6 +12,8 @@ bool HasImportedPackage();
 // Before the XEX loads: selects the game language (pvz_language) through
 // the SDK's user_language. Falls back to English without that language's pak.
 void ApplyGameLanguage(const std::filesystem::path& game_data_root);
+// The language this launch runs in (pvz_language as applied at startup).
+Language RunningLanguage();
 void ConfigureGameSettings(const std::filesystem::path& config_path,
                            const std::filesystem::path& game_data_root);
 void SetHostSettingsCallback(std::function<void()> callback);
