@@ -6,7 +6,10 @@
 #include <optional>
 
 namespace pvz {
-enum class MouseEventKind { Move, Button, Wheel, Cancel };
+// Key: a keyboard seed packet (delta 0..9) or the shovel (kKeyShovel) of the
+// mouse player, acting at the pointer like a click (key_bindings.h).
+enum class MouseEventKind { Move, Button, Wheel, Cancel, Key };
+inline constexpr int kKeyShovel = 10;
 enum class MouseCancelReason { PointerLeft, FocusLost, Controller, ModeChanged, Disabled, Overflow };
 struct MouseInputEvent {
   MouseEventKind kind = MouseEventKind::Move;
@@ -46,6 +49,15 @@ class MouseInputStream {
     published_ = point;
     MouseInputEvent event{MouseEventKind::Wheel, point};
     event.delta = std::clamp(delta, -1200, 1200);
+    Push(event);
+  }
+  // Keys act where the pointer is; without a pointer in the window they wait
+  // for the mouse.
+  void Key(int action, bool down) {
+    if (!published_ || action < 0 || action > kKeyShovel) return;
+    MouseInputEvent event{MouseEventKind::Key, published_};
+    event.down = down;
+    event.delta = action;
     Push(event);
   }
   void Cancel(MouseCancelReason reason) {

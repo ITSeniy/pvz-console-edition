@@ -1,6 +1,7 @@
 #pragma once
 #include <rex/cvar.h>
 #include <rex/input/mnk/mnk_input_driver.h>
+#include "key_bindings.h"
 #include <atomic>
 
 namespace pvz {
@@ -47,14 +48,20 @@ class BridgeMnkDriver final : public InputDriver,
   X_RESULT GetDeviceKeystroke(DeviceId id, uint32_t flags, X_INPUT_KEYSTROKE* out) override {
     return inner_.GetDeviceKeystroke(id, flags, out);
   }
-  // The mouse and the controller cover every action; the keyboard keeps only
-  // Escape (Start: pause and back) and F12 (screenshot). Key releases always pass, so a key held
-  // across a settings change cannot stay pressed.
+  // The keyboard has only the bound actions (key_bindings.h): Pause (Start:
+  // pause and back), Screenshot, the shovel and the seed packets. Other keys
+  // never reach the game as controller buttons. Key releases always pass, so
+  // a key held across a settings change cannot stay pressed.
   void OnKeyDown(rex::ui::KeyEvent& e) override {
-    if (e.virtual_key() == rex::ui::VirtualKey::kEscape) { KeyboardStart().store(true); inner_.OnKeyDown(e); }
-    if (e.virtual_key() == rex::ui::VirtualKey::kF12) ScreenshotRequested().store(true);
+    if (pvz::CaptureKey(e.virtual_key())) return; // Rebinding in the Keyboard menu.
+    const auto action = pvz::HandleGameKey(e.virtual_key(), true);
+    if (action == pvz::KeyAction::Pause) { KeyboardStart().store(true); inner_.OnKeyDown(e); }
+    if (action == pvz::KeyAction::Screenshot) ScreenshotRequested().store(true);
   }
-  void OnKeyUp(rex::ui::KeyEvent& e) override { inner_.OnKeyUp(e); }
+  void OnKeyUp(rex::ui::KeyEvent& e) override {
+    pvz::HandleGameKey(e.virtual_key(), false);
+    inner_.OnKeyUp(e);
+  }
   void OnMouseDown(rex::ui::MouseEvent& e) override {
     if (!rex::cvar::Query<bool>("pvz_mouse_cursor")) inner_.OnMouseDown(e);
   }

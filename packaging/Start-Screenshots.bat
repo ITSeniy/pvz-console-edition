@@ -5,7 +5,7 @@ rem in the "screenshots" folder next to this file.
 cd /d "%~dp0"
 echo Screenshot mode: press F12 to save a PNG to the screenshots folder.
 set "PSModulePath="
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0run.ps1" -Mouse --resolution_scale=2 %*
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0run.ps1" -Mouse --pvz_render_scale=2 %*
 set "PVZ_EXIT=%ERRORLEVEL%"
 if not "%PVZ_EXIT%"=="0" (
     echo Game exited with code %PVZ_EXIT%. Please send the latest file from logs.

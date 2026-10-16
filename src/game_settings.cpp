@@ -1,4 +1,5 @@
 #include "game_settings.h"
+#include "render_scale.h"
 #include "game_edition.h"
 #include "mouse_bridge.h"
 #include "input_backend.h"
@@ -14,6 +15,7 @@
 #include <unordered_map>
 #include <string_view>
 #include <array>
+#include <vector>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
@@ -103,9 +105,13 @@ REX_EXTERN(sub_8249B508); // Graphics::SetScale(x,y,centreX,centreY)
 namespace {
 constexpr uint32_t kHelpOptions = 0x820BAA54;
 constexpr uint32_t kMouseMode = 1002;
-// Rows after Mouse use 1003..1006; 1007 is Cheats.
-constexpr uint32_t kLanguageRow = 1008;
-uint32_t ExtraRowId(size_t i) { return i < 4 ? kMouseMode + uint32_t(i) + 1 : kLanguageRow; }
+// The PC page's rows below Mouse, top to bottom; 1007 is Cheats, the last row.
+constexpr uint32_t kVsyncRow = 1003, kPauseRow = 1004, kDisplayRow = 1005, kIntroRow = 1006,
+    kLanguageRow = 1008, kResolutionRow = 1009, kKeyboardRow = 1010;
+constexpr std::array kExtraRows{kVsyncRow, kPauseRow, kDisplayRow, kResolutionRow, kIntroRow, kLanguageRow, kKeyboardRow};
+uint32_t ExtraRowId(size_t i) { return kExtraRows[i]; }
+// pvz_render_scale values, cycled by the Resolution row.
+constexpr std::array<std::string_view, 5> kRenderScales{"auto", "1", "2", "3", "4"};
 // XConfig USER_LANGUAGE ids. The game reads the setting once at startup
 // (826163F0, stored at LawnApp +804) and mounts <code>.pak by it (8219F528).
 // In pvz::Language order. Each language goes by its own name where the
@@ -140,16 +146,18 @@ struct SettingButton {
   uint32_t widget;
   std::string mode;
   bool page = false;
-  std::array<uint32_t, 5> extra{};
+  std::array<uint32_t, kExtraRows.size()> extra{};
   std::array<uint8_t, 4> visible{};
   std::array<std::array<uint32_t, 4>, 5> navigation{};
   uint32_t cheats = 0;
   uint32_t return_focus = 0;
 };
 // Every widget we add to the dialog: the page button, its rows and Cheats.
-std::array<uint32_t, 7> AddedWidgets(const SettingButton& setting) {
-  return {setting.widget, setting.extra[0], setting.extra[1], setting.extra[2], setting.extra[3],
-      setting.extra[4], setting.cheats};
+std::array<uint32_t, kExtraRows.size() + 2> AddedWidgets(const SettingButton& setting) {
+  std::array<uint32_t, kExtraRows.size() + 2> widgets{setting.widget};
+  std::copy(setting.extra.begin(), setting.extra.end(), widgets.begin() + 1);
+  widgets.back() = setting.cheats;
+  return widgets;
 }
 std::unordered_map<uint32_t, SettingButton> buttons;
 std::unordered_map<uint32_t, std::array<uint32_t, 4>> chooser_buttons;
@@ -273,7 +281,8 @@ void UpdateLabel(PPCContext& ctx, uint8_t* base, SettingButton& button) {
   const bool pause = REXCVAR_GET(pvz_pause_on_focus_loss);
   const auto display = REXCVAR_GET(pvz_display_mode);
   const auto language = REXCVAR_GET(pvz_language);
-  const auto signature = mode + display + language + std::to_string(vsync) + std::to_string(pause) + std::to_string(button.page) + std::to_string(REXCVAR_GET(pvz_skip_intro));
+  const auto scale = rex::cvar::Query<std::string>("pvz_render_scale");
+  const auto signature = mode + display + language + scale + std::to_string(vsync) + std::to_string(pause) + std::to_string(button.page) + std::to_string(REXCVAR_GET(pvz_skip_intro));
   if (button.mode == signature) return;
   const auto ui = pvz::RunningLanguage();
   const auto text = [&](const pvz::Localized& value) { return std::u16string(value(ui)); };
@@ -300,13 +309,28 @@ void UpdateLabel(PPCContext& ctx, uint8_t* base, SettingButton& button) {
       u"Passer l'intro : oui", u"Salta intro: Sì", u"イントロをスキップ:オン"};
   constexpr pvz::Localized intro_off{u"Skip intro: Off", u"Intro überspringen: Aus", u"Saltar intro: No",
       u"Passer l'intro : non", u"Salta intro: No", u"イントロをスキップ:オフ"};
-  const std::array<std::u16string, 6> labels{
+  // The render scale applies when the GPU starts: "Auto (2x)" names the
+  // scale auto chose for this launch; another choice waits for a restart.
+  constexpr pvz::Localized resolution{u"Resolution: ", u"Auflösung: ", u"Resolución: ", u"Résolution : ",
+      u"Risoluzione: ", u"画面サイズ:"}; // The Japanese fonts lack 像 (解像度).
+  constexpr pvz::Localized automatic{u"Auto", u"Auto", u"Auto", u"auto", u"Auto", u"オート"};
+  constexpr pvz::Localized restart{u" (restart)", u" (Neustart)", u" (reinicio)", u" (relancer)",
+      u" (riavvio)", u"(次回起動時)"};
+  constexpr pvz::Localized keyboard{u"Keyboard", u"Tastatur", u"Teclado", u"Clavier", u"Tastiera", u"キーボード"};
+  const auto running_scale = std::to_string(pvz::RunningRenderScale());
+  const bool scale_pending = scale != pvz::RunningRenderScaleSetting();
+  auto resolution_label = text(resolution) + (scale == "auto" ? text(automatic) : std::u16string(scale.begin(), scale.end()) + u"x");
+  if (scale == "auto" && !scale_pending) resolution_label += u" (" + std::u16string(running_scale.begin(), running_scale.end()) + u"x)";
+  if (scale_pending) resolution_label += text(restart);
+  const std::array<std::u16string, kExtraRows.size() + 1> labels{
       button.page ? text(mode == "console" ? console : pc) : text(kPcSettingsText),
       text(vsync ? vsync_on : vsync_off),
       text(pause ? pause_on : pause_off),
       text(display == "windowed" ? windowed : display == "fullscreen" ? fullscreen : borderless),
+      resolution_label,
       text(REXCVAR_GET(pvz_skip_intro) ? intro_on : intro_off),
-      text(language == running_language ? current : next) + text(kLanguages[LanguageIndex(language)].name)};
+      text(language == running_language ? current : next) + text(kLanguages[LanguageIndex(language)].name),
+      text(keyboard)};
   for (size_t i = 0; i < labels.size(); ++i) {
     const auto widget = i ? button.extra[i - 1] : button.widget;
     if (widget) WithLabel(ctx, base, labels[i], [&](uint32_t label) {
@@ -326,9 +350,9 @@ void Layout(PPCContext& ctx, uint8_t* base, uint32_t dialog, uint32_t button) {
   }
   const auto credits = Read(base, dialog + 0x1D0);
   const auto back = Read(base, dialog + 0x1D4);
-  // The PC page has seven rows above Back. Keep Back at its native position
+  // The PC page has nine rows above Back. Keep Back at its native position
   // inside the dialog frame; the rows are shorter to fit above it.
-  constexpr uint32_t kPageTop = 114, kPageStep = 36, kPageRow = 34;
+  constexpr uint32_t kPageTop = 114, kPageStep = 28, kPageRow = 27;
   const auto x = Read(base, back + 0x190), width = Read(base, back + 0x1A4);
   Call(ctx, base, sub_82188E20, {back, x, 371, width, 46});
   base[setting.cheats + 0x70] = setting.page;
@@ -347,8 +371,11 @@ void Layout(PPCContext& ctx, uint8_t* base, uint32_t dialog, uint32_t button) {
     base[original + 0x70] = setting.page ? 0 : setting.visible[i];
   }
   if (setting.page) {
-    const std::array row{button, setting.extra[0], setting.extra[1], setting.extra[2], setting.extra[3],
-        setting.extra[4], setting.cheats, back};
+    // Up/down cycles Mouse, the rows, Cheats and Back.
+    const auto added = AddedWidgets(setting);
+    std::vector<uint32_t> row(added.begin(), added.end());
+    row.front() = button;
+    row.push_back(back);
     for (size_t i = 0; i < row.size(); ++i) {
       Write(base, row[i] + 0xB0, row[(i + row.size() - 1) % row.size()]);
       Write(base, row[i] + 0xB4, row[(i + 1) % row.size()]);
@@ -739,6 +766,7 @@ void pvz::ApplyGameLanguage(const std::filesystem::path& game_data_root) {
 }
 pvz::Language pvz::RunningLanguage() { return Language(LanguageIndex(running_language)); }
 bool pvz::HasImportedPackage() { return imported_package; }
+bool pvz::SaveSetting(std::string_view key, std::string_view value) { return SavePreference(key, value); }
 void pvz::SetHostSettingsCallback(std::function<void()> callback) {
   std::lock_guard lock(callback_mutex); host_callback = std::move(callback);
 }
@@ -1034,12 +1062,16 @@ REX_HOOK_RAW(sub_82198B30) {
     const auto id = ctx.r4.u32;
     const bool leave_pc_page = (id == 4 || id == 1000) && setting.page;
     if (id == 1007 && setting.page) { pvz::RequestHostMenu(pvz::HostMenu::Cheats); return; }
+    if (id == kKeyboardRow && setting.page) { pvz::RequestHostMenu(pvz::HostMenu::Keyboard); return; }
     if (id == kMouseMode && !setting.page) setting.page = true;
     else if ((id == 4 || id == 1000) && setting.page) setting.page = false;
-    else if (((id >= kMouseMode && id <= kMouseMode + 4) || id == kLanguageRow) && setting.page) {
+    else if (((id >= kMouseMode && id <= kIntroRow) || id == kLanguageRow || id == kResolutionRow) && setting.page) {
       std::string key, value;
       bool quoted = false;
-      if (id == kLanguageRow) { key = "pvz_language"; quoted = true;
+      if (id == kResolutionRow) { key = "pvz_render_scale"; quoted = true;
+        const auto at = std::find(kRenderScales.begin(), kRenderScales.end(), rex::cvar::Query<std::string>(key));
+        value = at == kRenderScales.end() || at + 1 == kRenderScales.end() ? kRenderScales[0] : at[1];
+      } else if (id == kLanguageRow) { key = "pvz_language"; quoted = true;
         // Cycle through the languages whose pak the imported game has.
         auto next = LanguageIndex(REXCVAR_GET(pvz_language));
         do next = (next + 1) % kLanguages.size();
@@ -1047,11 +1079,11 @@ REX_HOOK_RAW(sub_82198B30) {
         value = kLanguages[next].code;
       } else if (id == kMouseMode) { key = "pvz_cursor_mode"; quoted = true;
         value = rex::cvar::Query<std::string>("pvz_cursor_mode") == "pc" ? "console" : "pc";
-      } else if (id == kMouseMode + 1) { key = "pvz_vsync";
+      } else if (id == kVsyncRow) { key = "pvz_vsync";
         value = rex::cvar::Query<bool>(key) ? "false" : "true";
-      } else if (id == kMouseMode + 2) { key = "pvz_pause_on_focus_loss";
+      } else if (id == kPauseRow) { key = "pvz_pause_on_focus_loss";
         value = REXCVAR_GET(pvz_pause_on_focus_loss) ? "false" : "true";
-      } else if (id == kMouseMode + 4) { key = "pvz_skip_intro";
+      } else if (id == kIntroRow) { key = "pvz_skip_intro";
         value = REXCVAR_GET(pvz_skip_intro) ? "false" : "true";
       } else { key = "pvz_display_mode"; quoted = true;
         const auto mode = REXCVAR_GET(pvz_display_mode);

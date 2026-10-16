@@ -9,6 +9,8 @@ void PublishPointer(std::optional<Point> position);
 // click_count follows Sexy's convention: 1 = left, -1 = right.
 void PublishButton(Point position, int click_count, bool down);
 void PublishWheel(Point position, int delta);
+// A keyboard seed packet (0..9) or kKeyShovel, pressed or released.
+void PublishKeyAction(int action, bool down);
 void NotifyMouseModeChanged();
 void PublishReplayMouseBatch(std::span<const MouseInputEvent> events);
 bool ReplayScreenReady(uint32_t vtable);

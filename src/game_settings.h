@@ -16,6 +16,9 @@ void ApplyGameLanguage(const std::filesystem::path& game_data_root);
 Language RunningLanguage();
 void ConfigureGameSettings(const std::filesystem::path& config_path,
                            const std::filesystem::path& game_data_root);
+// Saves one root-level preference to pvz.toml (value as TOML, quoted for
+// strings), leaving the other lines as they are.
+bool SaveSetting(std::string_view key, std::string_view value);
 void SetHostSettingsCallback(std::function<void()> callback);
 void RefreshHostSettings();
 void UpdateMouseNavigation(PPCContext& ctx, uint32_t manager, uint8_t* base);

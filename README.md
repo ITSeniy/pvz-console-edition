@@ -61,6 +61,12 @@ package or a disc image. The program reads them on first launch.
 - **Six languages.** English, German, Spanish, French, Italian and Japanese, from the
   game's own language packs. Pick one in *Options → PC Settings → Language*; it applies
   on the next launch. The port's own buttons, mouse hints and menus follow it too.
+- **Sharper picture.** The game renders at 2x, 3x or 4x its 1280x720 frame. *Auto* picks
+  the size from your display (2560x1440 for 1080p and 1440p, 3840x2160 for 4K) and scales
+  it down to the window. Change it in *Options → PC Settings → Resolution*; it applies on
+  the next launch.
+- **Keyboard shortcuts.** `1`–`9` and `0` take seed packets, `X` the shovel. Every key,
+  including pause and screenshot, can be changed in *Options → PC Settings → Keyboard*.
 - **Small PC touches.** A quit confirmation, achievements and cheat codes in a PC menu,
   `Escape` for pause, and a "Skip" button on the credits.
 
@@ -86,10 +92,13 @@ because the recompiled code is tied to this exact executable.
 | Right button | cancel what you hold | dig up (hold) |
 | Wheel | — | cycle seed packets |
 | Middle button | — | butter a zombie (Co-op) |
+| `1`–`9`, `0` | pick up (or put back) seed packet 1–10 | select seed packet 1–10 |
+| `X` | pick up (or put back) the shovel | dig up (hold) |
 | `Escape` | pause | pause |
 | `F12` | screenshot (PNG in `screenshots`) | screenshot |
 
-Saves and settings live in `runtime-data\user`.
+Keys can be changed in *Options → PC Settings → Keyboard*. Saves and settings live in
+`runtime-data\user`.
 
 ## Known issues
 
@@ -125,14 +134,15 @@ the console releases offered, in one place, on the platforms you play on.
 - [x] First-run import from an XBLA package or a disc image
 - [x] Choose the game language (English, German, Spanish, French, Italian, Japanese)
 - [x] PC additions (buttons, mouse hints, PC menus) in every game language
+- [x] Higher rendering resolutions (whole multiples of 720p, with Auto)
+- [x] Rebindable keyboard shortcuts, with seed packets on the digits and the shovel on `X`
 
 **Next**
-- [ ] Higher rendering resolutions and widescreen-friendly UI
+- [ ] Widescreen-friendly UI
 - [ ] PC-style mouse art (cursor, tool icons) instead of console leftovers
 - [ ] Local leaderboard for Survival Endless
 - [ ] Wider controller testing (DualSense, Switch Pro, two pads at once)
 - [ ] Fix the Zombiquarium hover artifact in the renderer
-- [ ] Rebindable keyboard shortcuts
 
 **Later**
 - [ ] Online play: Versus and Co-op over the network, leaderboards, mail

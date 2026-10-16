@@ -14,7 +14,8 @@ New-Item -ItemType Directory -Force -Path logs | Out-Null
 $gameRoot = [System.IO.Path]::GetFullPath($GameDataRoot).Replace('\', '/')
 $arguments = @('--game_data_root', $gameRoot, '--user_data_root', $testUserRoot,
     '--cache_root', "$profile/cache", '--log_file', $log, '--log_flush_interval', '1',
-    '--fullscreen=false', '--pvz_skip_intro=true')
+    '--fullscreen=false', '--pvz_skip_intro=true', '--pvz_render_scale=1')
+# Replays and frame checks measure 1280x720 captures; a later argument can still ask for more.
 if ($GameArgs) { $arguments += $GameArgs }
 $quotedArguments = $arguments | ForEach-Object { '"' + $_.Replace('"', '\"') + '"' }
 $process = Start-Process -FilePath "$PSScriptRoot/build/pvz-console-edition.exe" -ArgumentList $quotedArguments -WorkingDirectory $PSScriptRoot -WindowStyle Hidden -PassThru

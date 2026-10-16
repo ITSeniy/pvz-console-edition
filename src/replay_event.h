@@ -14,7 +14,8 @@ enum class ReplayAction {
   WaitShop, WaitAlmanac, WaitChooser, WaitChallenge, WaitIdle,
   ModePc, ModeConsole, PadPress, PadNeutral, PadDrift,
   Controller, ControllerLeft, ControllerRight, Controller2, ControllerLeft2, ControllerRight2, FixtureLevel, FixtureAward,
-  FixtureMode, FixtureHeavySun, FixtureSlotSeed, FixtureGardenCoin, FixtureCoin, Capture, TwistMatch, BeghouledMatch, FixtureVsync, BatchBegin, BatchEnd
+  FixtureMode, FixtureHeavySun, FixtureSlotSeed, FixtureGardenCoin, FixtureCoin, Capture, TwistMatch, BeghouledMatch, FixtureVsync, BatchBegin, BatchEnd,
+  KeyDown, KeyUp
 };
 enum class ReplayGroup { Mouse, Wait, Mode, PadActivity, Controller, Fixture, Batch };
 struct ReplayActionInfo { std::string_view name; ReplayAction action; ReplayGroup group; };
@@ -63,7 +64,10 @@ inline constexpr ReplayActionInfo kReplayActions[] = {
   {"swipe_beghouled_match", ReplayAction::BeghouledMatch, ReplayGroup::Fixture},
   {"fixture_vsync", ReplayAction::FixtureVsync, ReplayGroup::Fixture},
   {"batch_begin", ReplayAction::BatchBegin, ReplayGroup::Batch},
-  {"batch_end", ReplayAction::BatchEnd, ReplayGroup::Batch}
+  {"batch_end", ReplayAction::BatchEnd, ReplayGroup::Batch},
+  // x: a Windows virtual-key code, through the key bindings (key_bindings.h).
+  {"key_down", ReplayAction::KeyDown, ReplayGroup::Fixture},
+  {"key_up", ReplayAction::KeyUp, ReplayGroup::Fixture}
 };
 struct ReplayEvent { double seconds = 0; Point point{}; ReplayActionInfo info{}; };
 inline bool ParseReplayRow(std::string line, ReplayEvent& event) {
@@ -91,6 +95,7 @@ inline bool ParseReplayRow(std::string line, ReplayEvent& event) {
     case FixtureGardenCoin: return MapBoardPointer(event.point).has_value();
     case FixtureCoin: return integer(event.point.x, 1, 30);
     case Capture: return integer(event.point.x, 1, 32);
+    case KeyDown: case KeyUp: return integer(event.point.x, 1, 255);
     // y: 1/2 hold a trigger, 3 marks the press as keyboard Escape (Start),
     // 4 also presses F12 (screenshot).
     case Controller: case Controller2: return integer(event.point.x, 0, 65535) && integer(event.point.y, 0, 4);

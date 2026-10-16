@@ -15,15 +15,18 @@ config_text = (args.profile / 'user' / 'pvz.toml').read_text(encoding='utf-8-sig
 config = tomllib.loads(config_text)
 defaults = tomllib.loads(Path('config/pc_defaults.toml').read_text(encoding='utf-8-sig'))
 expected = {'pvz_cursor_mode':'pc', 'pvz_vsync':False,
-            'pvz_pause_on_focus_loss':False, 'pvz_display_mode':'windowed', 'pvz_language':'de'}
+            'pvz_pause_on_focus_loss':False, 'pvz_display_mode':'windowed', 'pvz_language':'de',
+            'pvz_render_scale':'2'}
 transitions = re.findall(r'PvZ in-game setting (\w+) = (\w+) \(saved true\)', text)
 checks = {
     'native_full_license':'PvZ native full-game license check: true' in text,
     'english_at_launch':'PvZ language: en (user_language 1)' in text,
-    'eight_saved_changes':transitions == [
+    'render_scale_at_launch':'PvZ render scale: 1 for' in text,
+    'nine_saved_changes':transitions == [
         ('pvz_cursor_mode','console'),('pvz_cursor_mode','pc'),('pvz_vsync','false'),
         ('pvz_pause_on_focus_loss','false'),('pvz_display_mode','fullscreen'),
-        ('pvz_display_mode','borderless'),('pvz_display_mode','windowed'),('pvz_language','de')],
+        ('pvz_display_mode','borderless'),('pvz_display_mode','windowed'),('pvz_language','de'),
+        ('pvz_render_scale','2')],
     'saved_values':all(config.get(k)==v for k,v in expected.items()),
     'no_duplicate_preferences':all(len(re.findall(r'^'+k+r'\s*=', config_text,re.M))==1 for k in expected),
     'unrelated_preferences_preserved':all(config.get(k)==v for k,v in defaults.items() if k not in expected),

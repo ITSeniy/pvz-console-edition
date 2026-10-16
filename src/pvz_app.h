@@ -12,6 +12,7 @@
 #include "display_sync.h"
 #include "hitch_profiler.h"
 #include "game_settings.h"
+#include "render_scale.h"
 #include "pc_menu_dialog.h"
 #include "achievement_toast.h"
 #include "import_dialog.h"
@@ -63,6 +64,9 @@ class PvzApp : public rex::ReXApp {
   // the runtime loads default.xex. Existing data continues immediately.
   std::optional<rex::PathConfig> OnFinalizePaths(const rex::PathConfig& defaults,
       std::function<void(rex::PathConfig)> resume) override {
+    // The GPU plugin (and its resolution_scale) is loaded now; the GPU reads
+    // the scale when the runtime is constructed after this.
+    pvz::ApplyRenderScale();
     if (std::filesystem::exists(defaults.game_data_root / "default.xex") || !imgui_drawer()) return defaults;
     REXLOG_INFO("PvZ first-run import: no game files in {}", defaults.game_data_root.string());
     import_dialog_ = std::make_unique<ImportDialog>(imgui_drawer(), app_context(), defaults.game_data_root,
@@ -94,7 +98,8 @@ class PvzApp : public rex::ReXApp {
         if (menu == pvz::HostMenu::Unlock) { ChooseGamePackage(); return; }
         if (!pc_menu_) pc_menu_ = std::make_unique<PcMenuDialog>(imgui_drawer(), immediate_drawer(), runtime(), &achievements());
         pc_menu_->Show(menu);
-        REXLOG_INFO("PvZ host menu opened: {}", menu == pvz::HostMenu::Achievements ? "Achievements" : "Cheats");
+        REXLOG_INFO("PvZ host menu opened: {}", menu == pvz::HostMenu::Achievements ? "Achievements" :
+            menu == pvz::HostMenu::Keyboard ? "Keyboard" : "Cheats");
       });
     });
   }

@@ -6,7 +6,7 @@
 #include <rex/ppc/context.h>
 
 namespace pvz {
-enum class HostMenu { Achievements, Cheats, Quit, Unlock };
+enum class HostMenu { Achievements, Cheats, Quit, Unlock, Keyboard };
 void SetHostMenuCallback(std::function<void(HostMenu)> callback);
 void RequestHostMenu(HostMenu menu);
 // Outcome of HostMenu::Unlock; the next WidgetManager update applies it.

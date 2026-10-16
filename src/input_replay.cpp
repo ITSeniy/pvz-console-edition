@@ -61,6 +61,7 @@ void PublishMouse(const pvz::MouseInputEvent& input) {
       if (input.reason == pvz::MouseCancelReason::FocusLost) pvz::PublishFocusLost();
       else pvz::PublishPointer(std::nullopt);
       break;
+    case pvz::MouseEventKind::Key: pvz::PublishKeyAction(input.delta, input.down); break;
   }
 }
 }
@@ -155,6 +156,11 @@ std::jthread StartInputReplay() {
           case FixtureGardenCoin: pvz::PublishTestGardenCoin(event.point); break;
           case FixtureCoin: pvz::PublishTestCoin(int(event.point.x)); break;
           case Capture: pvz::RequestReplayCapture(uint32_t(event.point.x)); break;
+          case KeyDown: case KeyUp: {
+            const auto bound = pvz::HandleGameKey(rex::ui::VirtualKey(uint16_t(event.point.x)), action == KeyDown);
+            REXLOG_INFO("PvZ replay {} {} action {}", event.info.name, event.point.x, bound ? int(*bound) : -1);
+            break;
+          }
           case TwistMatch: pvz::PublishTestTwistClick(); break;
           case BeghouledMatch: pvz::PublishTestBeghouledSwipe(); break;
           case FixtureVsync:

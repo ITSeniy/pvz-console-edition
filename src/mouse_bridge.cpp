@@ -777,13 +777,18 @@ class MouseDispatch {
   MouseDispatch(PPCContext& ctx, uint8_t* base, const pvz::MouseInputEvent* input, bool lost_focus)
       : ctx(ctx), base(base), input(input), lost_focus(lost_focus), manager(ctx.r3.u32) {
     has_button = input && input->kind == pvz::MouseEventKind::Button && input->point;
+    has_key = input && input->kind == pvz::MouseEventKind::Key && input->point;
     if (has_button) event = {*input->point, input->click, input->down};
+    // A key acts at the pointer: the shovel like the right button, a seed
+    // packet like a click on its card.
+    if (has_key) event = {*input->point, input->delta == pvz::kKeyShovel ? -1 : 1, input->down};
   }
   void Run() {
     if (!Begin()) return;
     if (!active_mouse) { ReleaseToController(); return; }
     UpdatePointer();
     if (has_button) Button();
+    if (has_key) Key();
   }
 
  private:
@@ -792,7 +797,7 @@ class MouseDispatch {
   const pvz::MouseInputEvent* input;
   bool lost_focus;
   const uint32_t manager;
-  bool has_button = false, cancel = false, active_mouse = false, changed_owner = false;
+  bool has_button = false, has_key = false, cancel = false, active_mouse = false, changed_owner = false;
   ButtonEvent event{};
   std::optional<pvz::Point> snapshot;
   uint32_t focused_root = 0, root = 0;
@@ -1164,6 +1169,54 @@ class MouseDispatch {
     NativeMouseDown();
   }
 
+  // Keyboard seed packets and shovel (key_bindings.h) on the mouse player's
+  // lawn. PC: a key picks the card or the shovel up, or puts it back, as a
+  // click on it does. Console: a key selects the card; the shovel key is held
+  // like the right button and digs at the cursor's cell.
+  void Key() {
+    const bool shovel = input->delta == pvz::kKeyShovel;
+    if (shovel && !event.down) { ConsoleShovelRelease(); return; }
+    if (!event.down || MouseMenuLocked(manager, base)) return;
+    widget = TopRootWidget(manager, base);
+    if (!widget || Read(base, widget) != kBoard || BoardPaused(base, widget)) return;
+    primary = MouseControls(widget, base);
+    app = BoardApp(base, widget);
+    if (!app || !primary || !PlantMouse(primary, base)) return;
+    tutorial = int32_t(Read(base, widget + 0x5620));
+    shovel_lesson = InShovelLesson(base, widget);
+    mini_mode = int(GameMode(base, app));
+    if (GameScene(base, app) != kScenePlaying && !shovel_lesson) return;
+    if (shovel) {
+      if (mini_mode == kModeVersus) return; // VS has no shovel bank.
+      if (PcMouseMode()) PcToggleShovel();
+      else if (MouseCursorType(widget, base) == 2) DropMouseItem(ctx, base, widget);
+      else if (base[widget + 0x5691] && !console_shovel.board) {
+        ApplyPointer(ctx, primary, base, event.point);
+        console_shovel = {widget, primary, true};
+        Call(sub_8214CDC0, widget, 7, 0, 0);
+      }
+      PVZ_TRACE("PvZ key shovel {} held {}", PcMouseMode() ? selection.shovel : console_shovel.held,
+          console_shovel.board != 0);
+      return;
+    }
+    const int index = input->delta;
+    if (mini_mode == kModeSlotMachine || index >= int(Read(base, selection.bank + 0x40))) return;
+    if (PcMouseMode()) {
+      PcPacketClick(index);
+      item_drag = {}; // No button is held: the next click plants it.
+    } else {
+      const auto packet = selection.bank + 0x50 + uint32_t(index) * 0x7C;
+      if (mini_mode == kModeBeghouled || mini_mode == kModeZombiquarium || mini_mode == kModeBeghouledTwist) {
+        Call(sub_8220F510, packet, 0, 0, 0);
+        return;
+      }
+      PlaySample(app, Call(sub_8220F370, packet, 0, 0, 0) ? 0x82D0A630 : 0x82D0AA24);
+      Write(base, primary + 0xBC, uint32_t(index));
+      Write(base, packet + 0x70, 0);
+      Call(sub_82190D80, primary, 1, 0, 0);
+    }
+    PVZ_TRACE("PvZ key seed packet {} selected {}", index, int32_t(Read(base, primary + 0xBC)));
+  }
   bool MiddleClick() {
     if (event.click == 2) {
       // Console co-op: the middle button is the player's X (butter), held.
@@ -2177,6 +2230,18 @@ void pvz::PublishWheel(Point position, int delta) {
   if (delta) mouse_owner.store(true, std::memory_order_relaxed);
   mouse_events.Wheel(position, delta);
 }
+void pvz::PublishKeyAction(int action, bool down) {
+  if (!REXCVAR_GET(pvz_mouse_cursor)) return;
+  if (pvz::LocalPlayersActive() && pvz::MouseUserIndex() < 0) return;
+  // The Cheats/Keyboard windows cover the game; a key press there is theirs.
+  // A release still passes, so a shovel held into the window is let go.
+  if (down && pvz::HostMenuOpen()) return;
+  std::lock_guard lock(pointer_mutex);
+  mouse_events.SetMode(REXCVAR_GET(pvz_cursor_mode) == "pc");
+  // The keyboard belongs to the mouse player, as a mouse button does.
+  if (down) mouse_owner.store(true, std::memory_order_relaxed);
+  mouse_events.Key(action, down);
+}
 void pvz::NotifyMouseModeChanged() {
   std::lock_guard lock(pointer_mutex);
   mouse_events.SetMode(REXCVAR_GET(pvz_cursor_mode) == "pc");
@@ -2207,6 +2272,10 @@ void pvz::PublishReplayMouseBatch(std::span<const MouseInputEvent> events) {
         }
         break;
       case MouseEventKind::Cancel: mouse_events.Cancel(event.reason); break;
+      case MouseEventKind::Key:
+        if (event.down) mouse_owner.store(true, std::memory_order_relaxed);
+        mouse_events.Key(event.delta, event.down);
+        break;
     }
   }
 }

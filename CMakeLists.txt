@@ -36,6 +36,8 @@ set(PVZ_SOURCES
     src/windows_identity.cpp
     src/display_sync.cpp
     src/game_settings.cpp
+    src/key_bindings.cpp
+    src/render_scale.cpp
     src/pc_menus.cpp
     src/game_edition.cpp
     src/controller_assets.cpp
@@ -99,7 +101,7 @@ if(BUILD_TESTING)
     target_link_libraries(bridge_mnk_test PRIVATE rex::runtime)
     rexglue_apply_target_settings(bridge_mnk_test)
     # Register the same bridge switch without linking gameplay hooks.
-    target_sources(bridge_mnk_test PRIVATE tests/bridge_mnk_cvars.cpp)
+    target_sources(bridge_mnk_test PRIVATE tests/bridge_mnk_cvars.cpp src/key_bindings.cpp src/render_scale.cpp)
     add_test(NAME bridge_mnk COMMAND bridge_mnk_test)
     if(WIN32)
         add_executable(game_edition_test tests/game_edition_test.cpp src/game_edition.cpp)
