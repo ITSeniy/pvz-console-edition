@@ -93,6 +93,10 @@ if(BUILD_TESTING)
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/input_audit_manifest_test.py)
         add_test(NAME state_dump_compare COMMAND ${Python3_EXECUTABLE} -I
             ${CMAKE_CURRENT_SOURCE_DIR}/scripts/compare_state_dumps.py --self-test)
+        # src/gamepad_repeat.cpp carries a copy of generated 82580D88.
+        add_test(NAME gamepad_repeat_body COMMAND ${Python3_EXECUTABLE} -I
+            ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check_gamepad_repeat_body.py --self-test)
+        set_tests_properties(gamepad_repeat_body PROPERTIES SKIP_RETURN_CODE 77)
     endif()
     add_executable(state_dump_test src/state_dump.cpp)
     target_compile_definitions(state_dump_test PRIVATE PVZ_STATE_DUMP_TEST=1)
