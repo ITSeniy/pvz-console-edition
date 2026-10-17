@@ -1,0 +1,14 @@
+# T07b: long holds expose the complete 25,24,23,22,21,20,20... repeat interval sequence.
+0,400,300,wait_title
+1,400,500,left_down
+1.15,400,500,left_up
+2,400,300,wait_menu
+4,478,444,left_down
+4.15,478,444,left_up
+7,398,351,left_down
+7.15,398,351,left_up
+12,2,0,controller
+15,0,0,controller
+18,0,32767,controller_left
+21,0,0,controller_left
+23,100,100,move

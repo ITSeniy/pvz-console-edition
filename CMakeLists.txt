@@ -21,6 +21,8 @@ configure_file(src/game_content_lock.h.in ${CMAKE_CURRENT_BINARY_DIR}/game_conte
 
 # Sources
 set(PVZ_SOURCES
+    src/native/pixel_to_grid_x.cpp
+    src/gamepad_repeat.cpp
     src/main.cpp
     src/crt_compat.cpp
     src/camera_compat.cpp
