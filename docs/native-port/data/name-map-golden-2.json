@@ -1,0 +1,201 @@
+{
+  "schema": 1,
+  "purpose": "T01b holdout: manual PPC/Thumb and MIT PC semantic inspection; never a prediction input",
+  "frozen_utc": "2026-10-17T02:04:05+00:00",
+  "prechange_analyzer_sha256": "7523b9b705daeef79604d4f490f7625b64e32f831b8e68d7863504e97096774b",
+  "selection": "30 functions outside T01 golden, 29 from requested classes; candidate list used only for selection, instructions manually reviewed before method changes. Accuracy is conditional on emitted confidence; missing/low are reported explicitly.",
+  "functions": [
+    {
+      "xbox": "0x82189b28",
+      "name": "BaseGamepadControls::OnButtonDown(int, int, unsigned int)",
+      "android": "0x1bd064",
+      "evidence": "Xbox +44 Board -> +1d4 Challenge, null guard then tailcall821538d8; ARM +38/+254 and tail185c0c. Delegates button-down; RTTI BaseGamepadControls."
+    },
+    {
+      "xbox": "0x8218b7f0",
+      "name": "GamepadControls::OnButtonUp(int, int, unsigned int)",
+      "android": "0x1bd1ec",
+      "evidence": "Both test button8; resolve butter zombie, remove butter, then delegate button-up. Xbox8218b808 cmp8 and +f4 ZombieID; ARM1bd1ec cmp8 and calls Board::ZombieTryToGet/Zombie::RemoveButter."
+    },
+    {
+      "xbox": "0x82190048",
+      "name": "BaseGamepadControls::EnterState(BaseGamepadControls::MovementState)",
+      "android": "0x1bd32c",
+      "evidence": "Enter current movement state: Xbox +68 minus1 switch, state-specific coordinate snapshots/snapping; ARM +60 minus1 switch, Board grid/pixel conversion pairs. State enum counts differ; no offset transfer."
+    },
+    {
+      "xbox": "0x82190408",
+      "name": "BaseGamepadControls::ExitState(BaseGamepadControls::MovementState)",
+      "android": "0x1bd584",
+      "evidence": "Exit current state: Xbox82190418 compare2 then6, clear drag vector or MouseDownWithTool; ARM1bd58a compare2 then8, clear vector or Board::MouseDownWithTool. Enum difference explicit."
+    },
+    {
+      "xbox": "0x821905f8",
+      "name": "BaseGamepadControls::UpdateStates(float)",
+      "android": "0x1be4d4",
+      "evidence": "Xbox82190610 float timer+70 += dt, switch current+68; ARM1be4d4 timer+68 += dt, switch current+60. RTTI virtual UpdateStates slot and timer/state operations, not function size."
+    },
+    {
+      "xbox": "0x82190de0",
+      "name": "BaseGamepadControls::GetSnapToGridXY()",
+      "android": "0x1bd168",
+      "evidence": "Xbox82190df8 compare mode0x2c, velocity projection and pixel-to-grid conversions; ARM1bd17e compare0x2c, .25 projection and PixelToGridX/YKeepOnBoard. Output grid XY."
+    },
+    {
+      "xbox": "0x82190ed8",
+      "name": "BaseGamepadControls::GetSnapToGridPos()",
+      "android": "0x1bd258",
+      "evidence": "Copies current XY to output, virtual GetSnapToGridXY then GridCellWidth/Height and GridToPixelX/Y to cell centre. Xbox82190f0c vslot28; ARM1bd270 vslot3c; return is vector, not scalar."
+    },
+    {
+      "xbox": "0x82199e28",
+      "name": "LawnMenuWidget::CreateMenuParser()",
+      "android": "0x169140",
+      "evidence": "Replace old parser reference and allocate/construct a LawnMenuParser for this MenuWidget. Xbox82199e68 alloc0xb4; ARM16915a alloc0x68 -> LawnMenuParser constructor169164. Object layouts differ."
+    },
+    {
+      "xbox": "0x821bfe08",
+      "name": "MainMenu::RetainWidgetsOnExit()",
+      "android": "0x19977c",
+      "evidence": "RTTI MainMenu retained-widgets predicate slot; Xbox821bfe08 reads byte+190 and returns; ARM19977c reads+18c and returns. Getter identity limited to vtable role, no ABI/layout equivalence."
+    },
+    {
+      "xbox": "0x821c0598",
+      "name": "MainMenu::LostFocus()",
+      "android": "0x19c828",
+      "evidence": "MainMenu lost-focus path begins base Widget::LostFocus (Xbox821c05a8->82472be8; ARM19c840->3af23c), then iterates three child widgets and cancels crow talk/animation."
+    },
+    {
+      "xbox": "0x821c0e60",
+      "name": "MainMenu::Enter()",
+      "android": "0x1997a0",
+      "evidence": "MainMenu enter path begins base MenuWidget::Enter (Xbox821c0e70->824e42d8; ARM1997a6->2af204), resets menu children, retrieves reanimation and plays enter tracks."
+    },
+    {
+      "xbox": "0x821c1310",
+      "name": "MainMenu::OnExit()",
+      "android": "0x199898",
+      "evidence": "MainMenu exit dispatch: Xbox821c1340 switch scene-1 <=0x12; ARM1998ac same switch <=0x12; branches show Store, challenges, Almanac, or PreNewGame and kill selector. Distinct from transition UpdateExit."
+    },
+    {
+      "xbox": "0x821c1f48",
+      "name": "MainMenu::RemovedFromManager(Sexy::WidgetManager*)",
+      "android": "0x199784",
+      "evidence": "Begins MenuWidget::RemovedFromManager then removes menu reanimation and clears ID. Xbox821c1f60->824e4018; ARM199788->2af6c8,199794->LawnApp::RemoveReanimation."
+    },
+    {
+      "xbox": "0x821c3c18",
+      "name": "MainMenu::UpdateExit()",
+      "android": "0x199b9c",
+      "evidence": "Calls base UpdateExit then increments transition counter (Xbox+16c, ARM+168); scene-dependent exit animation; return combines transition completion. Xbox821c3c28->824e4158; ARM199ba6->2af1a0."
+    },
+    {
+      "xbox": "0x8228a528",
+      "name": "VSSetupMenu::Draw(Sexy::Graphics*)",
+      "android": "0x195130",
+      "evidence": "VSSetup Draw suppresses menu before cutscene preloading and in scene3; Xbox8228a538 pointer chain and scene gate then base draw; ARM195146 CutScene::IsBeforePreloading then19515a MenuWidget::Draw."
+    },
+    {
+      "xbox": "0x82472968",
+      "name": "Sexy::Widget::SetVisible(bool)",
+      "android": "0x3aec98",
+      "evidence": "PC Widget.cpp SetVisible: equality guard, store visibility, MarkDirty/MarkDirtyFull, RehupMouse. Xbox byte+70 and vslots10/18; ARM byte+74 and slots64/68. Same semantic sequence."
+    },
+    {
+      "xbox": "0x824729f8",
+      "name": "Sexy::Widget::Resize(int, int, int, int)",
+      "android": "0x3aecc8",
+      "evidence": "PC Widget.cpp Resize(int,int,int,int): compare x/y/w/h, dirty old region, write four bounds, dirty new region, rehup mouse. Xbox bounds+40..4c; ARM+34..40. No offset equivalence."
+    },
+    {
+      "xbox": "0x82472a98",
+      "name": "Sexy::Widget::Resize(Sexy::TRect<int> const&)",
+      "android": "0x3ae750",
+      "evidence": "PC Widget.cpp Resize(Rect): read x/y/w/h from input rect and invoke four-argument Resize. Xbox82472a9c..aa8 reads c/8/4/0 then vslot7c; ARM3ae756 ldm and vslotc8."
+    },
+    {
+      "xbox": "0x82472ab8",
+      "name": "Sexy::Widget::Move(int, int)",
+      "android": "0x3ae764",
+      "evidence": "PC Widget.cpp Move: preserve width/height while forwarding new x/y to Resize. Xbox82472abc/c0 reads+4c/+48; ARM3ae768/76e reads+40/+3c and vslotc8."
+    },
+    {
+      "xbox": "0x82472ad8",
+      "name": "Sexy::Widget::SetDisabled(bool)",
+      "android": "0x3aede0",
+      "evidence": "PC Widget.cpp SetDisabled: equality guard, write disabled flag, notify manager if disabling, mark dirty and rehup mouse. Xbox82472b00 byte+72; ARM3aedec byte+76. Additional Xbox handling preserved as platform difference."
+    },
+    {
+      "xbox": "0x82472be8",
+      "name": "Sexy::Widget::LostFocus()",
+      "android": "0x3af23c",
+      "evidence": "PC Widget.cpp LostFocus clears mHasFocus. Xbox82472be8 li0,stb+73,blr; ARM3af252 clears+77 and additional Android focus animation. Callers MainMenu::LostFocus corroborate role."
+    },
+    {
+      "xbox": "0x82472fb8",
+      "name": "Sexy::Widget::ShowFinger(bool)",
+      "android": "0x3aee40",
+      "evidence": "PC Widget.cpp ShowFinger: manager null guard and SetCursor(hand=1/pointer=0). Xbox82472fc4 manager App then tail82475eb8; ARM3aee44 App then tail339040 with0/1."
+    },
+    {
+      "xbox": "0x824731d8",
+      "name": "Sexy::Widget::GetNumDigits(int)",
+      "android": "0x3aeba8",
+      "evidence": "PC Widget.cpp GetNumDigits: initialize divisor10,count1; loop divisor*=10 and count++ while input>=divisor. Xbox824731d8..1f4, ARM3aeba8..bbc. Decimal algorithm, not constant-return shape."
+    },
+    {
+      "xbox": "0x82473318",
+      "name": "Sexy::Widget::Contains(int, int)",
+      "android": "0x3aebc4",
+      "evidence": "PC Widget.cpp Contains: x>=left && x<left+width && y>=top && y<top+height. Xbox82473318..35c bounds40..4c, ARM3aebc4..bea bounds34..40; exact four inequalities."
+    },
+    {
+      "xbox": "0x824735f8",
+      "name": "Sexy::Widget::GetColor(int)",
+      "android": "0x3aed78",
+      "evidence": "PC Widget.cpp GetColor(int): lazy static default Color, vector bound test (16-byte Color) then element reference or default. Xbox82473638 vector+78/84/88, ARM3aed88 vector+7c/80. Not value-return overload."
+    },
+    {
+      "xbox": "0x824736b0",
+      "name": "Sexy::Widget::GetColor(int, Sexy::Color const&)",
+      "android": "0x3af374",
+      "evidence": "PC Widget.cpp GetColor(int,Color const&): vector bound check then copy16 bytes from element or caller-provided fallback. Xbox824736b0..73728; ARM3af374..398. Explicit result pointer ABI differs from preceding overload."
+    },
+    {
+      "xbox": "0x82473960",
+      "name": "Sexy::Widget::GetInsetRect()",
+      "android": "0x3aebf4",
+      "evidence": "PC Widget.cpp GetInsetRect: output x+left,y+top,width-left-right,height-top-bottom. Xbox82473960..9a8 and ARM3aebf4..c2c implement all four expressions; no dimensions reused across platforms."
+    },
+    {
+      "xbox": "0x82473d68",
+      "name": "Sexy::Widget::SetColors(int (*) [3], int)",
+      "android": "0x3aec50",
+      "evidence": "PC Widget.cpp SetColors(int[][3],int): clear colors, step source12bytes, construct RGB Color, virtual SetColor and dirty. Xbox82473da4 lwzu0xc,82473dac Color ctor; ARM3aec72 add0xc,3aec78 RGB ctor."
+    },
+    {
+      "xbox": "0x821c4380",
+      "name": "MainMenu::SetScene(MainMenu::MenuScene)",
+      "android": "0x19a5fc",
+      "evidence": "Unique shared tracks anim_right_center/center_right/center_left/left_center/fly and scene switch; Xbox821c449c reanimation lookup,44e4/4510 play; ARM19a5fc SetScene calls Reanimation::PlayReanim. Manual string and scene-transition identity."
+    },
+    {
+      "xbox": "0x82194c38",
+      "name": "GridItem::OpenPortal()",
+      "android": "0x13d4a4",
+      "evidence": "GridItem portal activation: anim_appear, reanimation types0x67/0x68, replace particle and play appearance; Xbox82194d18/28 types and82194e10 sound0x52; ARM13d4a4 OpenPortal symbol and shared anim_appear. PC GridItem.cpp OpenPortal reference."
+    }
+  ],
+  "negative_cases": [
+    {
+      "xbox": "0x82472b98",
+      "rejected_name": "Sexy::Widget::SetFocusLinks(Sexy::Widget*, Sexy::Widget*, Sexy::Widget*, Sexy::Widget*)",
+      "evidence": "Xbox only calls virtual+90 then returns this, no four pointer stores. ARM3ae7e4 stores four links+c4..d0. Different semantics; keep low."
+    },
+    {
+      "xbox": "0x82472c58",
+      "rejected_name": "Sexy::Widget::HasWindowFocus()",
+      "evidence": "Xbox writes two flags+a2/+75 and tail-calls parent virtual+50; ARM3ae784 is getter byte+e4. Different semantics; keep low."
+    }
+  ]
+}

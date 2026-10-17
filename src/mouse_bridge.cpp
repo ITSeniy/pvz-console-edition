@@ -2418,6 +2418,7 @@ REX_HOOK_RAW(sub_824A85F0) {
     REXLOG_INFO("PvZ dialog drag {},{} -> {},{}", old_x, old_y, x, y);
 }
 
+// Board::Draw(Sexy::Graphics*) — high, accepted xbox-names.csv.
 REX_HOOK_RAW(sub_82146A60) {
   static bool traced = false;
   if (REXCVAR_GET(pvz_input_trace) && !traced &&

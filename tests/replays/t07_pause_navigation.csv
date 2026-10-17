@@ -1,0 +1,32 @@
+# T07: Heavy Weapon pause, directional hold matrix and one mouse/pad transition.
+# No menu item is activated; read-only focus trace identifies each step.
+0,400,300,wait_title
+1,400,500,left_down
+1.15,400,500,left_up
+2,400,300,wait_menu
+4,20,0,fixture_mode
+8,400,320,wait_board
+12,450,400,move
+18,16,0,controller
+18.05,0,0,controller
+22,2,0,controller
+22.05,0,0,controller
+24,1,0,controller
+24.05,0,0,controller
+26,2,0,controller
+26.15,0,0,controller
+28,1,0,controller
+28.15,0,0,controller
+30,2,0,controller
+30.30,0,0,controller
+32,1,0,controller
+32.30,0,0,controller
+34,0,-32767,controller_left
+34.15,0,0,controller_left
+36,0,32767,controller_left
+36.15,0,0,controller_left
+38,400,300,move
+40,2,0,controller
+40.15,0,0,controller
+42,16,0,controller
+42.05,0,0,controller

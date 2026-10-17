@@ -31,6 +31,8 @@ set(PVZ_SOURCES
     src/frame_capture.cpp
     src/hitch_profiler.cpp
     src/input_replay.cpp
+    src/deterministic_replay.cpp
+    src/state_dump.cpp
     src/replay_fixtures.cpp
     src/input_backend.cpp
     src/windows_identity.cpp
@@ -70,6 +72,10 @@ target_include_directories(pvz PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(xbox_layout_test tests/xbox_layout_test.cpp)
+    target_include_directories(xbox_layout_test PRIVATE src
+        $<TARGET_PROPERTY:rex::runtime,INTERFACE_INCLUDE_DIRECTORIES>)
+    add_test(NAME xbox_layout COMMAND xbox_layout_test)
     add_executable(mouse_input_test tests/mouse_input_test.cpp)
     target_include_directories(mouse_input_test PRIVATE src)
     add_test(NAME mouse_input COMMAND mouse_input_test)
@@ -83,7 +89,15 @@ if(BUILD_TESTING)
     if(Python3_Interpreter_FOUND)
         add_test(NAME input_audit_manifest COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/input_audit_manifest_test.py)
+        add_test(NAME state_dump_compare COMMAND ${Python3_EXECUTABLE} -I
+            ${CMAKE_CURRENT_SOURCE_DIR}/scripts/compare_state_dumps.py --self-test)
     endif()
+    add_executable(state_dump_test src/state_dump.cpp)
+    target_compile_definitions(state_dump_test PRIVATE PVZ_STATE_DUMP_TEST=1)
+    target_include_directories(state_dump_test PRIVATE src ${CMAKE_CURRENT_BINARY_DIR})
+    target_link_libraries(state_dump_test PRIVATE rex::runtime)
+    rexglue_apply_target_settings(state_dump_test)
+    add_test(NAME state_dump_pool COMMAND state_dump_test)
     add_executable(pointer_mapping_test tests/pointer_mapping_test.cpp)
     target_include_directories(pointer_mapping_test PRIVATE src)
     add_test(NAME pointer_mapping COMMAND pointer_mapping_test)

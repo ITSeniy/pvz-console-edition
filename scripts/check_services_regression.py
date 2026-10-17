@@ -1,4 +1,4 @@
-"""Verify native evidence for the October 9 menu/garden feedback fixes."""
+"""Verify current menu/garden behavior and immutable replay evidence."""
 import json
 import re
 from datetime import datetime
@@ -114,6 +114,7 @@ check('original_profile_unchanged', profile_hashes == {
     for p in (ROOT / 'runtime-data/zen-shop-probe-user').rglob('*') if p.is_file()})
 data.update(checked_at=datetime.now().astimezone().isoformat(),
             built_executable_sha256=sha(ROOT / 'build/pvz-console-edition.exe'), source_sha256=source_hashes(),
+            checker_sha256=sha(Path(__file__)),
             profile_sha256=profile_hashes, checks=checks, passed=sum(checks.values()), total=len(checks),
             frame_sha256={str(p): sha(p) for run in data['runs'].values() for p in Path(run['frames']).glob('frame-*.ppm')},
             limitations='Guest frames exclude host ImGui menus. Physical gamepad, audible sound, and subjective cursor smoothness still require manual play testing.')

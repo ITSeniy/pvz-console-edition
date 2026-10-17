@@ -1,0 +1,272 @@
+class,field,offset,type,evidence_address,evidence_function,confidence
+LawnApp,vtable,0x0,GuestPtr,0x821A04AC,LawnApp::LawnApp(),verified Xbox access
+LawnApp,width,0x108,rex::be<int32_t>,0x821A0648,LawnApp::LawnApp(),verified Xbox access
+LawnApp,height,0x10C,rex::be<int32_t>,0x821A064C,LawnApp::LawnApp(),verified Xbox access
+LawnApp,color_depth,0x110,rex::be<int32_t>,0x821A0650,LawnApp::LawnApp(),verified Xbox access
+LawnApp,music_volume,0x118,rex::be<double>,0x821A0744,LawnApp::LawnApp(),verified Xbox access
+LawnApp,widget_manager,0x36C,GuestPtr,0x821A4B14,LawnApp::Init(),verified Xbox access
+LawnApp,music_interface,0x410,GuestPtr,0x82485430,Sexy::SexyAppBase::SexyAppBase,verified Xbox access
+LawnApp,field_4c8,0x4C8,rex::be<uint32_t>,0x82485534,Sexy::SexyAppBase::SexyAppBase,verified Xbox access
+LawnApp,flag_5a6,0x5A6,uint8_t,0x82485484,Sexy::SexyAppBase::SexyAppBase,verified Xbox access
+LawnApp,flag_800,0x800,uint8_t,0x821A09B0,LawnApp::LawnApp(),verified Xbox access
+LawnApp,board,0x900,GuestPtr,0x821A05B8,LawnApp::LawnApp(),verified Xbox access
+LawnApp,main_menu,0x908,GuestPtr,0x821A0598,LawnApp::LawnApp(),verified Xbox access
+LawnApp,challenge_screen,0x934,GuestPtr,0x821A05C0,LawnApp::LawnApp(),verified Xbox access
+LawnApp,foley,0x938,GuestPtr,0x821A05E0,LawnApp::LawnApp(),verified Xbox access
+LawnApp,game_mode,0x9CC,rex::be<int32_t>,0x821A07D8,LawnApp::LawnApp(),verified Xbox access
+LawnApp,game_scene,0x9D0,rex::be<int32_t>,0x821A062C,LawnApp::LawnApp(),verified Xbox access
+LawnApp,field_9ec,0x9EC,GuestPtr,0x821A0630,LawnApp::LawnApp(),verified Xbox access
+LawnApp,field_9f0,0x9F0,GuestPtr,0x821A0638,LawnApp::LawnApp(),verified Xbox access
+LawnApp,effect_system,0x9F4,GuestPtr,0x821A063C,LawnApp::LawnApp(),verified Xbox access
+LawnApp,profile,0x9FC,GuestPtr,0x821A07A8,LawnApp::LawnApp(),verified Xbox access
+LawnApp,song_id,0xA10,rex::be<int32_t>,0x821A6794,LawnApp::LoadingThreadProc(),verified Xbox access
+LawnApp,crazy_dave_state,0xA18,rex::be<int32_t>,0x821A0940,LawnApp::LawnApp(),verified Xbox access
+LawnApp,crazy_dave_message,0xA24,rex::be<int32_t>,0x821A094C,LawnApp::LawnApp(),verified Xbox access
+LawnApp,seed,0xA44,rex::be<uint32_t>,0x821A065C,LawnApp::LawnApp(),verified Xbox access
+LawnApp,save_status,0xA54,GuestPtr,0x821A0904,LawnApp::LawnApp(),verified Xbox access
+LawnApp,cheat_flags,0xAA0,uint8_t[7],0x821A060C,LawnApp::LawnApp(),verified Xbox access
+LawnApp,save_pending,0xAAE,uint8_t,0x821A05A4,LawnApp::LawnApp(),verified Xbox access
+LawnApp,secondary_user,0xAB4,rex::be<int32_t>,0x821A05AC,LawnApp::LawnApp(),verified Xbox access
+LawnApp,field_b14,0xB14,rex::be<int32_t>,0x821A09A8,LawnApp::LawnApp(),verified Xbox access
+Board,vtable,0x0,GuestPtr,0x8212C59C,Board::Board(LawnApp*),verified Xbox access
+Board,x,0x40,rex::be<int32_t>,0x82492F70,Sexy::WidgetContainer::WidgetContainer,verified Xbox access
+Board,y,0x44,rex::be<int32_t>,0x82492F74,Sexy::WidgetContainer::WidgetContainer,verified Xbox access
+Board,width,0x48,rex::be<int32_t>,0x82492F78,Sexy::WidgetContainer::WidgetContainer,verified Xbox access
+Board,height,0x4C,rex::be<int32_t>,0x82492F7C,Sexy::WidgetContainer::WidgetContainer,verified Xbox access
+Board,app,0xF4,GuestPtr,0x8212C6D4,Board::Board(LawnApp*),verified Xbox access
+Board,zombies,0xF8,DataArray,0x8212C5BC,Board::Board(LawnApp*),verified Xbox access
+Board,plants,0x114,DataArray,0x8212C5E0,Board::Board(LawnApp*),verified Xbox access
+Board,projectiles,0x130,DataArray,0x8212C604,Board::Board(LawnApp*),verified Xbox access
+Board,coins,0x14C,DataArray,0x8212C628,Board::Board(LawnApp*),verified Xbox access
+Board,lawn_mowers,0x168,DataArray,0x8212C64C,Board::Board(LawnApp*),verified Xbox access
+Board,grid_items,0x184,DataArray,0x8212C670,Board::Board(LawnApp*),verified Xbox access
+Board,seed_banks,0x1A4,GuestPtr[2],0x8212CBC4,Board::Board(LawnApp*),verified Xbox access
+Board,controls,0x1B0,GuestPtr[2],0x8212C95C,Board::Board(LawnApp*),verified Xbox access
+Board,cursors,0x1B8,GuestPtr[2],0x8212CAFC,Board::Board(LawnApp*),verified Xbox access
+Board,cut_scene,0x1D0,GuestPtr,0x8212CCF8,Board::Board(LawnApp*),verified Xbox access
+Board,challenge,0x1D4,GuestPtr,0x8212CF88,Board::Board(LawnApp*),verified Xbox access
+Board,paused,0x1D9,uint8_t,0x821575F0,Challenge::Update(),verified Xbox access
+Board,background,0x55E0,rex::be<int32_t>,0x8212CF30,Board::Board(LawnApp*),verified Xbox access
+Board,sun,0x55F4,rex::be<int32_t>[2],0x8212CB98,Board::Board(LawnApp*),verified Xbox access
+Board,counter_5604,0x5604,rex::be<int32_t>,0x8212CF38,Board::Board(LawnApp*),verified Xbox access
+Board,draw_count,0x560C,rex::be<int32_t>,0x8212CE08,Board::Board(LawnApp*),verified Xbox access
+Board,tutorial_state,0x5620,rex::be<int32_t>,0x8212CF3C,Board::Board(LawnApp*),verified Xbox access
+Board,shovel_enabled,0x5691,uint8_t,0x8212CED0,Board::Board(LawnApp*),verified Xbox access
+Board,hammer_enabled,0x5693,uint8_t,0x8212CED8,Board::Board(LawnApp*),verified Xbox access
+Board,coin_bank,0x5694,rex::be<int32_t>,0x8212C878,Board::Board(LawnApp*),verified Xbox access
+Board,state_56a0,0x56A0,rex::be<int32_t>,0x8212CDB0,Board::Board(LawnApp*),verified Xbox access
+Board,counter_57f4,0x57F4,rex::be<int32_t>,0x8212CDE8,Board::Board(LawnApp*),verified Xbox access
+Board,shovels_used,0x583C,rex::be<int32_t>,0x8212CE58,Board::Board(LawnApp*),verified Xbox access
+Board,join_hint_blink,0x585C,uint8_t,0x8212D020,Board::Board(LawnApp*),verified Xbox access
+Board,join_hint_storage,0x5864,uint8_t[28],0x8212C698,Board::Board(LawnApp*),verified Xbox access
+BaseGamepadControls,vtable,0x0,GuestPtr,0x821898E8,BaseGamepadControls::BaseGamepadControls,verified Xbox access
+BaseGamepadControls,listener_vtable,0x4,GuestPtr,0x82189918,BaseGamepadControls::BaseGamepadControls,verified Xbox access
+BaseGamepadControls,app,0x20,GuestPtr,0x82189E60,GamepadControls::GamepadControls,verified Xbox access
+BaseGamepadControls,board,0x44,GuestPtr,0x82189900,BaseGamepadControls::BaseGamepadControls,verified Xbox access
+BaseGamepadControls,flag_48,0x48,uint8_t,0x82189A14,BaseGamepadControls::BaseGamepadControls,verified Xbox access
+BaseGamepadControls,vector_50,0x50,rex::be<float>[2],0x82189928,BaseGamepadControls::BaseGamepadControls,verified Xbox access
+BaseGamepadControls,cursor_x,0x58,rex::be<float>,0x82189938,BaseGamepadControls::BaseGamepadControls,verified Xbox access
+BaseGamepadControls,cursor_y,0x5C,rex::be<float>,0x82189940,BaseGamepadControls::BaseGamepadControls,verified Xbox access
+BaseGamepadControls,vector_60,0x60,rex::be<float>[2],0x82189948,BaseGamepadControls::BaseGamepadControls,verified Xbox access
+BaseGamepadControls,state,0x68,rex::be<int32_t>,0x82189E44,GamepadControls::GamepadControls,verified Xbox access
+BaseGamepadControls,state_elapsed,0x70,rex::be<float>,0x82189E5C,GamepadControls::GamepadControls,verified Xbox access
+BaseGamepadControls,target_x,0x74,rex::be<float>,0x82189958,BaseGamepadControls::BaseGamepadControls,verified Xbox access
+BaseGamepadControls,target_y,0x78,rex::be<float>,0x82189960,BaseGamepadControls::BaseGamepadControls,verified Xbox access
+BaseGamepadControls,delta_x,0x7C,rex::be<float>,0x82189968,BaseGamepadControls::BaseGamepadControls,verified Xbox access
+BaseGamepadControls,delta_y,0x80,rex::be<float>,0x82189970,BaseGamepadControls::BaseGamepadControls,verified Xbox access
+BaseGamepadControls,vector_84,0x84,rex::be<float>[2],0x82189978,BaseGamepadControls::BaseGamepadControls,verified Xbox access
+BaseGamepadControls,vector_8c,0x8C,rex::be<float>[2],0x82189988,BaseGamepadControls::BaseGamepadControls,verified Xbox access
+BaseGamepadControls,vector_94,0x94,rex::be<float>[2],0x82189998,BaseGamepadControls::BaseGamepadControls,verified Xbox access
+BaseGamepadControls,player_index,0x9C,rex::be<int32_t>,0x82189A0C,BaseGamepadControls::BaseGamepadControls,verified Xbox access
+BaseGamepadControls,user_index,0xA0,rex::be<int32_t>,0x82189A10,BaseGamepadControls::BaseGamepadControls,verified Xbox access
+BaseGamepadControls,field_ac,0xAC,rex::be<uint32_t>,0x82189A1C,BaseGamepadControls::BaseGamepadControls,verified Xbox access
+GamepadControls,vtable,0x0,GuestPtr,0x82189DD8,GamepadControls::GamepadControls,verified Xbox access
+GamepadControls,listener_vtable,0x4,GuestPtr,0x82189DE0,GamepadControls::GamepadControls,verified Xbox access
+GamepadControls,app,0x20,GuestPtr,0x82189E60,GamepadControls::GamepadControls,verified Xbox access
+GamepadControls,board,0x44,GuestPtr,0x82189EA8,GamepadControls::GamepadControls,verified Xbox access
+GamepadControls,flag_48,0x48,uint8_t,0x8218B9A0,GamepadControls::Update(float),verified Xbox access
+GamepadControls,vector_50,0x50,rex::be<float>[2],0x8218C4B8,GamepadControls::Update(float),verified Xbox access
+GamepadControls,cursor_x,0x58,rex::be<float>,0x8218A500,"GamepadControls::OnButtonDown(int, int, unsigned int)",verified Xbox access
+GamepadControls,cursor_y,0x5C,rex::be<float>,0x8218A4EC,"GamepadControls::OnButtonDown(int, int, unsigned int)",verified Xbox access
+GamepadControls,state,0x68,rex::be<int32_t>,0x82189E44,GamepadControls::GamepadControls,verified Xbox access
+GamepadControls,state_elapsed,0x70,rex::be<float>,0x82189E5C,GamepadControls::GamepadControls,verified Xbox access
+GamepadControls,target_x,0x74,rex::be<float>,0x82189FCC,GamepadControls::GamepadControls,verified Xbox access
+GamepadControls,target_y,0x78,rex::be<float>,0x8218A2B4,"GamepadControls::OnButtonDown(int, int, unsigned int)",verified Xbox access
+GamepadControls,delta_x,0x7C,rex::be<float>,0x8218A5E0,"GamepadControls::OnButtonDown(int, int, unsigned int)",verified Xbox access
+GamepadControls,delta_y,0x80,rex::be<float>,0x8218A5E8,"GamepadControls::OnButtonDown(int, int, unsigned int)",verified Xbox access
+GamepadControls,player_index,0x9C,rex::be<int32_t>,0x8218A254,"GamepadControls::OnButtonDown(int, int, unsigned int)",verified Xbox access
+GamepadControls,user_index,0xA0,rex::be<int32_t>,0x8218A158,"GamepadControls::OnButtonDown(int, int, unsigned int)",verified Xbox access
+GamepadControls,selected_packet,0xBC,rex::be<int32_t>,0x82189E98,GamepadControls::GamepadControls,verified Xbox access
+GamepadControls,held_seed,0xC0,rex::be<int32_t>,0x82189E18,GamepadControls::GamepadControls,verified Xbox access
+GamepadControls,zombie_side,0xC4,uint8_t,0x8218A7A4,"GamepadControls::OnButtonDown(int, int, unsigned int)",verified Xbox access
+GamepadControls,flag_c5,0xC5,uint8_t,0x8218BCE0,GamepadControls::Update(float),verified Xbox access
+GamepadControls,field_c8,0xC8,rex::be<int32_t>,0x8218BEC4,GamepadControls::Update(float),verified Xbox access
+GamepadControls,counter_cc,0xCC,rex::be<int32_t>,0x8218A26C,"GamepadControls::OnButtonDown(int, int, unsigned int)",verified Xbox access
+GamepadControls,flag_d0,0xD0,uint8_t,0x8218A244,"GamepadControls::OnButtonDown(int, int, unsigned int)",verified Xbox access
+GamepadControls,counter_e4,0xE4,rex::be<int32_t>,0x8218A268,"GamepadControls::OnButtonDown(int, int, unsigned int)",verified Xbox access
+GamepadControls,field_f0,0xF0,GuestPtr,0x82189FFC,GamepadControls::GamepadControls,verified Xbox access
+GamepadControls,butter_target_id,0xF4,rex::be<uint32_t>,0x8218A008,GamepadControls::GamepadControls,verified Xbox access
+SeedBank,vtable,0x0,GuestPtr,0x82210588,SeedBank::SeedBank,verified Xbox access
+SeedBank,app,0x1C,GuestPtr,0x821897B4,GameObject::GameObject,verified Xbox access
+SeedBank,board,0x20,GuestPtr,0x821897C4,GameObject::GameObject,verified Xbox access
+SeedBank,x,0x24,rex::be<int32_t>,0x82189794,GameObject::GameObject,verified Xbox access
+SeedBank,y,0x28,rex::be<int32_t>,0x821897A0,GameObject::GameObject,verified Xbox access
+SeedBank,width,0x2C,rex::be<int32_t>,0x822105E4,SeedBank::SeedBank,verified Xbox access
+SeedBank,height,0x30,rex::be<int32_t>,0x822105F8,SeedBank::SeedBank,verified Xbox access
+SeedBank,packet_count,0x40,rex::be<int32_t>,0x822105FC,SeedBank::SeedBank,verified Xbox access
+SeedBank,field_44,0x44,rex::be<uint32_t>,0x82210604,SeedBank::SeedBank,verified Xbox access
+SeedBank,field_48,0x48,rex::be<int32_t>,0x82210608,SeedBank::SeedBank,verified Xbox access
+SeedBank,player_index,0x4C,uint8_t,0x8221060C,SeedBank::SeedBank,verified Xbox access
+SeedBank,packets,0x50,SeedPacket[10],0x8221058C,SeedBank::SeedBank,verified Xbox access
+SeedPacket,vtable,0x0,GuestPtr,0x8220D288,SeedPacket::SeedPacket,verified Xbox access
+SeedPacket,app,0x1C,GuestPtr,0x821897B4,GameObject::GameObject,verified Xbox access
+SeedPacket,board,0x20,GuestPtr,0x821897C4,GameObject::GameObject,verified Xbox access
+SeedPacket,x,0x24,rex::be<int32_t>,0x82189794,GameObject::GameObject,verified Xbox access
+SeedPacket,y,0x28,rex::be<int32_t>,0x821897A0,GameObject::GameObject,verified Xbox access
+SeedPacket,width,0x2C,rex::be<int32_t>,0x8220D2F4,SeedPacket::SeedPacket,verified Xbox access
+SeedPacket,height,0x30,rex::be<int32_t>,0x8220D2F8,SeedPacket::SeedPacket,verified Xbox access
+SeedPacket,counter_40,0x40,rex::be<int32_t>,0x8220D2C4,SeedPacket::SeedPacket,verified Xbox access
+SeedPacket,counter_44,0x44,rex::be<int32_t>,0x8220D2FC,SeedPacket::SeedPacket,verified Xbox access
+SeedPacket,packet_index,0x48,rex::be<int32_t>,0x8220D2EC,SeedPacket::SeedPacket,verified Xbox access
+SeedPacket,offset_x,0x4C,rex::be<int32_t>,0x8220D308,SeedPacket::SeedPacket,verified Xbox access
+SeedPacket,seed_type,0x50,rex::be<int32_t>,0x8220D2DC,SeedPacket::SeedPacket,verified Xbox access
+SeedPacket,imitater_type,0x54,rex::be<int32_t>,0x8220D2E4,SeedPacket::SeedPacket,verified Xbox access
+SeedPacket,counter_58,0x58,rex::be<int32_t>,0x8220D30C,SeedPacket::SeedPacket,verified Xbox access
+SeedPacket,field_5c,0x5C,rex::be<int32_t>,0x8220D310,SeedPacket::SeedPacket,verified Xbox access
+SeedPacket,float_60,0x60,rex::be<float>,0x8220D2D8,SeedPacket::SeedPacket,verified Xbox access
+SeedPacket,active,0x64,uint8_t,0x8220D304,SeedPacket::SeedPacket,verified Xbox access
+SeedPacket,flag_65,0x65,uint8_t,0x8220D300,SeedPacket::SeedPacket,verified Xbox access
+SeedPacket,times_used,0x68,rex::be<int32_t>,0x8220D314,SeedPacket::SeedPacket,verified Xbox access
+SeedPacket,seed_bank,0x6C,GuestPtr,0x8220D318,SeedPacket::SeedPacket,verified Xbox access
+SeedPacket,selection_animation,0x70,rex::be<float>,0x8220D2E0,SeedPacket::SeedPacket,verified Xbox access
+SeedPacket,float_74,0x74,rex::be<float>,0x8220D2E8,SeedPacket::SeedPacket,verified Xbox access
+SeedPacket,float_78,0x78,rex::be<float>,0x8220D2F0,SeedPacket::SeedPacket,verified Xbox access
+Plant,app,0x1C,GuestPtr,0x821CA9F8,"Plant::PlantInitialize(int, int, SeedType, SeedType, int)",verified Xbox access
+Plant,board,0x20,GuestPtr,0x821CA820,"Plant::PlantInitialize(int, int, SeedType, SeedType, int)",verified Xbox access
+Plant,x,0x24,rex::be<int32_t>,0x821CA888,"Plant::PlantInitialize(int, int, SeedType, SeedType, int)",verified Xbox access
+Plant,y,0x28,rex::be<int32_t>,0x821CA894,"Plant::PlantInitialize(int, int, SeedType, SeedType, int)",verified Xbox access
+Plant,width,0x2C,rex::be<int32_t>,0x821CA958,"Plant::PlantInitialize(int, int, SeedType, SeedType, int)",verified Xbox access
+Plant,height,0x30,rex::be<int32_t>,0x821CA95C,"Plant::PlantInitialize(int, int, SeedType, SeedType, int)",verified Xbox access
+Plant,row,0x38,rex::be<int32_t>,0x821CA830,"Plant::PlantInitialize(int, int, SeedType, SeedType, int)",verified Xbox access
+Plant,seed_type,0x40,rex::be<int32_t>,0x821CA93C,"Plant::PlantInitialize(int, int, SeedType, SeedType, int)",verified Xbox access
+Plant,column,0x44,rex::be<int32_t>,0x821CA828,"Plant::PlantInitialize(int, int, SeedType, SeedType, int)",verified Xbox access
+Plant,state,0x58,rex::be<int32_t>,0x821CA8C8,"Plant::PlantInitialize(int, int, SeedType, SeedType, int)",verified Xbox access
+Plant,health,0x5C,rex::be<int32_t>,0x821CA948,"Plant::PlantInitialize(int, int, SeedType, SeedType, int)",verified Xbox access
+Plant,max_health,0x60,rex::be<int32_t>,0x821CBA00,"Plant::PlantInitialize(int, int, SeedType, SeedType, int)",verified Xbox access
+Plant,imitater_type,0x154,rex::be<int32_t>,0x821CA934,"Plant::PlantInitialize(int, int, SeedType, SeedType, int)",verified Xbox access
+Plant,dead,0x15D,uint8_t,0x821CA8D0,"Plant::PlantInitialize(int, int, SeedType, SeedType, int)",verified Xbox access
+Plant,additive_highlight,0x161,uint8_t,0x821D25B8,Plant::XboxUpdateReanimationColor_821D22C0,verified Xbox access
+Plant,player_index,0x164,rex::be<int32_t>,0x821CA9A0,"Plant::PlantInitialize(int, int, SeedType, SeedType, int)",verified Xbox access
+Zombie,app,0x1C,GuestPtr,0x82293814,Zombie::ZombieInitialize,verified Xbox access
+Zombie,board,0x20,GuestPtr,0x82293758,Zombie::ZombieInitialize,verified Xbox access
+Zombie,rect_x,0x24,rex::be<int32_t>,0x8229834C,Zombie::UpdateZombieDolphinRider(),verified Xbox access
+Zombie,rect_y,0x28,rex::be<int32_t>,0x822983E8,Zombie::UpdateZombieDolphinRider(),verified Xbox access
+Zombie,width,0x2C,rex::be<int32_t>,0x82293594,Zombie::ZombieInitialize,verified Xbox access
+Zombie,height,0x30,rex::be<int32_t>,0x822935A0,Zombie::ZombieInitialize,verified Xbox access
+Zombie,row,0x38,rex::be<int32_t>,0x82293528,Zombie::ZombieInitialize,verified Xbox access
+Zombie,zombie_type,0x40,rex::be<int32_t>,0x82293588,Zombie::ZombieInitialize,verified Xbox access
+Zombie,phase,0x44,rex::be<int32_t>,0x822936B8,Zombie::ZombieInitialize,verified Xbox access
+Zombie,x,0x48,rex::be<float>,0x82293570,Zombie::ZombieInitialize,verified Xbox access
+Zombie,y,0x4C,rex::be<float>,0x82293580,Zombie::ZombieInitialize,verified Xbox access
+Zombie,body_health,0xE4,rex::be<int32_t>,0x822937A8,Zombie::ZombieInitialize,verified Xbox access
+Zombie,body_max_health,0xE8,rex::be<int32_t>,0x8229583C,Zombie::ZombieInitialize,verified Xbox access
+Zombie,dead,0x108,uint8_t,0x82293B60,Zombie::ZombieInitialize,verified Xbox access
+Coin,vtable,0x0,GuestPtr,0x8216F264,Coin::Coin,verified Xbox access
+Coin,app,0x1C,GuestPtr,0x8216A17C,Coin::CoinInitialize,verified Xbox access
+Coin,board,0x20,GuestPtr,0x8216A9DC,Coin::CoinInitialize,verified Xbox access
+Coin,width,0x2C,rex::be<int32_t>,0x8216A0A8,Coin::CoinInitialize,verified Xbox access
+Coin,height,0x30,rex::be<int32_t>,0x8216A0B4,Coin::CoinInitialize,verified Xbox access
+Coin,x,0x40,rex::be<float>,0x8216A0C4,Coin::CoinInitialize,verified Xbox access
+Coin,y,0x44,rex::be<float>,0x8216A0BC,Coin::CoinInitialize,verified Xbox access
+Coin,start_x,0x48,rex::be<float>,0x8216A0AC,Coin::CoinInitialize,verified Xbox access
+Coin,start_y,0x4C,rex::be<float>,0x8216A0C8,Coin::CoinInitialize,verified Xbox access
+Coin,velocity_x,0x50,rex::be<float>,0x8216AC64,Coin::CoinInitialize,verified Xbox access
+Coin,velocity_y,0x54,rex::be<float>,0x8216AC60,Coin::CoinInitialize,verified Xbox access
+Coin,scale,0x58,rex::be<float>,0x8216A0A0,Coin::CoinInitialize,verified Xbox access
+Coin,dead,0x5C,uint8_t,0x8216A0A4,Coin::CoinInitialize,verified Xbox access
+Coin,flag_74,0x74,uint8_t,0x8216A0C0,Coin::CoinInitialize,verified Xbox access
+Coin,coin_type,0x80,rex::be<int32_t>,0x8216A048,Coin::CoinInitialize,verified Xbox access
+Coin,motion,0x84,rex::be<int32_t>,0x8216A050,Coin::CoinInitialize,verified Xbox access
+Coin,seed_type,0x98,rex::be<int32_t>,0x8216A0FC,Coin::CoinInitialize,verified Xbox access
+Coin,collecting_player,0xB8,rex::be<int32_t>,0x8216A118,Coin::CoinInitialize,verified Xbox access
+Coin,collection_elapsed,0xBC,rex::be<float>,0x8216F064,Coin::Collect,verified Xbox access
+Challenge,vtable,0x0,GuestPtr,0x8214F170,Challenge::Challenge,verified Xbox access
+Challenge,app,0x1C,GuestPtr,0x8214F1EC,Challenge::Challenge,verified Xbox access
+Challenge,board,0x20,GuestPtr,0x8214F1F4,Challenge::Challenge,verified Xbox access
+Challenge,has_selected,0x28,uint8_t,0x8214F200,Challenge::Challenge,verified Xbox access
+Challenge,selected_x,0x2C,rex::be<int32_t>,0x8214F204,Challenge::Challenge,verified Xbox access
+Challenge,selected_y,0x30,rex::be<int32_t>,0x8214F208,Challenge::Challenge,verified Xbox access
+Challenge,heavy_upgrade_0,0x6A,uint8_t,0x8214F290,Challenge::Challenge,verified Xbox access
+Challenge,heavy_upgrade_1,0x6B,uint8_t,0x8214F298,Challenge::Challenge,verified Xbox access
+Challenge,heavy_upgrade_2,0x6C,uint8_t,0x8214F29C,Challenge::Challenge,verified Xbox access
+Challenge,state,0x74,rex::be<int32_t>,0x8214F220,Challenge::Challenge,verified Xbox access
+Challenge,match_count,0x84,rex::be<int32_t>,0x8214F21C,Challenge::Challenge,verified Xbox access
+Challenge,selected_column,0xCC,rex::be<int32_t>,0x8214F238,Challenge::Challenge,verified Xbox access
+Challenge,selected_row,0xD0,rex::be<int32_t>,0x8214F23C,Challenge::Challenge,verified Xbox access
+Challenge,flag_e0,0xE0,uint8_t,0x8214F3A4,Challenge::Challenge,verified Xbox access
+Challenge,heavy_position,0x118,rex::be<float>,0x821659E4,Challenge::HeavyWeaponInitialize,verified Xbox access
+Challenge,heavy_y,0x11C,rex::be<float>,0x821659E8,Challenge::HeavyWeaponInitialize,verified Xbox access
+Challenge,heavy_angle,0x120,rex::be<float>,0x82165B20,Challenge::HeavyWeaponInitialize,verified Xbox access
+Challenge,counter_12c,0x12C,rex::be<int32_t>,0x82165B30,Challenge::HeavyWeaponInitialize,verified Xbox access
+Challenge,counter_130,0x130,rex::be<int32_t>,0x82165B2C,Challenge::HeavyWeaponInitialize,verified Xbox access
+CursorObject,vtable,0x0,GuestPtr,0x82177208,CursorObject::CursorObject,verified Xbox access
+CursorObject,app,0x1C,GuestPtr,0x82177264,CursorObject::CursorObject,verified Xbox access
+CursorObject,board,0x20,GuestPtr,0x821777EC,CursorObject::Draw,verified Xbox access
+CursorObject,x,0x24,rex::be<int32_t>,0x82177244,CursorObject::CursorObject,verified Xbox access
+CursorObject,y,0x28,rex::be<int32_t>,0x82177248,CursorObject::CursorObject,verified Xbox access
+CursorObject,width,0x2C,rex::be<int32_t>,0x82177378,CursorObject::CursorObject,verified Xbox access
+CursorObject,height,0x30,rex::be<int32_t>,0x8217737C,CursorObject::CursorObject,verified Xbox access
+CursorObject,field_40,0x40,rex::be<int32_t>,0x82177240,CursorObject::CursorObject,verified Xbox access
+CursorObject,seed_type,0x44,rex::be<int32_t>,0x82177238,CursorObject::CursorObject,verified Xbox access
+CursorObject,imitater_type,0x48,rex::be<int32_t>,0x8217723C,CursorObject::CursorObject,verified Xbox access
+CursorObject,cursor_type,0x4C,rex::be<int32_t>,0x8217724C,CursorObject::CursorObject,verified Xbox access
+CursorObject,field_50,0x50,rex::be<int32_t>,0x82177250,CursorObject::CursorObject,verified Xbox access
+CursorObject,field_54,0x54,rex::be<int32_t>,0x8217725C,CursorObject::CursorObject,verified Xbox access
+CursorObject,field_58,0x58,rex::be<int32_t>,0x82177254,CursorObject::CursorObject,verified Xbox access
+CursorObject,field_5c,0x5C,rex::be<int32_t>,0x82177258,CursorObject::CursorObject,verified Xbox access
+CursorObject,reanimation_id,0x64,rex::be<uint32_t>,0x82177260,CursorObject::CursorObject,verified Xbox access
+Widget,vtable,0x0,GuestPtr,0x82473EC0,Sexy::Widget::Widget,verified Xbox access
+Widget,children_head,0x18,GuestPtr,0x82492F94,Sexy::WidgetContainer::WidgetContainer,verified Xbox access
+Widget,manager,0x20,GuestPtr,0x82473F18,Sexy::Widget::Widget,verified Xbox access
+Widget,parent,0x24,GuestPtr,0x82492F80,Sexy::WidgetContainer::WidgetContainer,verified Xbox access
+Widget,flag_28,0x28,uint8_t,0x82492F88,Sexy::WidgetContainer::WidgetContainer,verified Xbox access
+Widget,update_count,0x34,rex::be<int32_t>,0x82492FA0,Sexy::WidgetContainer::WidgetContainer,verified Xbox access
+Widget,last_update_count,0x38,rex::be<int32_t>,0x82492FA4,Sexy::WidgetContainer::WidgetContainer,verified Xbox access
+Widget,x,0x40,rex::be<int32_t>,0x82492F70,Sexy::WidgetContainer::WidgetContainer,verified Xbox access
+Widget,y,0x44,rex::be<int32_t>,0x82492F74,Sexy::WidgetContainer::WidgetContainer,verified Xbox access
+Widget,width,0x48,rex::be<int32_t>,0x82492F78,Sexy::WidgetContainer::WidgetContainer,verified Xbox access
+Widget,height,0x4C,rex::be<int32_t>,0x82492F7C,Sexy::WidgetContainer::WidgetContainer,verified Xbox access
+Widget,dirty,0x50,uint8_t,0x82492FAC,Sexy::WidgetContainer::WidgetContainer,verified Xbox access
+Widget,flag_51,0x51,uint8_t,0x82492FB0,Sexy::WidgetContainer::WidgetContainer,verified Xbox access
+Widget,rect_54,0x54,rex::be<int32_t>[2],0x82492F68,Sexy::WidgetContainer::WidgetContainer,verified Xbox access
+Widget,listener_vtable,0x68,GuestPtr,0x82473EBC,Sexy::Widget::Widget,verified Xbox access
+Widget,id,0x6C,rex::be<int32_t>,0x82473F24,Sexy::Widget::Widget,verified Xbox access
+Widget,visible,0x70,uint8_t,0x82473F20,Sexy::Widget::Widget,verified Xbox access
+Widget,flag_71,0x71,uint8_t,0x82473F38,Sexy::Widget::Widget,verified Xbox access
+Widget,disabled,0x72,uint8_t,0x82473F28,Sexy::Widget::Widget,verified Xbox access
+Widget,flag_73,0x73,uint8_t,0x82473F3C,Sexy::Widget::Widget,verified Xbox access
+Widget,is_down,0x74,uint8_t,0x82473F2C,Sexy::Widget::Widget,verified Xbox access
+Widget,is_over,0x75,uint8_t,0x82473F30,Sexy::Widget::Widget,verified Xbox access
+Widget,flag_76,0x76,uint8_t,0x82473F40,Sexy::Widget::Widget,verified Xbox access
+Widget,gamepad_focus,0xA2,uint8_t,0x82473F50,Sexy::Widget::Widget,verified Xbox access
+Widget,field_a4,0xA4,rex::be<uint32_t>,0x82473F48,Sexy::Widget::Widget,verified Xbox access
+Widget,field_a8,0xA8,GuestPtr,0x82473F4C,Sexy::Widget::Widget,verified Xbox access
+Widget,field_ac,0xAC,GuestPtr,0x82473F54,Sexy::Widget::Widget,verified Xbox access
+Widget,field_b0,0xB0,GuestPtr,0x82473F58,Sexy::Widget::Widget,verified Xbox access
+Widget,navigation_1,0xB4,GuestPtr,0x82473F5C,Sexy::Widget::Widget,verified Xbox access
+Widget,field_b8,0xB8,GuestPtr,0x82473F60,Sexy::Widget::Widget,verified Xbox access
+Widget,field_bc,0xBC,GuestPtr,0x82473F64,Sexy::Widget::Widget,verified Xbox access
+Widget,user_index,0xC0,rex::be<int32_t>,0x82473F68,Sexy::Widget::Widget,verified Xbox access
+DataArray,block,0x0,GuestPtr,0x8214D93C,DataArray<Zombie>::Alloc,verified Xbox access
+DataArray,max_used,0x4,rex::be<uint32_t>,0x8214D908,DataArray<Zombie>::Alloc,verified Xbox access
+DataArray,capacity,0x8,rex::be<uint32_t>,0x8212C71C,Board::Board(LawnApp*),verified Xbox access
+DataArray,free_head,0xC,rex::be<uint32_t>,0x8214D900,DataArray<Zombie>::Alloc,verified Xbox access
+DataArray,size,0x10,rex::be<uint32_t>,0x8214D988,DataArray<Zombie>::Alloc,verified Xbox access
+DataArray,next_key,0x14,rex::be<uint32_t>,0x8214D958,DataArray<Zombie>::Alloc,verified Xbox access
+DataArray,name,0x18,GuestPtr,0x8212C710,Board::Board(LawnApp*),verified Xbox access
+PlantSlot,object,0x0,Plant,0x8214dab8,DataArray<Plant>::Alloc,verified payload span
+PlantSlot,id,0x168,rex::be<uint32_t>,0x8214dab8,DataArray<Plant>::Alloc,verified allocation ID
+ZombieSlot,object,0x0,Zombie,0x8214d968,DataArray<Zombie>::Alloc,verified payload span
+ZombieSlot,id,0x180,rex::be<uint32_t>,0x8214d968,DataArray<Zombie>::Alloc,verified allocation ID
+CoinSlot,object,0x0,Coin,0x8214dd58,DataArray<Coin>::Alloc,verified payload span
+CoinSlot,id,0xc4,rex::be<uint32_t>,0x8214dd58,DataArray<Coin>::Alloc,verified allocation ID
