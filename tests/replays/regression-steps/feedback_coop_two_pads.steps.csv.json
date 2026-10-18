@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "source": "C:\\Users\\ITSeniy\\.codex\\worktrees\\t12-deterministic-regressions\\PVZXboxRecomp\\tests\\replays\\feedback_coop_two_pads.csv",
+  "source_sha256": "d77fe187b1252cdf751f4014baff7f825d17d6710cecd7eca71e91d947c9891d",
+  "logs": {
+    "C:\\Users\\ITSeniy\\.codex\\worktrees\\t12-deterministic-regressions\\PVZXboxRecomp\\logs\\smoke-20261018-220803-614.log": "80149812640026fdf8998f3d2610dd7a23aeb3eda7b3f76199aedb490ead6f8d"
+  },
+  "converter_sha256": "5f1e20ea62b6d30b492e2e5b3fc5220ac6e0c1b9a519b037e00196e4e3bbbc14",
+  "rows": 80,
+  "method": "recorded app logical update delivery; no FPS interpolation",
+  "output_sha256": "69cdfd83c59b31359b352fc75ddfa55f54487af4f57eaf91a8588224de281797"
+}

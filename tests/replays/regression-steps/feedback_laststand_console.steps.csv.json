@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "source": "C:\\Users\\ITSeniy\\.codex\\worktrees\\t12-deterministic-regressions\\PVZXboxRecomp\\tests\\replays\\feedback_laststand_console.csv",
+  "source_sha256": "aef20d38bcb9008460efafbb8aa1d8bc7fac923a66afb8eabcc06353a43bf48d",
+  "logs": {
+    "C:\\Users\\ITSeniy\\.codex\\worktrees\\t12-deterministic-regressions\\PVZXboxRecomp\\logs\\smoke-20261018-235712-294.log": "14f827933bf6dffa9dac27013c7cff2f38fe698fe16ad02d27d0ee8db5f8dd5a"
+  },
+  "converter_sha256": "5f1e20ea62b6d30b492e2e5b3fc5220ac6e0c1b9a519b037e00196e4e3bbbc14",
+  "rows": 35,
+  "method": "recorded app logical update delivery; no FPS interpolation",
+  "output_sha256": "b19f9fadfe558b6bbfd1586cc45602e08f5e4cc65db68f4565778f11a5aba21b"
+}

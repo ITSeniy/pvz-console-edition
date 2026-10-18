@@ -1,0 +1,20 @@
+# pvz-frame-locked-v1
+335,400,300,wait_title
+437,400,500,left_down
+439,400,500,left_up
+551,400,300,wait_menu
+752,478,444,left_down
+767,478,444,left_up
+1254,398,351,left_down
+1266,398,351,left_up
+1551,8192,0,controller
+1566,0,0,controller
+1953,2,0,controller
+1969,0,0,controller
+2152,4096,0,controller
+2168,0,0,controller
+2851,8192,0,controller
+2867,0,0,controller
+3252,8192,0,controller
+3267,0,0,controller
+3651,400,300,move

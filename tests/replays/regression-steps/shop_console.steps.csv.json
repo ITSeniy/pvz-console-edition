@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "source": "C:\\Users\\ITSeniy\\.codex\\worktrees\\t12-deterministic-regressions\\PVZXboxRecomp\\tests\\replays\\shop_regression.csv",
+  "source_sha256": "0056bc7cdccfe1067766cea8f5ec7c531e5527e54d7f7d9941d6846ba32a0041",
+  "logs": {
+    "C:\\Users\\ITSeniy\\.codex\\worktrees\\t12-deterministic-regressions\\PVZXboxRecomp\\logs\\smoke-20261018-232245-534.log": "aaae4ddc3583b1935be974fa1ad905e38e69c16e07583e40e238d0675867f594"
+  },
+  "converter_sha256": "5f1e20ea62b6d30b492e2e5b3fc5220ac6e0c1b9a519b037e00196e4e3bbbc14",
+  "rows": 68,
+  "method": "recorded app logical update delivery; no FPS interpolation",
+  "output_sha256": "a444ff3a82f3c34db29fbbe5a9f63275b483164046ecd943fa5a7e219a8fc870"
+}
