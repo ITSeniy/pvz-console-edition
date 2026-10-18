@@ -53,7 +53,7 @@ try {
             $target = $capturePath[0].Substring('--pvz_capture_frame='.Length)
             $captureExpected = 1
             foreach ($arg in $GameArgs) {
-                if ($arg -match '^--pvz_capture_count=(\d+)$') { $captureExpected = [Math]::Clamp([int]$Matches[1], 1, 16) }
+                if ($arg -match '^--pvz_capture_count=(\d+)$') { $captureExpected = [Math]::Min([Math]::Max([int]$Matches[1], 1), 16) }
             }
             $suffix = if ($captureExpected -gt 1) { '-\d+' } else { '' }
             $capturePattern = 'Captured guest frame \d+x\d+ to .*' +
