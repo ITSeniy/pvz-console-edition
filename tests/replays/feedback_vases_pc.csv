@@ -32,6 +32,8 @@
 35,450,260,move
 36,500,160,left_down
 36.15,500,160,left_up
+37,200,160,left_down
+37.15,200,160,left_up
 38,450,260,right_down
 38.15,450,260,right_up
 41,600,72,left_down
