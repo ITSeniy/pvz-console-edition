@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "source": "C:\\Users\\ITSeniy\\.codex\\worktrees\\t06-native-pilot\\PVZXboxRecomp\\tests\\replays\\feedback_heavy_console.csv",
+  "source_sha256": "8531ee16b06345dcc46772d0ef2c765f11fd7a0a21960f4e4bc27f20698757a7",
+  "logs": {
+    "C:\\Users\\ITSeniy\\.codex\\worktrees\\t06-native-pilot\\PVZXboxRecomp\\logs\\smoke-20261017-202702-412.1.log": "9e5ca2fee250a945ab643e4cf4899dd0e01b1c9bc8c796e726d1616a3f04d8bb",
+    "C:\\Users\\ITSeniy\\.codex\\worktrees\\t06-native-pilot\\PVZXboxRecomp\\logs\\smoke-20261017-202702-412.2.log": "73b54a8b272aecc356d39febfc0f93328610b6b8449a36c866a18cb8674bb81b",
+    "C:\\Users\\ITSeniy\\.codex\\worktrees\\t06-native-pilot\\PVZXboxRecomp\\logs\\smoke-20261017-202702-412.3.log": "b63dded0fad724ea9ac9f409d2e2842f11f37d97dbfbe5dc9f24a1c8ddd3a937",
+    "C:\\Users\\ITSeniy\\.codex\\worktrees\\t06-native-pilot\\PVZXboxRecomp\\logs\\smoke-20261017-202702-412.log": "2d7b46b9b9da3d312fce6f745a623576e0c9fb146475748acca0368bd21e470e"
+  },
+  "converter_sha256": "5f1e20ea62b6d30b492e2e5b3fc5220ac6e0c1b9a519b037e00196e4e3bbbc14",
+  "rows": 17,
+  "method": "recorded app logical update delivery; no FPS interpolation",
+  "output_sha256": "8d30441e412e89b7e70ac6c284b4af340b05dd95b7076afc1e1450df5be14de3"
+}

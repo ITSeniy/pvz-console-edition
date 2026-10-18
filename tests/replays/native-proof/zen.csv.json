@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "source": "C:\\Users\\ITSeniy\\.codex\\worktrees\\t06-native-pilot\\PVZXboxRecomp\\tests\\replays\\services_zen_regression.csv",
+  "source_sha256": "3d8f9c31bfe9a1ccf3283784b0a2ec9144b8c3e80d73754020fcc5c0070e9981",
+  "logs": {
+    "C:\\Users\\ITSeniy\\.codex\\worktrees\\t06-native-pilot\\PVZXboxRecomp\\logs\\smoke-20261017-202756-299.log": "76fcad9c7b5fe2b81bba7ca390b07227b047d3faee999c2411436ee3323438f0"
+  },
+  "converter_sha256": "5f1e20ea62b6d30b492e2e5b3fc5220ac6e0c1b9a519b037e00196e4e3bbbc14",
+  "rows": 42,
+  "method": "recorded app logical update delivery; no FPS interpolation",
+  "output_sha256": "5f14131719fa3e3352474cb4539b6c4b4a3ea68de611b2693e017c8b1410cf17"
+}

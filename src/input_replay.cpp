@@ -5,6 +5,7 @@
 #include "input_backend.h"
 #include "game_settings.h"
 #include "replay_event.h"
+#include "native/replacement.h"
 #include <rex/cvar.h>
 #include <rex/logging.h>
 #include <fstream>
@@ -186,6 +187,7 @@ std::jthread StartInputReplay() {
       }
     }
     REXLOG_INFO("PvZ replay completed {}", path);
+    pvz::native::ReplayCompleted();
   });
 }
 
@@ -301,6 +303,7 @@ void ReplayLogicalStep(uint64_t step) {
   }
   if (!failed && index == events.size()) {
     complete = true; REXLOG_INFO("PvZ frame replay completed {}", REXCVAR_GET(pvz_input_replay));
+    pvz::native::ReplayCompleted();
   }
 }
 }

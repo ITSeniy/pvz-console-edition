@@ -21,6 +21,8 @@ configure_file(src/game_content_lock.h.in ${CMAKE_CURRENT_BINARY_DIR}/game_conte
 
 # Sources
 set(PVZ_SOURCES
+    src/native/replacement.cpp
+    src/native/tool_rect.cpp
     src/native/pixel_to_grid_x.cpp
     src/gamepad_repeat.cpp
     src/main.cpp
@@ -74,6 +76,14 @@ target_include_directories(pvz PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(native_replacement_test tests/native_replacement_test.cpp)
+    target_include_directories(native_replacement_test PRIVATE src)
+    add_test(NAME native_replacement COMMAND native_replacement_test)
+    find_program(PVZ_POWERSHELL NAMES pwsh powershell)
+    if(PVZ_POWERSHELL)
+        add_test(NAME native_proof_parser COMMAND ${PVZ_POWERSHELL} -NoProfile
+            -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/run_native_proof.ps1 -SelfTest)
+    endif()
     add_executable(xbox_layout_test tests/xbox_layout_test.cpp)
     target_include_directories(xbox_layout_test PRIVATE src
         $<TARGET_PROPERTY:rex::runtime,INTERFACE_INCLUDE_DIRECTORIES>)

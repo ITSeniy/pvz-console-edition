@@ -1,0 +1,203 @@
+// Native-port comparison contract. The engine is independent of the SDK so a
+// fake PPCContext and ordinary byte buffer can exercise exactly the same path.
+#pragma once
+#include <algorithm>
+#include <array>
+#include <bit>
+#include <cstdint>
+#include <cstring>
+#include <mutex>
+#include <span>
+#include <sstream>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+namespace pvz::native {
+enum class Safety { DeclaredOutputsOnly, SnapshotsOnly };
+enum class Kind { Unsigned, Signed, FloatBits };
+struct Range { uint32_t address; size_t size; };
+struct Mode { bool enabled = false, compare = false, inject = false; };
+struct Stats {
+  std::recursive_mutex mutex;
+  uint64_t calls = 0, errors = 0;
+  struct Caller { uint32_t lr = 0; uint64_t calls = 0, errors = 0; };
+  std::array<Caller, 16> callers{};
+  size_t caller_count = 0;
+  uint64_t other_calls = 0, other_errors = 0;
+  void Record(uint32_t lr, bool mismatch) {
+    ++calls;
+    errors += mismatch;
+    for (size_t i = 0; i < caller_count; ++i) {
+      if (callers[i].lr == lr) {
+        ++callers[i].calls;
+        callers[i].errors += mismatch;
+        return;
+      }
+    }
+    if (caller_count < callers.size()) callers[caller_count++] = {lr, 1, uint64_t(mismatch)};
+    else { ++other_calls; other_errors += mismatch; }
+  }
+  void* checkpoint_data = nullptr;
+  void (*checkpoint)(void*, uint64_t, uint64_t) = nullptr;
+};
+template<class Context, class Register> struct Output {
+  const char* name;
+  Register Context::*member;
+  unsigned bits;
+  Kind kind;
+  uint64_t Mask() const {
+    if (bits != 8 && bits != 16 && bits != 32 && bits != 64)
+      throw std::invalid_argument("register width must be 8/16/32/64");
+    if (kind == Kind::FloatBits && bits != 32 && bits != 64)
+      throw std::invalid_argument("FPR width must be 32/64");
+    return bits == 64 ? ~uint64_t{} : (uint64_t{1} << bits) - 1;
+  }
+  uint64_t Read(const Context& ctx) const {
+    (void)Mask();
+    if (kind == Kind::FloatBits && bits == 32)
+      return std::bit_cast<uint32_t>(static_cast<float>((ctx.*member).f64));
+    return (ctx.*member).u64 & Mask();
+  }
+  void Select(Context& ctx, const Context& from) const {
+    auto value = Read(from);
+    if (kind == Kind::Signed && bits < 64 && (value & (uint64_t{1} << (bits - 1))))
+      value |= ~Mask();
+    if (kind == Kind::FloatBits && bits == 32) {
+      (ctx.*member).f64 = static_cast<double>(std::bit_cast<float>(uint32_t(value)));
+      return;
+    }
+    (ctx.*member).u64 = value;
+  }
+};
+
+// Ranges must be valid writable guest bytes, disjoint, and resolved solely
+// from entry arguments. Input/output aliasing is supported. No other writes,
+// child effects, RNG, IO, allocations or asynchronous observers are permitted.
+// log(error, detail) and summary(reason, calls, errors) run under stats.mutex.
+template<class Context, class Outputs, class Resolve, class Native, class Original,
+         class Log, class Summary>
+void Invoke(Context& ctx, uint8_t* base, Mode mode, Safety safety, Stats& stats,
+            const Outputs& outputs, Resolve resolve, Native native, Original original,
+            Log log, Summary summary) {
+  if (!mode.enabled && !mode.compare) { original(ctx, base); return; }
+  if (!mode.compare) { native(ctx, base); return; }
+  if (safety == Safety::SnapshotsOnly)
+    throw std::logic_error("SnapshotsOnly replacement cannot run compare");
+  std::lock_guard lock(stats.mutex);
+  const Context input = ctx;
+  const auto ranges = resolve(input);
+  struct Saved { Range range; std::vector<uint8_t> before, after; };
+  std::vector<Saved> saved;
+  for (auto range : ranges) {
+    if (!range.size || range.size > (uint64_t{1} << 32) - range.address)
+      throw std::invalid_argument("invalid guest output range");
+    for (const auto& other : saved)
+      if (uint64_t(range.address) < uint64_t(other.range.address) + other.range.size &&
+          uint64_t(other.range.address) < uint64_t(range.address) + range.size)
+        throw std::invalid_argument("overlapping guest output ranges");
+    saved.push_back({range, std::vector<uint8_t>(base + range.address,
+        base + range.address + range.size), std::vector<uint8_t>(range.size)});
+  }
+  for (const auto& output : outputs) (void)output.Mask();
+  if (outputs.empty() && saved.empty()) throw std::invalid_argument("compare needs outputs");
+  auto restore = [&] {
+    for (const auto& s : saved) std::memcpy(base + s.range.address, s.before.data(), s.range.size);
+  };
+  Context candidate = input;
+  try {
+    native(candidate, base);
+    // Injection belongs to the harness, and cannot affect native-only mode.
+    if (mode.inject) {
+      if (!outputs.empty()) {
+        const auto& out = outputs.front();
+        if (out.kind == Kind::FloatBits && out.bits == 32)
+          (candidate.*out.member).f64 = double(std::bit_cast<float>(uint32_t(out.Read(candidate)) ^ 1));
+        else (candidate.*out.member).u64 ^= 1;
+      }
+      else base[saved.front().range.address] ^= 1;
+    }
+    for (auto& s : saved) std::memcpy(s.after.data(), base + s.range.address, s.range.size);
+  } catch (...) { restore(); throw; }
+  restore();
+  original(ctx, base);
+  std::ostringstream differences;
+  bool mismatch = false;
+  for (const auto& output : outputs) {
+    if (output.Read(candidate) != output.Read(ctx)) {
+      mismatch = true;
+      differences << ' ' << output.name << ':' << output.bits << ':' << int(output.kind)
+                  << " native=0x" << std::hex << output.Read(candidate)
+                  << " original=0x" << output.Read(ctx) << std::dec;
+    }
+  }
+  for (const auto& s : saved) {
+    for (size_t i = 0; i < s.range.size; ++i) {
+      if (s.after[i] != base[s.range.address + i]) {
+        mismatch = true;
+        differences << " byte=0x" << std::hex << uint64_t(s.range.address) + i
+                    << " native=" << unsigned(s.after[i])
+                    << " original=" << unsigned(base[s.range.address + i]) << std::dec;
+      }
+    }
+  }
+  stats.Record(uint32_t(input.lr), mismatch);
+  if (stats.checkpoint) stats.checkpoint(stats.checkpoint_data, stats.calls, stats.errors);
+  if (mismatch) log(input, differences.str());
+  if (mode.enabled) {
+    for (const auto& output : outputs) output.Select(ctx, candidate);
+    for (const auto& s : saved) std::memcpy(base + s.range.address, s.after.data(), s.range.size);
+  }
+  if (stats.calls % 1000 == 0) summary("periodic", stats.calls, stats.errors);
+}
+} // namespace pvz::native
+
+#ifndef PVZ_NATIVE_REPLACEMENT_TEST
+#include <rex/hook.h>
+#include <rex/cvar.h>
+#include <rex/logging.h>
+REXCVAR_DECLARE(bool, pvz_native_compare_all);
+namespace pvz::native {
+using RegisterOutput = Output<PPCContext, PPCRegister>;
+struct Registration {
+  const char* name;
+  bool (*comparing)();
+  Stats stats;
+  Registration(const char* name, bool (*comparing)());
+};
+void Summarize(Registration& registration, const char* reason);
+void Mismatch(Registration& registration, const PPCContext& input, const std::string& detail);
+bool Prepare(Registration& registration);
+void ReplayCompleted();
+} // namespace pvz::native
+
+// OUTPUTS: container of RegisterOutput. RANGES: callable (entry context) ->
+// container<Range>. NATIVE: callable (context, base). All flags are init-only:
+// the fast path reads one cached bool and immediately delegates to __imp__.
+#define PVZ_NATIVE_REPLACEMENT(NAME, SYMBOL, NATIVE, SAFETY, OUTPUTS, RANGES) \
+  REXCVAR_DEFINE_BOOL(pvz_native_##NAME, false, "Native port", "Use native " #NAME) \
+      .lifecycle(rex::cvar::Lifecycle::kInitOnly); \
+  REXCVAR_DEFINE_BOOL(pvz_native_##NAME##_compare, false, "Diagnostics", "Compare " #NAME) \
+      .lifecycle(rex::cvar::Lifecycle::kInitOnly); \
+  REXCVAR_DEFINE_BOOL(pvz_native_##NAME##_inject_error, false, "Diagnostics", "Perturb compare " #NAME) \
+      .lifecycle(rex::cvar::Lifecycle::kInitOnly); \
+  namespace { \
+  pvz::native::Registration replacement_##NAME{#NAME, [] { \
+    return REXCVAR_GET(pvz_native_##NAME##_compare) || REXCVAR_GET(pvz_native_compare_all); }}; \
+  } \
+  REX_EXTERN(__imp__##SYMBOL); \
+  REX_HOOK_RAW(SYMBOL) { \
+    static const bool active = REXCVAR_GET(pvz_native_##NAME) || \
+        REXCVAR_GET(pvz_native_##NAME##_compare) || REXCVAR_GET(pvz_native_compare_all); \
+    if (!active) { __imp__##SYMBOL(ctx, base); return; } \
+    static const pvz::native::Mode mode{REXCVAR_GET(pvz_native_##NAME), \
+        replacement_##NAME.comparing(), REXCVAR_GET(pvz_native_##NAME##_inject_error)}; \
+    static const bool prepared = !mode.compare || pvz::native::Prepare(replacement_##NAME); \
+    pvz::native::Invoke(ctx, base, mode, SAFETY, replacement_##NAME.stats, OUTPUTS, RANGES, \
+      NATIVE, __imp__##SYMBOL, \
+      [](const PPCContext& input, const std::string& detail) { \
+        pvz::native::Mismatch(replacement_##NAME, input, detail); }, \
+      [](const char* reason, uint64_t, uint64_t) { \
+        pvz::native::Summarize(replacement_##NAME, reason); }); \
+  }
+#endif

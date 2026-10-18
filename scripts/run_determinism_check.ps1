@@ -10,7 +10,11 @@ param(
     [ValidateRange(1,2)][int]$Repeats = 2,
     [string]$OutputRoot,
     [switch]$Sensitivity,
-    [switch]$ProfileOnly
+    [switch]$ProfileOnly,
+    [string[]]$AdditionalGameArgs = @(),
+    [string]$ReplayDirectory,
+    [switch]$FrameLocked,
+    [switch]$RecordSteps
 )
 $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path $PSScriptRoot -Parent)
@@ -41,6 +45,7 @@ $summary = [ordered]@{schema=1;output_root=$OutputRoot;executable_sha256=$exeHas
 foreach ($name in $Cases) {
     $case = $definitions[$name]
     $replay = [IO.Path]::GetFullPath((Join-Path 'tests/replays' $case.replay))
+    if ($ReplayDirectory) { $replay = [IO.Path]::GetFullPath((Join-Path $ReplayDirectory "$name.csv")) }
     $sourceProfile = if ($case.fresh) {$freshCopy} else {$baselineCopy}
     $inputs = [ordered]@{}
     foreach ($file in @($exe,$replay,(Join-Path $repo 'src/state_dump.cpp'),(Join-Path $repo 'scripts/compare_state_dumps.py'),
@@ -70,14 +75,21 @@ foreach ($name in $Cases) {
             "--pvz_input_replay=$replay", "--pvz_state_inputs_sha256=$manifestHash", "--pvz_state_frames=$($case.frames)")
         if (-not $ProfileOnly) { $gameArgs += "--pvz_state_dump=$dump" }
         if ($Sensitivity) { $gameArgs += '--pvz_state_mutate_frame=1800' }
+        if ($FrameLocked) { $gameArgs += '--pvz_replay_frame_locked=true' }
+        if ($RecordSteps) { $gameArgs += '--pvz_replay_record_steps=true' }
+        $gameArgs += $AdditionalGameArgs
         Write-Output "T05 starting $runName ($($case.seconds) seconds)"
         & ./smoke.ps1 -Seconds $case.seconds -UserDataRoot (Join-Path $directory 'user') @gameArgs
         $result = Get-Content runtime-data/smoke-latest.json -Raw | ConvertFrom-Json
         if (-not $result.survived -or $result.fatal.Count -or -not $result.gpu_initialized) { throw "Failed smoke: $runName" }
         if ((Hash $exe) -ne $exeHash) { throw 'Executable changed during the experiment.' }
         $text = ($result.log_files | ForEach-Object { Get-Content -LiteralPath $_ -Raw }) -join "`n"
-        if ($text -match 'PvZ replay .*timed out|Invalid input replay|Cannot open input replay|state dump (?:cannot|write failed)') { throw "Invalid diagnostics/replay: $runName" }
-        if ($text -notmatch 'PvZ replay completed') { throw "Replay did not complete: $runName" }
+        if ($text -match 'PvZ (?:frame )?replay.*(?:timed out|readiness failed|missed row|not ready|invalid)|Invalid input replay|Cannot open input replay|state dump (?:cannot|write failed)') { throw "Invalid diagnostics/replay: $runName" }
+        if ($text -notmatch 'PvZ (?:frame )?replay completed') { throw "Replay did not complete: $runName" }
+        if ($RecordSteps) {
+            & python -I scripts/replay_seconds_to_steps.py $replay $result.log_files --output (Join-Path $OutputRoot "$name.csv")
+            if ($LASTEXITCODE -ne 0) { throw "Step conversion failed: $runName" }
+        }
         $timings = @([regex]::Matches($text, 'PvZ state timing batch (\d+) n (\d+) update_us_p50 ([\d.]+) update_us_p95 ([\d.]+) dump_us_p50 ([\d.]+) dump_us_p95 ([\d.]+)') | ForEach-Object {
             [ordered]@{batch=[int]$_.Groups[1].Value;n=[int]$_.Groups[2].Value;
                 update_us_p50=[double]::Parse($_.Groups[3].Value,[Globalization.CultureInfo]::InvariantCulture);
@@ -86,7 +98,7 @@ foreach ($name in $Cases) {
                 dump_us_p95=[double]::Parse($_.Groups[6].Value,[Globalization.CultureInfo]::InvariantCulture)}
         })
         $run = [ordered]@{input_manifest=$manifest;input_manifest_sha256=$manifestHash;profile=$result.user_data_root;
-            log_files=$result.log_files;log_sha256=@($result.log_files|ForEach-Object {Hash $_});timings=$timings}
+            log_files=$result.log_files;log_sha256=@($result.log_files|ForEach-Object {Hash $_});timings=$timings;arguments=$gameArgs}
         if (-not $ProfileOnly) {
             & python -I scripts/compare_state_dumps.py $dump $dump --output (Join-Path $directory 'validation.json')
             if ($LASTEXITCODE -ne 0) { throw "Invalid state dump: $runName" }

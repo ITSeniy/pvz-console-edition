@@ -1,0 +1,18 @@
+# pvz-frame-locked-v1
+338,400,300,wait_title
+439,400,500,left_down
+455,400,500,left_up
+552,400,300,wait_menu
+753,20,0,fixture_mode
+1595,400,300,wait_board
+1695,400,300,move
+1795,1000,0,fixture_heavy_sun
+1995,300,250,move
+2195,300,250,left_down
+2395,500,250,move
+2593,500,250,left_up
+2695,400,300,right_down
+2712,400,300,right_up
+2795,400,300,wheel_down
+2997,400,300,right_down
+3012,400,300,right_up

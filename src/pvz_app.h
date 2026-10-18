@@ -92,7 +92,7 @@ class PvzApp : public rex::ReXApp {
     });
     pvz::SetHostMenuCallback([this, alive = host_settings_alive_](pvz::HostMenu menu) {
       if (!alive->load()) return;
-      app_context().CallInUIThreadDeferred([this, alive, menu] {
+      auto show = [this, alive, menu] {
         if (!alive->load()) return;
         if (menu == pvz::HostMenu::Quit) { window()->RequestClose(); return; }
         if (menu == pvz::HostMenu::Unlock) { ChooseGamePackage(); return; }
@@ -100,7 +100,12 @@ class PvzApp : public rex::ReXApp {
         pc_menu_->Show(menu);
         REXLOG_INFO("PvZ host menu opened: {}", menu == pvz::HostMenu::Achievements ? "Achievements" :
             menu == pvz::HostMenu::Keyboard ? "Keyboard" : "Cheats");
-      });
+      };
+      // A frame replay must finish opening the host overlay (including its
+      // pointer cancellation) before the current logical update continues.
+      if (rex::cvar::Query<bool>("pvz_replay_frame_locked"))
+        app_context().CallInUIThreadSynchronous(show);
+      else app_context().CallInUIThreadDeferred(show);
     });
   }
   void OnMouseDown(rex::ui::MouseEvent& event) override { CaptureButton(event, true); }
