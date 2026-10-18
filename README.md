@@ -119,7 +119,9 @@ These are the problems we know about in 0.7.0:
 - **PS3 dumps cannot be used to play.** The port needs the Xbox executable; see
   [docs/distribution.md](docs/distribution.md).
 - **Some tester reports are still open:** a speed-up at 100 FPS that we could not
-  reproduce, and occasional double steps in the pause menu with a gamepad.
+  reproduce. Gamepad auto-repeat in menus now runs at a fixed 100 Hz instead of the
+  frame rate; if you still see double steps, `--pvz_gamepad_repeat_fix=false` restores
+  the old behaviour for comparison.
 
 Found something else? Open an issue and attach the newest file from the `logs` folder.
 

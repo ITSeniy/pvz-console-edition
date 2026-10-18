@@ -9,7 +9,8 @@
 #include <array>
 #include <chrono>
 
-REXCVAR_DEFINE_BOOL(pvz_gamepad_repeat_fix, false, "PvZ",
+// On by default since 2026-10-19: owner gamepad test and the body CTest passed.
+REXCVAR_DEFINE_BOOL(pvz_gamepad_repeat_fix, true, "PvZ",
     "Advance gamepad repeat counters once per logical game update (100 Hz)");
 REXCVAR_DEFINE_BOOL(pvz_gamepad_repeat_trace, false, "Diagnostics",
     "Trace raw pad edges, repeat deliveries, focus and accumulated logic ticks");
