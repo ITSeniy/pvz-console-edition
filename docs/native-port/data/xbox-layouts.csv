@@ -270,3 +270,16 @@ ZombieSlot,object,0x0,Zombie,0x8214d968,DataArray<Zombie>::Alloc,verified payloa
 ZombieSlot,id,0x180,rex::be<uint32_t>,0x8214d968,DataArray<Zombie>::Alloc,verified allocation ID
 CoinSlot,object,0x0,Coin,0x8214dd58,DataArray<Coin>::Alloc,verified payload span
 CoinSlot,id,0xc4,rex::be<uint32_t>,0x8214dd58,DataArray<Coin>::Alloc,verified allocation ID
+Widget,colors_header,0x78,uint8_t[12],0x82473C90,Widget::~Widget vector object argument,verified Xbox access
+Widget,colors_begin,0x84,GuestPtr,0x824736BC,Widget::GetColor source array begin,verified Xbox access
+Widget,colors_end,0x88,GuestPtr,0x824736B0,Widget::GetColor source array end,verified Xbox access
+Widget,mouse_insets,0x90,rex::be<int32_t>[4],0x82473964|0x8247396C|0x82473974|0x82473978,Widget::GetInsetRect right-bottom-left-top reads,verified Xbox access
+Widget,flag_a0,0xA0,uint8_t,0x82473F34,Widget::Widget zero flag,verified Xbox access
+Widget,wants_focus,0xA1,uint8_t,0x82472AD0,Widget getter lbz r3 161(r3),verified Xbox access
+Widget,animation,0xC4,GuestPtr,0x824739CC,Widget animation update receiver,verified Xbox access
+Widget,animation_queue,0xC8,GuestPtr[3],0x82473A40|0x82473EF8,Widget animation queue and three-element constructor,verified Xbox access
+WidgetManagerInput,app,0x70,GuestPtr,0x82472FC4,Widget::ShowFinger manager application,verified Xbox access
+WidgetManagerInput,mouse_x,0x10C,rex::be<int32_t>,0x82472B54,Widget::SetDisabled cursor x argument,verified Xbox access
+WidgetManagerInput,mouse_y,0x110,rex::be<int32_t>,0x82472B50,Widget::SetDisabled cursor y argument,verified Xbox access
+WidgetManagerInput,shift_down,0x134,uint8_t,0x82472C20,Widget::KeyDown shift state,verified Xbox access
+WidgetGraphicsText,write_colored_string,0x4A,uint8_t,0x82473118|0x8247317C,Widget text wrappers temporary Graphics state,verified Xbox access

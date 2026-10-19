@@ -157,6 +157,8 @@ void Invoke(Context& ctx, uint8_t* base, Mode mode, Safety safety, Stats& stats,
 #include <rex/cvar.h>
 #include <rex/logging.h>
 REXCVAR_DECLARE(bool, pvz_native_compare_all);
+REXCVAR_DECLARE(bool, pvz_native_b001);
+REXCVAR_DECLARE(bool, pvz_native_b001_compare);
 namespace pvz::native {
 using RegisterOutput = Output<PPCContext, PPCRegister>;
 struct Registration {
@@ -168,6 +170,7 @@ struct Registration {
 void Summarize(Registration& registration, const char* reason);
 void Mismatch(Registration& registration, const PPCContext& input, const std::string& detail);
 bool Prepare(Registration& registration);
+void Observe(Registration& registration, uint32_t lr);
 void ReplayCompleted();
 } // namespace pvz::native
 
@@ -199,5 +202,39 @@ void ReplayCompleted();
         pvz::native::Mismatch(replacement_##NAME, input, detail); }, \
       [](const char* reason, uint64_t, uint64_t) { \
         pvz::native::Summarize(replacement_##NAME, reason); }); \
+  }
+// PROVEN gates only batch activation. Individual flags remain available for
+// discovery. Snapshot-only compare requests execute the original exactly once
+// and record coverage; they never enter the differential engine.
+#define PVZ_NATIVE_BATCH_REPLACEMENT(BATCH, PROVEN, NAME, SYMBOL, NATIVE, SAFETY, OUTPUTS, RANGES) \
+  REXCVAR_DEFINE_BOOL(pvz_native_##NAME, false, "Native port", "Use native " #NAME) \
+      .lifecycle(rex::cvar::Lifecycle::kInitOnly); \
+  REXCVAR_DEFINE_BOOL(pvz_native_##NAME##_compare, false, "Diagnostics", "Compare/observe " #NAME) \
+      .lifecycle(rex::cvar::Lifecycle::kInitOnly); \
+  REXCVAR_DEFINE_BOOL(pvz_native_##NAME##_inject_error, false, "Diagnostics", "Perturb compare " #NAME) \
+      .lifecycle(rex::cvar::Lifecycle::kInitOnly); \
+  namespace { \
+  bool enabled_##NAME() { return REXCVAR_GET(pvz_native_##NAME) || \
+      ((PROVEN) && REXCVAR_GET(pvz_native_##BATCH)); } \
+  bool compare_##NAME() { return REXCVAR_GET(pvz_native_##NAME##_compare) || \
+      REXCVAR_GET(pvz_native_compare_all) || ((PROVEN) && REXCVAR_GET(pvz_native_##BATCH##_compare)); } \
+  pvz::native::Registration replacement_##NAME{#NAME, [] { \
+    return enabled_##NAME() || compare_##NAME(); }}; \
+  } \
+  REX_EXTERN(__imp__##SYMBOL); \
+  REX_HOOK_RAW(SYMBOL) { \
+    static const bool active = enabled_##NAME() || compare_##NAME(); \
+    if (!active) { __imp__##SYMBOL(ctx, base); return; } \
+    static const pvz::native::Mode mode{enabled_##NAME(), \
+        compare_##NAME() && SAFETY == pvz::native::Safety::DeclaredOutputsOnly, \
+        REXCVAR_GET(pvz_native_##NAME##_inject_error)}; \
+    static const bool prepared = pvz::native::Prepare(replacement_##NAME); \
+    const auto entry_lr = uint32_t(ctx.lr); \
+    pvz::native::Invoke(ctx, base, mode, SAFETY, replacement_##NAME.stats, OUTPUTS, RANGES, \
+      NATIVE, __imp__##SYMBOL, \
+      [](const PPCContext& input, const std::string& detail) { \
+        pvz::native::Mismatch(replacement_##NAME, input, detail); }, \
+      [](const char* reason, uint64_t, uint64_t) { pvz::native::Summarize(replacement_##NAME, reason); }); \
+    if (!mode.compare) pvz::native::Observe(replacement_##NAME, entry_lr); \
   }
 #endif

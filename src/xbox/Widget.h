@@ -35,7 +35,14 @@ struct Widget {
   uint8_t is_down; // +0x74
   uint8_t is_over; // +0x75
   uint8_t flag_76; // +0x76
-  uint8_t pad_077[0x2B];
+  uint8_t pad_077;
+  uint8_t colors_header[0xC]; // +0x78, vector object passed to guest helpers
+  GuestPtr colors_begin; // +0x84, 824736BC
+  GuestPtr colors_end; // +0x88, 824736B0
+  uint8_t pad_08C[4];
+  rex::be<int32_t> mouse_insets[4]; // +0x90, 82473964..82473984
+  uint8_t flag_a0;
+  uint8_t wants_focus; // +0xA1, 82472AD0 lbz
   uint8_t gamepad_focus; // +0xA2
   uint8_t pad_0A3[0x1];
   rex::be<uint32_t> field_a4; // +0xA4
@@ -46,7 +53,30 @@ struct Widget {
   GuestPtr field_b8; // +0xB8
   GuestPtr field_bc; // +0xBC
   rex::be<int32_t> user_index; // +0xC0
+  GuestPtr animation; // +0xC4, 824739C0
+  GuestPtr animation_queue[3]; // +0xC8, 82473A40 and 82473EFC
 };
+// Prefix used only by Widget's manager callbacks; verified in 82472AD8,
+// 82472C10 and 82472FB8. Not a host C++ WidgetManager.
+struct WidgetManagerInput {
+  uint8_t pad_000[0x70];
+  GuestPtr app;
+  uint8_t pad_074[0x98];
+  rex::be<int32_t> mouse_x;
+  rex::be<int32_t> mouse_y;
+  uint8_t pad_114[0x20];
+  uint8_t shift_down;
+};
+// 824730E8/82473148 temporarily replace Graphics::mWriteColoredString.
+struct WidgetGraphicsText {
+  uint8_t pad_000[0x4A];
+  uint8_t write_colored_string;
+};
+static_assert(offsetof(WidgetGraphicsText, write_colored_string) == 0x4A);
+static_assert(offsetof(WidgetManagerInput, app) == 0x70);
+static_assert(offsetof(WidgetManagerInput, mouse_x) == 0x10C);
+static_assert(offsetof(WidgetManagerInput, mouse_y) == 0x110);
+static_assert(offsetof(WidgetManagerInput, shift_down) == 0x134);
 static_assert(std::is_standard_layout_v<Widget>);
 static_assert(offsetof(Widget, vtable) == 0x0);
 static_assert(offsetof(Widget, children_head) == 0x18);
@@ -72,6 +102,13 @@ static_assert(offsetof(Widget, is_down) == 0x74);
 static_assert(offsetof(Widget, is_over) == 0x75);
 static_assert(offsetof(Widget, flag_76) == 0x76);
 static_assert(offsetof(Widget, gamepad_focus) == 0xA2);
+static_assert(offsetof(Widget, mouse_insets) == 0x90);
+static_assert(offsetof(Widget, colors_begin) == 0x84);
+static_assert(offsetof(Widget, colors_end) == 0x88);
+static_assert(offsetof(Widget, colors_header) == 0x78);
+static_assert(offsetof(Widget, animation) == 0xC4);
+static_assert(offsetof(Widget, animation_queue) == 0xC8);
+static_assert(offsetof(Widget, wants_focus) == 0xA1);
 static_assert(offsetof(Widget, field_a4) == 0xA4);
 static_assert(offsetof(Widget, field_a8) == 0xA8);
 static_assert(offsetof(Widget, field_ac) == 0xAC);

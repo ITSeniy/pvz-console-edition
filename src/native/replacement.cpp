@@ -13,6 +13,10 @@
 
 REXCVAR_DEFINE_BOOL(pvz_native_compare_all, false, "Diagnostics", "Compare all registered native replacements")
     .lifecycle(rex::cvar::Lifecycle::kInitOnly);
+REXCVAR_DEFINE_BOOL(pvz_native_b001, false, "Native port", "Use proven B001 Widget replacements")
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
+REXCVAR_DEFINE_BOOL(pvz_native_b001_compare, false, "Diagnostics", "Compare safe B001 replacements; observe snapshot-only entries")
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
 namespace pvz::native {
 namespace {
@@ -23,6 +27,12 @@ Registration::Registration(const char* value, bool (*compare)()) : name(value), 
 }
 void ReplayCompleted() {
   for (auto* entry : Registry()) if (entry->comparing()) Summarize(*entry, "replay_end");
+}
+void Observe(Registration& entry, uint32_t lr) {
+  std::lock_guard lock(entry.stats.mutex);
+  entry.stats.Record(lr, false);
+  if (entry.stats.checkpoint)
+    entry.stats.checkpoint(entry.stats.checkpoint_data, entry.stats.calls, entry.stats.errors);
 }
 // Two committed slots, little-endian u64 generation/calls/errors, after the
 // 8-byte magic. The previous slot remains valid if termination interrupts a

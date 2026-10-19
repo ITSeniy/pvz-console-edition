@@ -6,6 +6,10 @@ Every input/output has SHA-256 provenance. No thresholds or state normalization.
 #>
 [CmdletBinding()]
 param(
+    [ValidateSet('b001')][string]$Batch,
+    [switch]$Discover,
+    [switch]$SupplementalOnly,
+    [string]$ReuseEvidence,
     [string[]]$Replacements = @('pixel_to_grid_x','tool_rect'),
     [ValidateSet('adventure','versus','minigame','zen','menu')]
     [string[]]$Cases = @('adventure','versus','minigame','zen','menu'),
@@ -19,6 +23,7 @@ param(
     [switch]$SelfTest
 )
 $ErrorActionPreference = 'Stop'
+$script:reuse = $null
 
 function Read-NativeCounters([string[]]$LogTexts, [string[]]$Names) {
     $result = [ordered]@{}
@@ -142,13 +147,20 @@ if ($SelfTest) {
     Reject { Read-NativeCounters @('PvZ native test summary reason replay_end comparisons 2 errors 0 callers [82120004:1:0] other 0:0') @('test') }
     Reject { Read-NativeCounters @('PvZ native test summary reason replay_end comparisons 2 errors 0 callers [82120004:1:0,82120004:1:0] other 0:0') @('test') }
     Reject { Read-NativeCounters @('PvZ native test summary reason replay_end comparisons 1 errors 0 callers [] other 1:2') @('test') }
-    Write-Output 'native proof parser: 18 checks passed'
+    Assert (('example.log.checker.log' -replace '\.checker\.log$', '') -eq 'example.log')
+    $batchFlags = @(Merge-GameFlags @('--pvz_native_b001=false','--pvz_native_widget_82472958=false','--pvz_native_b001=true'))
+    Assert ($batchFlags.Count -eq 2 -and $batchFlags[-1] -eq '--pvz_native_b001=true')
+    $addressRows = @([pscustomobject]@{address='0x00000001'},[pscustomobject]@{address='0x00000002'})
+    Assert ((@($addressRows | ForEach-Object {$_.address}) -join '|') -eq '0x00000001|0x00000002')
+    Write-Output 'native proof parser: 21 checks passed'
     exit 0
 }
 Set-Location (Split-Path $PSScriptRoot -Parent)
 if ($Record -and $PSBoundParameters.ContainsKey('ReplayDirectory')) { throw 'Use either -Record or -ReplayDirectory' }
 if (-not $Replacements.Count -or @($Replacements | Select-Object -Unique).Count -ne $Replacements.Count) { throw 'Supply distinct replacements' }
-foreach ($name in $Replacements) { if ($name -notmatch '^[a-z][a-z0-9_]*$') { throw "Invalid replacement name: $name" } }
+foreach ($name in $Replacements) { if ($name -notmatch '^[a-z][a-zA-Z0-9_]*$') { throw "Invalid replacement name: $name" } }
+if ($Discover -and -not $Batch) { throw '-Discover requires -Batch' }
+if ($SupplementalOnly -and (-not $Batch -or -not $Discover)) { throw '-SupplementalOnly is a discovery diagnostic; use -Batch and -Discover' }
 if (-not $OutputRoot) { $OutputRoot = 'runtime-data/native-proof/' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff') }
 $OutputRoot = [IO.Path]::GetFullPath($OutputRoot)
 if (Test-Path -LiteralPath $OutputRoot) { throw 'OutputRoot must be new; previous evidence is preserved' }
@@ -163,6 +175,14 @@ function Save-Summary {
     $summary | ConvertTo-Json -Depth 30 | Set-Content -LiteralPath (Join-Path $OutputRoot 'summary.json') -Encoding utf8
     $md = @('# Native replacement proof', '', "Passed: $($summary.passed)", '', '| Criterion | Passed | Evidence |', '|---|---|---|')
     foreach ($c in $summary.criteria) { $md += "| $($c.name) | $($c.passed) | $($c.evidence | ConvertTo-Json -Compress -Depth 8) |" }
+    if ($summary.Contains('functions')) {
+        $md += @('', '| Address | Function | Mode | Status | Coverage | Errors | Negative coverage | Negative errors |',
+            '|---|---|---|---|---:|---:|---:|---:|')
+        foreach ($name in $summary.functions.Keys) {
+            $f = $summary.functions[$name]
+            $md += "| $($f.address) | $name | $($f.mode) | $($f.status) | $($f.coverage) | $($f.errors) | $($f.negative_coverage) | $($f.negative_errors) |"
+        }
+    }
     $md += @('', '| Phase/case | Replacement | Comparisons at replay end | Errors |', '|---|---|---:|---:|')
     foreach ($phase in $summary.counters.Keys) {
         foreach ($case in $summary.counters[$phase].Keys) {
@@ -198,11 +218,169 @@ function Save-Summary {
     if ($summary.failure) { $md += @('', "Failure: $($summary.failure)") }
     $md | Set-Content -LiteralPath (Join-Path $OutputRoot 'summary.md') -Encoding utf8
 }
+function Read-Tail([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path)) {return ''}
+    $file = [IO.File]::Open($Path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite)
+    try {
+        $null = $file.Seek([Math]::Max(0,$file.Length-16384),[IO.SeekOrigin]::Begin)
+        $reader = [IO.StreamReader]::new($file)
+        try {return $reader.ReadToEnd()} finally {$reader.Dispose()}
+    } finally {$file.Dispose()}
+}
+function BatchPhase([string]$Name, [string[]]$Flags, [switch]$ProfileOnly, [string[]]$SelectedCases=$Cases) {
+    # Same five T05 scenarios and exact frame counts. Completion is based on
+    # delivered input AND complete snapshots/journals, not startup wall time.
+    # The 180s deadline is only a bounded failure guard, never a reduced frame target.
+    $definitions = @{
+        adventure=@{frames=5000;fresh=$true;mode=0}
+        versus=@{frames=6000;fresh=$false;mode=76}
+        minigame=@{frames=3000;fresh=$false;mode=20}
+        zen=@{frames=5000;fresh=$false;mode=44}
+        menu=@{frames=5000;fresh=$false;mode=-1}
+    }
+    $root = Join-Path $OutputRoot $Name
+    New-Item -ItemType Directory -Path $root | Out-Null
+    $data = [ordered]@{executable_sha256=$exeHash;runs=[ordered]@{};comparisons=[ordered]@{}}
+    $journalNames = if ($Name -eq 'original') {@()} elseif ($Name -eq 'negative') {$safe} else {$Replacements}
+    foreach ($case in $SelectedCases) {
+        $definition=$definitions[$case]; $directory=Join-Path $root "$case-1"
+        New-Item -ItemType Directory -Path $directory | Out-Null
+        $user=Join-Path $directory 'user'
+        if ($definition.fresh) {
+            New-Item -ItemType Directory -Path $user | Out-Null
+            Copy-Item -LiteralPath build/pc_defaults.toml -Destination (Join-Path $user 'pvz.toml')
+        } else {Copy-Item -LiteralPath $Baseline -Destination $user -Recurse}
+        $inputs=[ordered]@{executable_sha256=$exeHash;replay_sha256=(Hash (Join-Path $steps "$case.csv"));
+            frame_target=$definition.frames;deadline_seconds=180;profile=[ordered]@{};sources=$summary.inputs}
+        foreach ($file in Get-ChildItem -LiteralPath $user -File -Recurse) {
+            $inputs.profile[$file.FullName.Substring($user.Length)]=Hash $file.FullName
+        }
+        $manifest=Join-Path $directory 'inputs.json'
+        $inputs|ConvertTo-Json -Depth 20|Set-Content $manifest -Encoding utf8
+        $dump=Join-Path $directory 'state.jsonl'; $log=Join-Path $directory 'game.log'
+        $gameArgs=@('--game_data_root',[IO.Path]::GetFullPath('assets'),'--user_data_root',$user,
+            '--cache_root',(Join-Path $directory 'cache'),'--log_file',$log,'--log_flush_interval=1',
+            '--fullscreen=false','--pvz_skip_intro=true','--pvz_render_scale=1',
+            '--pvz_mouse_cursor=true','--pvz_input_trace=true','--pvz_test_unlock=true',
+            '--pvz_replay_controller=true','--pvz_vsync=false','--pvz_pause_on_focus_loss=false',
+            '--pvz_state_profile=true',"--pvz_cursor_mode=$(if($case -eq 'minigame'){'console'}else{'pc'})",
+            "--pvz_input_replay=$(Join-Path $steps "$case.csv")",'--pvz_replay_frame_locked=true',
+            "--pvz_state_inputs_sha256=$(Hash $manifest)","--pvz_state_frames=$($definition.frames)")
+        if (-not $ProfileOnly) {$gameArgs+="--pvz_state_dump=$dump"}
+        $gameArgs+=@(Merge-GameFlags ($common+$Flags))
+        $summary.commands+=@{script='batch process';parameters=@{phase=$Name;case=$case;arguments=$gameArgs;deadline_seconds=180}}
+        Save-Summary
+        $quoted=@($gameArgs|ForEach-Object {'"'+$_.Replace('"','\"')+'"'})
+        $process=Start-Process -FilePath ([IO.Path]::GetFullPath('build/pvz-console-edition.exe')) -ArgumentList $quoted -WorkingDirectory (Get-Location).Path -WindowStyle Hidden -PassThru
+        $watch=[Diagnostics.Stopwatch]::StartNew(); $complete=$false; $frames=0; $ended=$false
+        $journals=[Collections.Generic.HashSet[string]]::new()
+        $offset=[long]0; $carry=''; $lastScan=-10.0
+        try {
+            while (-not $process.HasExited -and $watch.Elapsed.TotalSeconds -lt 180) {
+                $text=''
+                if (Test-Path -LiteralPath $log) {
+                    $file=[IO.File]::Open($log,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite)
+                    try {
+                        if ($file.Length -lt $offset) {$offset=0}
+                        $null=$file.Seek($offset,[IO.SeekOrigin]::Begin)
+                        $reader=[IO.StreamReader]::new($file)
+                        try {$text=$reader.ReadToEnd();$offset=$file.Position} finally {$reader.Dispose()}
+                    } finally {$file.Dispose()}
+                }
+                if (-not $ProfileOnly) {
+                    $matches=[regex]::Matches((Read-Tail $dump),'"record":"state","frame":(\d+),')
+                    if ($matches.Count) {$frames=[int]$matches[-1].Groups[1].Value+1}
+                }
+                $chunk=$carry+$text
+                # Recover a completion marker moved into a rotated log between polls.
+                if (($ProfileOnly -or $frames -eq $definition.frames) -and -not $complete -and
+                    $watch.Elapsed.TotalSeconds-$lastScan -ge 3) {
+                    $chunk+=(@(Get-ChildItem -LiteralPath $directory -Filter 'game*.log'|ForEach-Object {Get-Content $_.FullName -Raw}) -join "`n")
+                    $lastScan=$watch.Elapsed.TotalSeconds
+                }
+                if ($chunk -match 'PvZ (?:frame )?replay completed ') {$complete=$true}
+                foreach ($marker in [regex]::Matches($chunk,'PvZ native ([a-zA-Z0-9_]+) summary reason replay_end ')) {
+                    $null=$journals.Add($marker.Groups[1].Value)
+                }
+                $carry=$chunk.Substring([Math]::Max(0,$chunk.Length-300))
+                $missing=@($journalNames|Where-Object {-not $journals.Contains($_)})
+                if ($complete -and ($ProfileOnly -or $frames -eq $definition.frames) -and -not $missing.Count) {$ended=$true;break}
+                Start-Sleep -Milliseconds 250
+            }
+        } finally {if (-not $process.HasExited) {$process.Kill();$process.WaitForExit()}}
+        $logs=@(Get-ChildItem -LiteralPath $directory -Filter 'game*.log'|ForEach-Object {$_.FullName})
+        $text=($logs|ForEach-Object {Get-Content $_ -Raw}) -join "`n"
+        $receipt=@{elapsed_seconds=$watch.Elapsed.TotalSeconds;complete=$ended;replay_complete=$complete;
+            frames=$frames;frame_target=$definition.frames;deadline_seconds=180;arguments=$gameArgs;
+            log_files=$logs;log_sha256=@($logs|ForEach-Object {Hash $_});input_manifest=$manifest;input_sha256=(Hash $manifest)}
+        $receipt|ConvertTo-Json -Depth 12|Set-Content (Join-Path $directory 'process.json') -Encoding utf8
+        if (-not $ended) {throw "Batch process incomplete: $Name/$case ($frames/$($definition.frames), replay=$complete)"}
+        if ($text -notmatch 'Direct3D 12 device and OS features' -or $text -match '\[FATAL\]|\[critical\]|Unhandled guest|access violation|PvZ (?:frame )?replay.*(?:timed out|readiness failed|missed row|not ready|invalid)') {throw "Invalid batch process: $Name/$case"}
+        if ((Hash 'build/pvz-console-edition.exe') -ne $exeHash) {throw 'Executable changed during batch proof'}
+        $run=[ordered]@{log_files=$logs;log_sha256=$receipt.log_sha256;arguments=$gameArgs;receipt=(Join-Path $directory 'process.json')}
+        if (-not $ProfileOnly) {
+            $validation=Join-Path $directory 'validation.json'
+            & python -I scripts/compare_state_dumps.py $dump $dump --output $validation | Out-Null
+            if ($LASTEXITCODE -ne 0) {throw "Invalid state dump: $Name/$case"}
+            $checked=Get-Content $validation -Raw|ConvertFrom-Json
+            if ($checked.a.frames -ne $definition.frames -or ($case -ne 'menu' -and
+                (-not $checked.a.board_frames -or $null -eq $checked.a.playing_modes.PSObject.Properties[[string]$definition.mode]))) {throw "Incomplete state coverage: $Name/$case"}
+            $run.dump=$dump;$run.dump_sha256=Hash $dump;$run.coverage=$checked.a
+        }
+        $data.runs["$case-1"]=$run
+        $data|ConvertTo-Json -Depth 20|Set-Content (Join-Path $root 'summary.json') -Encoding utf8
+        Write-Host "B001 $Name/$case completed ($([int]$watch.Elapsed.TotalSeconds)s)"
+    }
+    $file=Join-Path $root 'summary.json'
+    $summary.phases[$Name]=@{path=$file;sha256=(Hash $file)}
+    return (Get-Content $file -Raw|ConvertFrom-Json)
+}
 function Phase([string]$Name, [string[]]$Flags, [int]$Repeats=1, [switch]$Record, [switch]$ProfileOnly, [string[]]$SelectedCases=$Cases) {
+    if ($Batch -and $script:reuse -and $script:reuse.phases.PSObject.Properties[$Name]) {
+        $phase=$script:reuse.phases.PSObject.Properties[$Name].Value
+        $commands=@($script:reuse.commands|Where-Object {$_.script -eq 'batch process' -and $_.parameters.phase -eq $Name})
+        if ($commands.Count -eq $SelectedCases.Count) {
+            if ((Hash $phase.path) -ne $phase.sha256) {throw "Changed phase manifest: $Name"}
+            $data=Get-Content $phase.path -Raw|ConvertFrom-Json
+            if ($data.executable_sha256 -ne $exeHash -or @($data.runs.PSObject.Properties).Count -ne $SelectedCases.Count) {throw "Reused batch differs: $Name"}
+            $expectedFlags=@(Merge-GameFlags ($common+$Flags))
+            foreach ($case in $SelectedCases) {
+                $run=$data.runs.PSObject.Properties["$case-1"].Value
+                $actualFlags=@($run.arguments|Where-Object {$_ -match '^--(?:pvz_native_|pvz_deterministic_|log_max_)'})
+                if (($actualFlags|ConvertTo-Json -Compress) -ne ($expectedFlags|ConvertTo-Json -Compress)) {throw "Reused flags differ: $Name/$case"}
+                $receipt=Get-Content $run.receipt -Raw|ConvertFrom-Json
+                if (-not $receipt.complete -or -not $receipt.replay_complete -or
+                    (Hash $receipt.input_manifest) -ne $receipt.input_sha256) {throw "Invalid reused receipt: $Name/$case"}
+                for ($i=0;$i -lt $run.log_files.Count;$i++) {
+                    if ((Hash $run.log_files[$i]) -ne $run.log_sha256[$i]) {throw "Changed reused log: $Name/$case"}
+                }
+                if (-not $ProfileOnly -and ((Hash $run.dump) -ne $run.dump_sha256 -or
+                    $receipt.frames -ne $receipt.frame_target)) {throw "Changed/incomplete reused dump: $Name/$case"}
+            }
+            $summary.phases[$Name]=@{path=$phase.path;sha256=$phase.sha256;reused=$true}
+            $summary.commands+=@{script='reused immutable batch phase';parameters=@{phase=$Name;cases=$SelectedCases};original=$commands}
+            return $data
+        }
+    }
+    if ($Batch -and (-not $ReuseEvidence -or -not $script:reuse.phases.PSObject.Properties[$Name])) {return (BatchPhase $Name $Flags -ProfileOnly:$ProfileOnly -SelectedCases $SelectedCases)}
     $path = Join-Path $OutputRoot $Name
     $options = @{Baseline=$Baseline;Cases=$SelectedCases;Repeats=$Repeats;OutputRoot=$path;
         AdditionalGameArgs=@(Merge-GameFlags ($common + $Flags));ProfileOnly=$ProfileOnly;RecordSteps=$Record}
     if (-not $Record) { $options.FrameLocked=$true; $options.ReplayDirectory=$script:steps }
+    if ($script:reuse -and $script:reuse.phases.PSObject.Properties[$Name]) {
+        $phase = $script:reuse.phases.PSObject.Properties[$Name].Value
+        if ((Hash $phase.path) -ne $phase.sha256) { throw "Changed phase manifest: $Name" }
+        $old = @($script:reuse.commands | Where-Object {$_.parameters.OutputRoot -eq (Split-Path $phase.path -Parent)})
+        if ($old.Count -ne 1) { throw "Missing original command for reused phase: $Name" }
+        foreach ($key in @('Baseline','Cases','Repeats','AdditionalGameArgs','ProfileOnly','RecordSteps','FrameLocked','ReplayDirectory')) {
+            if (($options[$key] | ConvertTo-Json -Compress) -ne ($old[0].parameters.$key | ConvertTo-Json -Compress)) { throw "Reused phase configuration differs: $Name/$key" }
+        }
+        $data = Get-Content $phase.path -Raw | ConvertFrom-Json
+        if ($data.executable_sha256 -ne $exeHash) { throw "Reused phase EXE differs: $Name" }
+        $summary.phases[$Name] = @{path=$phase.path;sha256=$phase.sha256;reused=$true}
+        $summary.commands += @{script='reused immutable phase';parameters=$options;original=$old[0]}
+        return $data
+    }
     $summary.commands += [ordered]@{script='scripts/run_determinism_check.ps1';parameters=$options}
     Save-Summary
     & "$PSScriptRoot/run_determinism_check.ps1" @options | Out-Host
@@ -232,7 +410,13 @@ function Counters([string]$PhaseName, $Data, [string[]]$Names, [switch]$Negative
             }
         }
         foreach ($name in $Names) {
-            $paths = @($property.Value.log_files | ForEach-Object { "$($_).$name.native-counts.bin" } | Where-Object { Test-Path -LiteralPath $_ })
+            # T12 supplies a derivative completion-marker log to older checkers.
+            # Mapped counters are siblings of the original log_file, never of
+            # that derivative. Parse its journal but resolve the original path.
+            $paths = @($property.Value.log_files | ForEach-Object {
+                $raw = $_ -replace '\.checker\.log$', ''
+                "$raw.$name.native-counts.bin"
+            } | Where-Object { Test-Path -LiteralPath $_ })
             if ($paths.Count -gt 0 -or $counters[$name].comparisons -gt 0) {
                 if ($paths.Count -ne 1) { throw "Missing/ambiguous exact crash checkpoint: $PhaseName/$name" }
                 $final = Read-NativeCheckpoint ([IO.File]::ReadAllBytes($paths[0]))
@@ -243,7 +427,9 @@ function Counters([string]$PhaseName, $Data, [string[]]$Names, [switch]$Negative
         $summary.counters[$PhaseName][$property.Name] = $counters
         foreach ($name in $Names) {
             $c = $counters[$name]
-            $pass = if ($Negative) { $c.replay_end_valid -and $c.comparisons -gt 0 -and $c.errors -gt 0 -and $c.logged_mismatches -gt 0 }
+            $pass = if ($Negative -and $Batch -and $c.replay_end_valid -and $c.comparisons -eq 0) {
+                        $c.errors -eq 0 -and $c.logged_mismatches -eq 0
+                    } elseif ($Negative) { $c.replay_end_valid -and $c.comparisons -gt 0 -and $c.errors -gt 0 -and $c.logged_mismatches -gt 0 }
                     else { $c.replay_end_valid -and $c.errors -eq 0 -and $c.max_errors -eq 0 -and $c.logged_mismatches -eq 0 -and
                         (-not $c.Contains('process_end') -or $c.process_end.counts.errors -eq 0) }
             Criterion "$PhaseName/$($property.Name)/$name" $pass $c
@@ -265,6 +451,182 @@ function Compare-Dumps([string]$Label, $Left, $Right) {
         $result = Get-Content -LiteralPath $out -Raw | ConvertFrom-Json
         Criterion "$Label/$case" ($code -eq 0 -and $result.equal) @{path=$out;sha256=(Hash $out);result=$result}
     }
+}
+function SupplementalPhase([string]$Name, [string[]]$Flags) {
+    $root = Join-Path $OutputRoot $Name
+    New-Item -ItemType Directory -Path $root | Out-Null
+    $runs = [ordered]@{}
+    foreach ($case in @('menu_hover','input_ownership')) {
+        $directory = Join-Path $root $case
+        New-Item -ItemType Directory -Path $directory | Out-Null
+        if ($case -eq 'input_ownership') {
+            # This replay enters Adventure directly and waits for Board; a
+            # completed Adventure profile opens SeedChooser instead. Use the
+            # same fresh-profile starting condition as the Adventure proof.
+            New-Item -ItemType Directory -Path (Join-Path $directory 'user') | Out-Null
+            Copy-Item -LiteralPath build/pc_defaults.toml -Destination (Join-Path $directory 'user/pvz.toml')
+        } else { Copy-Item -LiteralPath $Baseline -Destination (Join-Path $directory 'user') -Recurse }
+        $replay = [IO.Path]::GetFullPath("tests/replays/$case.csv")
+        $summary.inputs["supplemental/$case.csv"] = Hash $replay
+        $options = @{Seconds=$(if ($case -eq 'menu_hover') {82} else {60});ReplayWindow=$true;
+            UserDataRoot=(Join-Path $directory 'user');GameArgs=@('--pvz_mouse_cursor=true',
+                '--pvz_input_trace=true','--pvz_test_unlock=true','--pvz_replay_controller=true',
+                '--pvz_vsync=false','--pvz_pause_on_focus_loss=false',"--pvz_input_replay=$replay",
+                "--pvz_capture_frame=$directory/coverage.ppm",'--pvz_capture_delay=1') +
+                @(Merge-GameFlags ($common + $Flags))}
+        $summary.commands += @{script='smoke.ps1';parameters=$options}
+        Save-Summary
+        & ./smoke.ps1 @options | Out-Host
+        $receipt = Join-Path $directory 'smoke.json'
+        Copy-Item -LiteralPath runtime-data/smoke-latest.json -Destination $receipt
+        $run = Get-Content $receipt -Raw | ConvertFrom-Json
+        $text = ($run.log_files | ForEach-Object {Get-Content $_ -Raw}) -join "`n"
+        # smoke's live polling can miss a marker moved into a rotated log. The
+        # immutable raw logs are authoritative: require readiness and completion,
+        # and reject real replay failures even if the smoke receipt says complete.
+        if (-not $run.survived -or $run.fatal.Count -or -not $run.gpu_initialized -or
+            $text -notmatch 'PvZ replay wait_title ready' -or
+            $text -notmatch 'PvZ (?:frame )?replay completed ' -or
+            $text -match 'PvZ (?:frame )?replay.*(?:timed out|readiness failed|missed row|not ready|invalid)') {throw "Supplemental replay failed: $case"}
+        $runs[$case] = @{log_files=$run.log_files;receipt=$receipt;receipt_sha256=(Hash $receipt)}
+    }
+    $file = Join-Path $root 'summary.json'
+    $data = [pscustomobject]@{runs=[pscustomobject]$runs}
+    $data | ConvertTo-Json -Depth 12 | Set-Content $file -Encoding utf8
+    $summary.phases[$Name] = @{path=$file;sha256=(Hash $file)}
+    return $data
+}
+if ($Batch) {
+    $watch = [Diagnostics.Stopwatch]::StartNew()
+    try {
+        if ($Record) { throw 'Batch proof uses existing replay CSVs; -Record is not supported' }
+        $inventoryPath = 'docs/native-port/data/native-replacements.csv'
+        $all = @(Import-Csv $inventoryPath | Where-Object {$_.batch -eq $Batch})
+        $expected = @((Import-Csv docs/native-port/data/replacement-batches.csv | Where-Object {$_.batch -eq $Batch.ToUpperInvariant()}).members.Split('|') | Sort-Object)
+        $actual = @($all | ForEach-Object {$_.address} | Sort-Object)
+        if (($actual -join '|') -cne ($expected -join '|')) {throw 'Batch inventory must contain every member exactly once'}
+        $source = Get-Content "src/native/$($Batch)_widget.cpp" -Raw
+        $gates = [regex]::Matches($source, '(?m)^(?:LEAF|SNAP)\(([0-9A-F]+), (true|false),')
+        if ($gates.Count -ne @($all | Where-Object {$_.status -ne 'existing-hook'}).Count) {throw 'Unexpected source registration count'}
+        foreach ($entry in $all | Where-Object {$_.status -ne 'existing-hook'}) {
+            $gate = @($gates | Where-Object {$_.Groups[1].Value -eq $entry.address.Substring(2)})
+            if ($gate.Count -ne 1 -or (($gate[0].Groups[2].Value -eq 'true') -ne ($entry.status -eq 'replaced'))) {throw "Source eligibility differs from inventory: $($entry.address)"}
+        }
+        Copy-Item -LiteralPath $inventoryPath -Destination (Join-Path $OutputRoot 'inventory-input.csv')
+        $entries = @($all | Where-Object {$_.status -eq 'replaced' -or ($Discover -and $_.status -eq 'unproven')})
+        if (-not $entries.Count) { throw 'No eligible batch entries (use -Discover for unproven candidates)' }
+        $Replacements = @($entries.flag)
+        $safe = @($entries | Where-Object {$_.mode -eq 'DeclaredOutputsOnly'} | ForEach-Object {$_.flag})
+        $summary['batch'] = $Batch; $summary['discovery'] = [bool]$Discover
+        $summary.replacements = $Replacements
+        $summary['functions'] = [ordered]@{}
+        foreach ($entry in $all) {
+            $key = if ($entry.flag) {$entry.flag} else {"existing_$($entry.address)"}
+            $summary.functions[$key] = [ordered]@{address=$entry.address;mode=$entry.mode;status=$entry.status;
+                coverage=0;errors=0;negative_coverage=0;negative_errors=0}
+        }
+        foreach ($file in @('build/pvz-console-edition.exe','.cache/pvz-image.bin',$inventoryPath,
+                'scripts/run_native_proof.ps1','scripts/run_determinism_check.ps1','scripts/compare_state_dumps.py',
+                'src/native/b001_widget.cpp','src/native/replacement.h','src/native/replacement.cpp','src/xbox/Widget.h',
+                'CMakeLists.txt','config/pc_defaults.toml','config/game.lock.json')) { $summary.inputs[$file] = Hash $file }
+        foreach ($file in Get-ChildItem -LiteralPath $Baseline -File -Recurse) {
+            $summary.inputs["baseline/$($file.FullName.Substring(([IO.Path]::GetFullPath($Baseline)).Length))"] = Hash $file.FullName
+        }
+        $exeHash = $summary.inputs['build/pvz-console-edition.exe']
+        $script:reuse = $null
+        if ($ReuseEvidence) {
+            $manifest = Join-Path $ReuseEvidence 'summary.json'
+            $script:reuse = Get-Content $manifest -Raw | ConvertFrom-Json -AsHashtable
+            # Use PSCustomObject only after removing the historical empty entry
+            # for existing-hook; that entry never participates in execution.
+            $script:reuse.functions.Remove('')
+            $script:reuse = $script:reuse | ConvertTo-Json -Depth 40 | ConvertFrom-Json
+            if ($script:reuse.inputs.'build/pvz-console-edition.exe' -ne $exeHash -or
+                $script:reuse.batch -ne $Batch -or $script:reuse.discovery -ne [bool]$Discover) {throw 'Reuse requires the same EXE, batch and mode'}
+            foreach ($key in $summary.inputs.Keys) {
+                # Only the verifier itself may change when rechecking evidence.
+                if ($key -eq 'scripts/run_native_proof.ps1') {continue}
+                if ($script:reuse.inputs.PSObject.Properties[$key].Value -ne $summary.inputs[$key]) {throw "Reused input differs: $key"}
+            }
+            if (($script:reuse.cases|ConvertTo-Json -Compress) -ne ($Cases|ConvertTo-Json -Compress) -or
+                ($script:reuse.replacements|ConvertTo-Json -Compress) -ne ($Replacements|ConvertTo-Json -Compress)) {throw 'Reused case/function set differs'}
+            foreach ($case in $Cases) {
+                if ($script:reuse.inputs."steps/$case.csv" -ne (Hash (Join-Path $ReplayDirectory "$case.csv"))) {throw 'Reused replay differs'}
+            }
+            $summary['reused_evidence'] = @{path=[IO.Path]::GetFullPath($manifest);sha256=(Hash $manifest)}
+        }
+        $off = @('--pvz_native_compare_all=false',"--pvz_native_$Batch=false","--pvz_native_$($Batch)_compare=false")
+        foreach ($name in (@('pixel_to_grid_x','tool_rect') + @($all.flag) | Select-Object -Unique)) {
+            if (-not $name) { continue }
+            $off += @("--pvz_native_$name=false","--pvz_native_$($name)_compare=false","--pvz_native_$($name)_inject_error=false")
+        }
+        $common = @('--pvz_deterministic_seed=42','--pvz_deterministic_clock=1792195200',
+            '--log_max_file_size_mb=64','--log_max_files=128') + $off + $AdditionalGameArgs
+        if ($InjectError) { $common += @($safe | ForEach-Object {"--pvz_native_$($_)_inject_error=true"}) }
+        $script:steps = [IO.Path]::GetFullPath($ReplayDirectory)
+        foreach ($case in $Cases) { $summary.inputs["steps/$case.csv"] = Hash (Join-Path $steps "$case.csv") }
+        if (-not $SupplementalOnly) { $original = Phase 'original' @() }
+        $compareFlags = if ($Discover) { @($Replacements | ForEach-Object {"--pvz_native_$($_)_compare=true"}) }
+                        else { @("--pvz_native_$($Batch)_compare=true") }
+        if (-not $SupplementalOnly) {
+            $compared = Phase 'compare' $compareFlags
+            Counters 'compare' $compared $Replacements
+            Compare-Dumps 'restore-original' $original $compared
+        }
+        $extraCompared = SupplementalPhase 'compare-extra' $compareFlags
+        Counters 'compare-extra' $extraCompared $Replacements
+        $nativeFlags = if ($Discover) { @($Replacements | ForEach-Object {"--pvz_native_$_=true"}) }
+                       else { @("--pvz_native_$Batch=true") }
+        if (-not $SupplementalOnly) {
+            $native = Phase 'native' $nativeFlags
+            Counters 'native' $native $Replacements
+            Compare-Dumps 'native' $original $native
+        }
+        $extraNative = SupplementalPhase 'native-extra' $nativeFlags
+        Counters 'native-extra' $extraNative $Replacements
+        # One traversal of the scenarios with all safe injections enabled.
+        # Snapshot-only entries never enter the comparison engine.
+        $negativeFlags = @($safe | ForEach-Object {"--pvz_native_$($_)_compare=true";"--pvz_native_$($_)_inject_error=true"})
+        if (-not $SupplementalOnly) {
+            $negative = Phase 'negative' $negativeFlags -ProfileOnly
+            Counters 'negative' $negative $safe -Negative
+        }
+        $extraNegative = SupplementalPhase 'negative-extra' $negativeFlags
+        Counters 'negative-extra' $extraNegative $safe -Negative
+        foreach ($entry in $entries) {
+            $name = $entry.flag; $f = $summary.functions[$name]
+            if (-not $SupplementalOnly) { foreach ($case in $Cases) {
+                $positive = $summary.counters.compare["$case-1"][$name]
+                $f.coverage += [uint64]$positive.comparisons; $f.errors += [uint64]$positive.errors
+                if ($entry.mode -eq 'DeclaredOutputsOnly') {
+                    $control = $summary.counters.negative["$case-1"][$name]
+                    $f.negative_coverage += [uint64]$control.comparisons; $f.negative_errors += [uint64]$control.errors
+                }
+            } }
+            foreach ($case in @('menu_hover','input_ownership')) {
+                $positive = $summary.counters['compare-extra'][$case][$name]
+                $f.coverage += [uint64]$positive.comparisons; $f.errors += [uint64]$positive.errors
+                if ($entry.mode -eq 'DeclaredOutputsOnly') {
+                    $control = $summary.counters['negative-extra'][$case][$name]
+                    $f.negative_coverage += [uint64]$control.comparisons; $f.negative_errors += [uint64]$control.errors
+                }
+            }
+            # T13 requires real calls, not T10's pilot-specific 10,000-call target.
+            if (-not $Discover -or $f.coverage -gt 0) {
+                Criterion "coverage/$name" ($f.coverage -gt 0) $f
+                if ($entry.mode -eq 'DeclaredOutputsOnly') {
+                    Criterion "negative/$name" ($f.negative_coverage -gt 0 -and $f.negative_errors -gt 0) $f
+                }
+            }
+        }
+        Criterion 'executable_unchanged' ((Hash 'build/pvz-console-edition.exe') -eq $exeHash) $exeHash
+        $summary['supplemental_only'] = [bool]$SupplementalOnly
+        $summary.passed = @($summary.criteria | Where-Object {-not $_.passed}).Count -eq 0
+    } catch { $summary.failure = $_.Exception.Message; $summary.passed = $false }
+    $summary['elapsed_seconds'] = $watch.Elapsed.TotalSeconds
+    Save-Summary
+    Write-Output "Batch proof: $OutputRoot/summary.json (passed=$($summary.passed))"
+    if (-not $summary.passed) { exit 1 }; exit 0
 }
 try {
     foreach ($file in @('build/pvz-console-edition.exe','.cache/pvz-image.bin','scripts/run_native_proof.ps1',

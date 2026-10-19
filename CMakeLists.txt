@@ -21,6 +21,7 @@ configure_file(src/game_content_lock.h.in ${CMAKE_CURRENT_BINARY_DIR}/game_conte
 
 # Sources
 set(PVZ_SOURCES
+    src/native/b001_widget.cpp
     src/native/replacement.cpp
     src/native/tool_rect.cpp
     src/native/pixel_to_grid_x.cpp
