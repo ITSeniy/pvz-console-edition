@@ -11,7 +11,7 @@ checks = {}
 def check(name, value):
     checks[name] = bool(value)
 for name, log in logs.items():
-    check(name + '_completed', 'PvZ replay completed ' in log and not re.search(
+    check(name + '_completed', re.search(r'PvZ (?:frame )?replay completed ', log) and not re.search(
         r'\[FATAL\]|\[critical\]|Unhandled guest|access violation|timed out', log, re.I))
     check(name + '_frames', len(list(Path(data['runs'][name]['frames']).glob('frame-*.ppm'))) >= 8)
 

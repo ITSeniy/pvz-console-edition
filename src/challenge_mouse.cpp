@@ -1,4 +1,5 @@
 #include "challenge_mouse.h"
+#include "native/render_trace.h"
 #include "bonus_games.h"
 #include "mouse_bridge.h"
 #include "game_settings.h"
@@ -155,6 +156,7 @@ void pvz::RecordChallengeRowPaint(PPCContext& ctx, uint8_t* b) {
       std::max(painted_x, resting_x) + float(ctx.r7.s32) - left, float(ctx.r8.s32)}, drawing_id};
 }
 REX_HOOK_RAW(sub_8249C6A8) {
+  pvz::native::TraceGraphics(0x8249C6A8, ctx, base);
   if (drawing_screen && ctx.lr == 0x82168DD0) {
     const auto g = ctx.r3.u32;
     state.clip = {Float(base, g + 8) + float(ctx.r4.s32), Float(base, g + 12) + float(ctx.r5.s32),

@@ -17,7 +17,7 @@ checks = {}
 for name, (first, board) in FOLLOWUP.items():
     run = data['runs'].get(name, {})
     log = Path(run['log']).read_text(encoding='utf-8', errors='replace') if run else ''
-    checks[name + '_completed'] = 'PvZ replay completed ' in log and not re.search(
+    checks[name + '_completed'] = re.search(r'PvZ (?:frame )?replay completed ', log) and not re.search(
         r'Unhandled guest|access violation|\[FATAL\]|\[critical\]|timed out', log, re.I)
     checks[name + '_frames'] = bool(run) and len(list(Path(run['frames']).glob('frame-*.ppm'))) >= 5
     checks[name + '_first_device_is_player_one'] = f'PvZ local players started: player 1 device {first}' in log
@@ -51,7 +51,7 @@ checks['pick_sides_pad_ignored_in_mode_menu'] = 'PvZ pad button 3 user 1 ignored
 for name in ('vs_mouse_pad', 'vs_pad_mouse', 'vs_two_pads', 'coop_mouse_pad', 'coop_pad_mouse', 'coop_two_pads'):
     run = data['runs'].get(name, {})
     log = Path(run['log']).read_text(encoding='utf-8', errors='replace') if run else ''
-    checks[name + '_completed'] = 'PvZ replay completed ' in log and not re.search(
+    checks[name + '_completed'] = re.search(r'PvZ (?:frame )?replay completed ', log) and not re.search(
         r'Unhandled guest|access violation|\[FATAL\]|\[critical\]|timed out', log, re.I)
     checks[name + '_frames'] = bool(run) and len(list(Path(run['frames']).glob('frame-*.ppm'))) >= 10
     first = '18446744073709551615' if name.endswith('mouse_pad') else '88331812753485'

@@ -2,6 +2,7 @@
 #include <rex/cvar.h>
 #include <rex/logging.h>
 #include "guest_memory.h"
+#include "native/render_trace.h"
 #include <atomic>
 #include <charconv>
 #include <fstream>
@@ -70,6 +71,9 @@ REX_HOOK_RAW(sub_82616558) {
 // NEXT whole app update until a real first draw, rather than forging that
 // field or depending on how many logic updates fit before a host present.
 REX_HOOK_RAW(sub_82478108) {
+  // Trace mode holds the next update until the current step has been drawn.
+  // A pending tick (r3=1) preserves the scheduler's draw; r3=0 would suppress it.
+  if (pvz::native::HoldRenderUpdate()) { ctx.r3.u64 = 1; return; }
   static const bool locked = REXCVAR_GET(pvz_replay_frame_locked);
   if (locked) {
     const auto board = pvz::guest::Read(base, ctx.r3.u32 + 0x900);

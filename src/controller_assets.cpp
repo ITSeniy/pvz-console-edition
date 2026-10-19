@@ -1,4 +1,5 @@
 #include "controller_assets.h"
+#include "native/render_trace.h"
 #include "mouse_bridge.h"
 #include "input_backend.h"
 #include <rex/cvar.h>
@@ -13,7 +14,6 @@
 #include <filesystem>
 #include <algorithm>
 #include <cctype>
-#include <chrono>
 
 REXCVAR_DECLARE(std::string, pvz_cursor_mode);
 REXCVAR_DEFINE_STRING(pvz_controller_glyphs, "auto", "PvZ", "Controller glyphs: auto, xbox or playstation")
@@ -184,8 +184,7 @@ void pvz::UpdateControllerAssets(PPCContext& ctx, uint8_t* base) {
   // Select Second Player asks for A on any controller: its inline glyphs stay
   // visible with the mouse and alternate Xbox / PlayStation once a second.
   const bool prompt = pvz::SecondPlayerPromptOpen();
-  const bool cross = prompt && (std::chrono::duration_cast<std::chrono::seconds>(
-      std::chrono::steady_clock::now().time_since_epoch()).count() & 1);
+  const bool cross = prompt && (pvz::native::RenderClockSeconds() & 1);
   const int mouse_player = pvz::LocalMouseAssigned() ? pvz::MouseUserIndex() : -1;
   if (mouse_player >= 0 && !mouse_players_attempted) {
     mouse_players_attempted = true;
@@ -273,8 +272,7 @@ uint32_t pvz::ResolvePromptGlyph(uint32_t image, uint32_t rect, uint8_t* base) {
   const auto app = Read(base, 0x82D0BC88);
   const bool joined = app && int32_t(Read(base, app + 0xAB4)) != -1;
   int sony = cel == 1 ? (first >= 0 ? first : second) : joined ? (second >= 0 ? second : first) : -1;
-  if (sony < 0) sony = int(std::chrono::duration_cast<std::chrono::seconds>(
-      std::chrono::steady_clock::now().time_since_epoch()).count() & 1);
+  if (sony < 0) sony = int(pvz::native::RenderClockSeconds() & 1);
   return sony ? assets[atlas].sony : assets[atlas].original;
 }
 

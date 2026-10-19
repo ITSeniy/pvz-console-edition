@@ -17,7 +17,7 @@ for name, run in sorted(data['runs'].items()):
         return log.split(start, 1)[-1].split(end, 1)[0] if start in log and end in log else ''
     check('native_run', 'Direct3D 12 device and OS features' in log and not any(
         bad in log.lower() for bad in ('[fatal]', '[critical]', 'access violation', 'timed out', 'invalid input replay')))
-    check('replay_complete', 'PvZ replay completed ' + run['replay'] in log)
+    check('replay_complete', re.search(r'PvZ (?:frame )?replay completed ' + re.escape(run['replay']), log))
     sound = between('PvZ replay move (463, 220)', 'PvZ replay move (50, 50)')
     check('one_hover_sound_for_same_item', sound.count('PvZ service hover sound ') == 1 and
           re.search(r'PvZ service hover sound \d+ instance (?!00000000)[0-9A-F]+', sound))

@@ -138,6 +138,23 @@ int main() {
     Require(caller_stats.calls == 18 && caller_stats.errors == 2 && caller_stats.caller_count == 16);
     Require(caller_stats.callers[0].lr == 0x82120000 && caller_stats.callers[15].lr == 0x8212003C);
     Require(caller_stats.callers[1].errors == 1 && caller_stats.other_calls == 2 && caller_stats.other_errors == 1);
+    // 2505 errors, twenty details, all periodic/caller/checkpoint counts exact.
+    Stats bounded;
+    int details = 0, periods = 0;
+    for (int i = 0; i < 2505; ++i) {
+      Invoke(ctx, memory.data(), Mode{false,true,true}, Safety::DeclaredOutputsOnly,
+        bounded, no_regs, [](const PPCContext&) { return std::array{Range{8,1}}; },
+        mutate, mutate, [&](const PPCContext&, const std::string& d) {Require(!d.empty());++details;},
+        [&](const char*,uint64_t n,uint64_t e) {Require(n==e);++periods;});
+    }
+    Require(bounded.calls == 2505 && bounded.errors == 2505 && details == 20 && periods == 2);
+    Require(bounded.callers[0].calls == 2505 && bounded.callers[0].errors == 2505);
+    const SyntheticInputs<PPCContext> float_inputs{"f1 float32",2,0,42,
+      [](size_t i,PPCContext& c,uint8_t*,uint64_t&) {c.f1.f64=i?1.25:-1.25;}};
+    auto identity=[](PPCContext&,uint8_t*) {};
+    auto float_result=VerifySynthetic(float_inputs,64,f32,
+      [](const PPCContext&) {return std::array<Range,0>{};},identity,identity);
+    Require(float_result.cases==2 && float_result.errors==0 && float_result.negative_errors==2);
     std::cout << "native replacement contracts passed\n";
   } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

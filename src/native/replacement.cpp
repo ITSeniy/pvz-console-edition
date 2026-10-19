@@ -13,10 +13,6 @@
 
 REXCVAR_DEFINE_BOOL(pvz_native_compare_all, false, "Diagnostics", "Compare all registered native replacements")
     .lifecycle(rex::cvar::Lifecycle::kInitOnly);
-REXCVAR_DEFINE_BOOL(pvz_native_b001, false, "Native port", "Use proven B001 Widget replacements")
-    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
-REXCVAR_DEFINE_BOOL(pvz_native_b001_compare, false, "Diagnostics", "Compare safe B001 replacements; observe snapshot-only entries")
-    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
 namespace pvz::native {
 namespace {

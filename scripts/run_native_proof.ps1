@@ -9,6 +9,7 @@ param(
     [ValidateSet('b001')][string]$Batch,
     [switch]$Discover,
     [switch]$SupplementalOnly,
+    [switch]$RenderOnly,
     [string]$ReuseEvidence,
     [string[]]$Replacements = @('pixel_to_grid_x','tool_rect'),
     [ValidateSet('adventure','versus','minigame','zen','menu')]
@@ -94,6 +95,13 @@ function Merge-GameFlags([string[]]$Values) {
         $Values[$i]
     }
 }
+function Render-Configuration([string[]]$Values) {
+    # Paths/manifest digests identify each isolated process, not its behavior.
+    # All scalar flags, including glyph selection and exact frame targets, stay
+    # in the comparison. Non-scalar game/profile inputs are checked by hashes.
+    @($Values|Where-Object {$_ -match '^--[^=]+=' -and
+        $_ -notmatch '^--(?:pvz_native_render_trace|pvz_state_dump|pvz_state_inputs_sha256)='})
+}
 function Read-NativeCheckpoint([byte[]]$Bytes) {
     if ($Bytes.Length -ne 56 -or [Text.Encoding]::ASCII.GetString($Bytes,0,8) -ne 'PVZNR001') { throw 'Invalid native checkpoint header' }
     $valid = @()
@@ -152,7 +160,11 @@ if ($SelfTest) {
     Assert ($batchFlags.Count -eq 2 -and $batchFlags[-1] -eq '--pvz_native_b001=true')
     $addressRows = @([pscustomobject]@{address='0x00000001'},[pscustomobject]@{address='0x00000002'})
     Assert ((@($addressRows | ForEach-Object {$_.address}) -join '|') -eq '0x00000001|0x00000002')
-    Write-Output 'native proof parser: 21 checks passed'
+    $ra=@(Render-Configuration @('--pvz_native_render_trace=a','--pvz_state_inputs_sha256=one','--pvz_native_render_steps=6000','--pvz_controller_glyphs=xbox'))
+    $rb=@(Render-Configuration @('--pvz_native_render_trace=b','--pvz_state_inputs_sha256=two','--pvz_native_render_steps=6000','--pvz_controller_glyphs=xbox'))
+    Assert (($ra -join '|') -eq ($rb -join '|') -and $ra.Count -eq 2)
+    Assert (($ra -join '|') -ne ((@(Render-Configuration @('--pvz_native_render_steps=6000','--pvz_controller_glyphs=auto'))) -join '|'))
+    Write-Output 'native proof parser: 23 checks passed'
     exit 0
 }
 Set-Location (Split-Path $PSScriptRoot -Parent)
@@ -165,6 +177,7 @@ if (-not $OutputRoot) { $OutputRoot = 'runtime-data/native-proof/' + (Get-Date -
 $OutputRoot = [IO.Path]::GetFullPath($OutputRoot)
 if (Test-Path -LiteralPath $OutputRoot) { throw 'OutputRoot must be new; previous evidence is preserved' }
 New-Item -ItemType Directory -Path $OutputRoot | Out-Null
+Copy-Item -LiteralPath $PSCommandPath -Destination (Join-Path $OutputRoot 'runner-input.ps1')
 function Hash([string]$Path) { (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() }
 $summary = [ordered]@{schema=2;passed=$false;replacements=$Replacements;cases=$Cases;inputs=[ordered]@{};
     commands=@();phases=[ordered]@{};counters=[ordered]@{};criteria=@();failure=$null}
@@ -227,7 +240,7 @@ function Read-Tail([string]$Path) {
         try {return $reader.ReadToEnd()} finally {$reader.Dispose()}
     } finally {$file.Dispose()}
 }
-function BatchPhase([string]$Name, [string[]]$Flags, [switch]$ProfileOnly, [string[]]$SelectedCases=$Cases) {
+function BatchPhase([string]$Name, [string[]]$Flags, [switch]$ProfileOnly, [string[]]$SelectedCases=$Cases, [switch]$Trace) {
     # Same five T05 scenarios and exact frame counts. Completion is based on
     # delivered input AND complete snapshots/journals, not startup wall time.
     # The 180s deadline is only a bounded failure guard, never a reduced frame target.
@@ -241,7 +254,7 @@ function BatchPhase([string]$Name, [string[]]$Flags, [switch]$ProfileOnly, [stri
     $root = Join-Path $OutputRoot $Name
     New-Item -ItemType Directory -Path $root | Out-Null
     $data = [ordered]@{executable_sha256=$exeHash;runs=[ordered]@{};comparisons=[ordered]@{}}
-    $journalNames = if ($Name -eq 'original') {@()} elseif ($Name -eq 'negative') {$safe} else {$Replacements}
+    $journalNames = if ($Name -eq 'original' -or $Trace) {@()} elseif ($Name -eq 'negative') {$safe} else {$Replacements}
     foreach ($case in $SelectedCases) {
         $definition=$definitions[$case]; $directory=Join-Path $root "$case-1"
         New-Item -ItemType Directory -Path $directory | Out-Null
@@ -267,14 +280,45 @@ function BatchPhase([string]$Name, [string[]]$Flags, [switch]$ProfileOnly, [stri
             "--pvz_input_replay=$(Join-Path $steps "$case.csv")",'--pvz_replay_frame_locked=true',
             "--pvz_state_inputs_sha256=$(Hash $manifest)","--pvz_state_frames=$($definition.frames)")
         if (-not $ProfileOnly) {$gameArgs+="--pvz_state_dump=$dump"}
+        $tracePath=Join-Path $directory 'render.jsonl'
+        if ($Trace) {$gameArgs+=@("--pvz_native_render_trace=$tracePath","--pvz_native_render_steps=$($definition.frames)")}
+        # Auto glyphs depend on asynchronous host controller detection. Keep
+        # the local multiplayer draw inputs fixed, without normalizing traces.
+        if ($Trace -and $case -eq 'versus') {$gameArgs+='--pvz_controller_glyphs=xbox'}
         $gameArgs+=@(Merge-GameFlags ($common+$Flags))
+        if ($Trace -and $script:reuse -and $script:reuse.phases.PSObject.Properties[$Name]) {
+            $oldPhase=$script:reuse.phases.PSObject.Properties[$Name].Value
+            if ((Hash $oldPhase.path) -ne $oldPhase.sha256) {throw "Changed reused render phase: $Name"}
+            $oldData=Get-Content $oldPhase.path -Raw|ConvertFrom-Json
+            $property=$oldData.runs.PSObject.Properties["$case-1"]
+            if ($property -and ((@(Render-Configuration $property.Value.arguments) -join '|') -ceq
+                (@(Render-Configuration $gameArgs) -join '|'))) {
+                $old=$property.Value
+                $oldReceipt=Get-Content $old.receipt -Raw|ConvertFrom-Json
+                if ($oldData.executable_sha256 -ne $exeHash -or -not $oldReceipt.complete -or
+                    -not $oldReceipt.replay_complete -or $oldReceipt.frames -ne $definition.frames -or
+                    (Hash $oldReceipt.input_manifest) -ne $oldReceipt.input_sha256 -or
+                    (Hash $old.render) -ne $old.render_sha256 -or (Hash $old.dump) -ne $old.dump_sha256) {
+                    throw "Invalid reused render process: $Name/$case"
+                }
+                for($i=0;$i -lt $old.log_files.Count;++$i) {
+                    if((Hash $old.log_files[$i]) -ne $old.log_sha256[$i]) {throw "Changed reused render log: $Name/$case"}
+                }
+                $data.runs["$case-1"]=$old
+                $summary.commands+=@{script='reused immutable render case';parameters=@{phase=$Name;case=$case};
+                    phase_manifest=$oldPhase;receipt=$old.receipt;configuration=@(Render-Configuration $gameArgs)}
+                $data|ConvertTo-Json -Depth 20|Set-Content (Join-Path $root 'summary.json') -Encoding utf8
+                Write-Host "B001 $Name/$case reused (same EXE, scalar flags and hashed evidence)"
+                continue
+            }
+        }
         $summary.commands+=@{script='batch process';parameters=@{phase=$Name;case=$case;arguments=$gameArgs;deadline_seconds=180}}
         Save-Summary
         $quoted=@($gameArgs|ForEach-Object {'"'+$_.Replace('"','\"')+'"'})
         $process=Start-Process -FilePath ([IO.Path]::GetFullPath('build/pvz-console-edition.exe')) -ArgumentList $quoted -WorkingDirectory (Get-Location).Path -WindowStyle Hidden -PassThru
         $watch=[Diagnostics.Stopwatch]::StartNew(); $complete=$false; $frames=0; $ended=$false
         $journals=[Collections.Generic.HashSet[string]]::new()
-        $offset=[long]0; $carry=''; $lastScan=-10.0
+        $offset=[long]0; $carry=''; $lastScan=-10.0; $traceComplete=-not $Trace
         try {
             while (-not $process.HasExited -and $watch.Elapsed.TotalSeconds -lt 180) {
                 $text=''
@@ -299,12 +343,13 @@ function BatchPhase([string]$Name, [string[]]$Flags, [switch]$ProfileOnly, [stri
                     $lastScan=$watch.Elapsed.TotalSeconds
                 }
                 if ($chunk -match 'PvZ (?:frame )?replay completed ') {$complete=$true}
+                if ($Trace -and (Read-Tail $tracePath) -match '"complete":true,"frames":') {$traceComplete=$true}
                 foreach ($marker in [regex]::Matches($chunk,'PvZ native ([a-zA-Z0-9_]+) summary reason replay_end ')) {
                     $null=$journals.Add($marker.Groups[1].Value)
                 }
                 $carry=$chunk.Substring([Math]::Max(0,$chunk.Length-300))
                 $missing=@($journalNames|Where-Object {-not $journals.Contains($_)})
-                if ($complete -and ($ProfileOnly -or $frames -eq $definition.frames) -and -not $missing.Count) {$ended=$true;break}
+                if ($complete -and $traceComplete -and ($ProfileOnly -or $frames -eq $definition.frames) -and -not $missing.Count) {$ended=$true;break}
                 Start-Sleep -Milliseconds 250
             }
         } finally {if (-not $process.HasExited) {$process.Kill();$process.WaitForExit()}}
@@ -318,6 +363,7 @@ function BatchPhase([string]$Name, [string[]]$Flags, [switch]$ProfileOnly, [stri
         if ($text -notmatch 'Direct3D 12 device and OS features' -or $text -match '\[FATAL\]|\[critical\]|Unhandled guest|access violation|PvZ (?:frame )?replay.*(?:timed out|readiness failed|missed row|not ready|invalid)') {throw "Invalid batch process: $Name/$case"}
         if ((Hash 'build/pvz-console-edition.exe') -ne $exeHash) {throw 'Executable changed during batch proof'}
         $run=[ordered]@{log_files=$logs;log_sha256=$receipt.log_sha256;arguments=$gameArgs;receipt=(Join-Path $directory 'process.json')}
+        if ($Trace) {$run.render=$tracePath;$run.render_sha256=Hash $tracePath}
         if (-not $ProfileOnly) {
             $validation=Join-Path $directory 'validation.json'
             & python -I scripts/compare_state_dumps.py $dump $dump --output $validation | Out-Null
@@ -334,6 +380,55 @@ function BatchPhase([string]$Name, [string[]]$Flags, [switch]$ProfileOnly, [stri
     $file=Join-Path $root 'summary.json'
     $summary.phases[$Name]=@{path=$file;sha256=(Hash $file)}
     return (Get-Content $file -Raw|ConvertFrom-Json)
+}
+function SyntheticProof {
+    $path=Join-Path $OutputRoot 'synthetic.json'
+    & ./build/b001_synthetic_test.exe $path
+    if ($LASTEXITCODE -ne 0) {throw 'Synthetic B001 comparison failed'}
+    $data=Get-Content $path -Raw|ConvertFrom-Json
+    $script:synthetic=@{}
+    foreach ($f in $data.functions) {
+        $script:synthetic[$f.address]=$f
+        Criterion "synthetic/$($f.address)" ($f.cases -gt 0 -and $f.errors -eq 0 -and $f.negative_errors -eq $f.cases) $f
+    }
+    Criterion 'synthetic/function_count' ($data.functions.Count -eq 24 -and $data.passed) $data.functions.Count
+    $manifest=Join-Path $OutputRoot 'synthetic-inputs.json'
+    Copy-Item -LiteralPath build/b001_originals.json -Destination $manifest
+    Copy-Item -LiteralPath build/b001_originals.cpp -Destination (Join-Path $OutputRoot 'synthetic-originals.cpp')
+    $summary['synthetic']=@{path=$path;sha256=(Hash $path);source_manifest=$manifest;
+        source_manifest_sha256=(Hash $manifest);executable_sha256=(Hash 'build/b001_synthetic_test.exe')}
+}
+function RenderProof {
+    $a=BatchPhase 'render-original' @() -Trace
+    $b=BatchPhase 'render-repeat' @() -Trace
+    $n=BatchPhase 'render-native' @("--pvz_native_$Batch=true") -Trace
+    $summary['render']=[ordered]@{}
+    foreach ($pair in @(@('repeat',$b),@('native',$n))) {
+        foreach ($case in $Cases) {
+            $left=$a.runs.PSObject.Properties["$case-1"].Value
+            $right=$pair[1].runs.PSObject.Properties["$case-1"].Value
+            $path=Join-Path $OutputRoot "render-$($pair[0])-$case.json"
+            & python -I tests/compare_render_traces.py $left.render $right.render --output $path | Out-Null
+            $code=$LASTEXITCODE;$r=Get-Content $path -Raw|ConvertFrom-Json
+            Criterion "render/$($pair[0])/$case" ($code -eq 0 -and $r.equal) $r
+            $summary.render["$($pair[0])/$case"]=$r
+        }
+        Compare-Dumps "render-state-$($pair[0])" $a $pair[1]
+    }
+    # Choose a scenario that actually reaches Centered; no new replay or
+    # weakened expectation is introduced when selecting the negative case.
+    $case=@($Cases|Where-Object {
+        Select-String -LiteralPath $a.runs.PSObject.Properties["$_-1"].Value.render -SimpleMatch '"scope":"widget_82473730"' -Quiet
+    }|Select-Object -First 1)
+    if (-not $case.Count) {throw 'No Centered draw in selected scenarios for render negative control'}
+    $negative=BatchPhase 'render-negative' @("--pvz_native_$Batch=true",'--pvz_native_widget_82473730_inject_error=true') -Trace -SelectedCases $case
+    $path=Join-Path $OutputRoot 'render-negative.json'
+    & python -I tests/compare_render_traces.py $a.runs.PSObject.Properties["$($case[0])-1"].Value.render $negative.runs.PSObject.Properties["$($case[0])-1"].Value.render --output $path | Out-Null
+    $r=Get-Content $path -Raw|ConvertFrom-Json
+    Criterion 'render/negative' (-not $r.equal -and $null -ne $r.first_difference.step -and
+        $r.first_difference.a.scope -eq 'widget_82473730' -and $r.first_difference.a.op -eq '8249B1A0' -and
+        $r.first_difference.b.x -eq $r.first_difference.a.x+1) $r
+    $summary.render.negative=$r
 }
 function Phase([string]$Name, [string[]]$Flags, [int]$Repeats=1, [switch]$Record, [switch]$ProfileOnly, [string[]]$SelectedCases=$Cases) {
     if ($Batch -and $script:reuse -and $script:reuse.phases.PSObject.Properties[$Name]) {
@@ -527,8 +622,11 @@ if ($Batch) {
         }
         foreach ($file in @('build/pvz-console-edition.exe','.cache/pvz-image.bin',$inventoryPath,
                 'scripts/run_native_proof.ps1','scripts/run_determinism_check.ps1','scripts/compare_state_dumps.py',
-                'src/native/b001_widget.cpp','src/native/replacement.h','src/native/replacement.cpp','src/xbox/Widget.h',
-                'CMakeLists.txt','config/pc_defaults.toml','config/game.lock.json')) { $summary.inputs[$file] = Hash $file }
+                'src/native/b001_widget.cpp','src/native/replacement.h','src/native/replacement.cpp','src/native/render_trace.cpp','src/xbox/Widget.h',
+                'tests/b001_synthetic_test.cpp','tests/b001_synthetic_sources.py','tests/compare_render_traces.py',
+                'CMakeLists.txt','src/controller_assets.cpp','src/native/render_trace.h',
+                'src/deterministic_replay.cpp','src/challenge_mouse.cpp','src/mouse_bridge.cpp',
+                'tests/render_resource_test.cpp','config/pc_defaults.toml','config/game.lock.json')) { $summary.inputs[$file] = Hash $file }
         foreach ($file in Get-ChildItem -LiteralPath $Baseline -File -Recurse) {
             $summary.inputs["baseline/$($file.FullName.Substring(([IO.Path]::GetFullPath($Baseline)).Length))"] = Hash $file.FullName
         }
@@ -565,6 +663,15 @@ if ($Batch) {
         if ($InjectError) { $common += @($safe | ForEach-Object {"--pvz_native_$($_)_inject_error=true"}) }
         $script:steps = [IO.Path]::GetFullPath($ReplayDirectory)
         foreach ($case in $Cases) { $summary.inputs["steps/$case.csv"] = Hash (Join-Path $steps "$case.csv") }
+        SyntheticProof
+        if ($RenderOnly) {
+            RenderProof
+            Criterion 'executable_unchanged' ((Hash 'build/pvz-console-edition.exe') -eq $exeHash) $exeHash
+            $summary['elapsed_seconds']=$watch.Elapsed.TotalSeconds
+            $summary.passed=@($summary.criteria|Where-Object {-not $_.passed}).Count -eq 0
+            Save-Summary
+            if (-not $summary.passed) {exit 1};exit 0
+        }
         if (-not $SupplementalOnly) { $original = Phase 'original' @() }
         $compareFlags = if ($Discover) { @($Replacements | ForEach-Object {"--pvz_native_$($_)_compare=true"}) }
                         else { @("--pvz_native_$($Batch)_compare=true") }
@@ -613,12 +720,15 @@ if ($Batch) {
             }
             # T13 requires real calls, not T10's pilot-specific 10,000-call target.
             if (-not $Discover -or $f.coverage -gt 0) {
-                Criterion "coverage/$name" ($f.coverage -gt 0) $f
+                $syntheticResult=$script:synthetic[$entry.address]
+                $syntheticPass=$entry.proof_kind -eq 'synthetic' -and $syntheticResult -and $syntheticResult.errors -eq 0 -and $syntheticResult.negative_errors -eq $syntheticResult.cases
+                Criterion "coverage/$name" ($f.coverage -gt 0 -or $syntheticPass) @{game=$f;synthetic=$syntheticResult}
                 if ($entry.mode -eq 'DeclaredOutputsOnly') {
-                    Criterion "negative/$name" ($f.negative_coverage -gt 0 -and $f.negative_errors -gt 0) $f
+                    Criterion "negative/$name" (($f.negative_coverage -gt 0 -and $f.negative_errors -gt 0) -or $syntheticPass) @{game=$f;synthetic=$syntheticResult}
                 }
             }
         }
+        if (-not $SupplementalOnly) {RenderProof}
         Criterion 'executable_unchanged' ((Hash 'build/pvz-console-edition.exe') -eq $exeHash) $exeHash
         $summary['supplemental_only'] = [bool]$SupplementalOnly
         $summary.passed = @($summary.criteria | Where-Object {-not $_.passed}).Count -eq 0

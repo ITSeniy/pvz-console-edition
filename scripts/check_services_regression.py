@@ -11,7 +11,7 @@ checks = {}
 def check(name, value):
     checks[name] = bool(value)
 for name in ('zen', 'garden_followup', 'garden_polish', 'menus', 'settings', 'tree', 'tree_feeding', 'tree_intro', 'tree_purchase', 'almanac', 'quit'):
-    check(name + '_completed', 'PvZ replay completed ' in logs[name] and '[critical]' not in logs[name] and '[FATAL]' not in logs[name])
+    check(name + '_completed', re.search(r'PvZ (?:frame )?replay completed ', logs[name]) and '[critical]' not in logs[name] and '[FATAL]' not in logs[name])
     frames = list(Path(data['runs'][name]['frames']).glob('frame-*.ppm'))
     check(name + '_frames', len(frames) == data['runs'][name]['expected_frames'])
 zen = logs['zen']

@@ -23,6 +23,7 @@ configure_file(src/game_content_lock.h.in ${CMAKE_CURRENT_BINARY_DIR}/game_conte
 set(PVZ_SOURCES
     src/native/b001_widget.cpp
     src/native/replacement.cpp
+    src/native/render_trace.cpp
     src/native/tool_rect.cpp
     src/native/pixel_to_grid_x.cpp
     src/gamepad_repeat.cpp
@@ -73,15 +74,25 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_COMPILER_FRONTEND_VARIAN
    AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
     target_compile_options(pvz PRIVATE -msse4.1 /Ob2)
 endif()
-target_include_directories(pvz PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+target_include_directories(pvz PRIVATE ${CMAKE_CURRENT_BINARY_DIR} src)
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(render_resource_test tests/render_resource_test.cpp)
+    target_include_directories(render_resource_test PRIVATE src)
+    target_link_libraries(render_resource_test PRIVATE rex::runtime)
+    rexglue_apply_target_settings(render_resource_test)
+    add_test(NAME render_resource_identity COMMAND render_resource_test)
     add_executable(native_replacement_test tests/native_replacement_test.cpp)
     target_include_directories(native_replacement_test PRIVATE src)
     add_test(NAME native_replacement COMMAND native_replacement_test)
     find_program(PVZ_POWERSHELL NAMES pwsh powershell)
     if(PVZ_POWERSHELL)
+        add_executable(smoke_rotation_helper tests/smoke_rotation_helper.cpp)
+        add_test(NAME smoke_rotation COMMAND ${PVZ_POWERSHELL} -NoProfile
+            -File ${CMAKE_CURRENT_SOURCE_DIR}/tests/smoke_rotation_test.ps1
+            -Source ${CMAKE_CURRENT_SOURCE_DIR} -Helper $<TARGET_FILE:smoke_rotation_helper>
+            -Output ${CMAKE_CURRENT_BINARY_DIR})
         add_test(NAME native_proof_parser COMMAND ${PVZ_POWERSHELL} -NoProfile
             -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/run_native_proof.ps1 -SelfTest)
     endif()
@@ -100,6 +111,20 @@ if(BUILD_TESTING)
     add_test(NAME replay_event COMMAND replay_event_test ${CMAKE_CURRENT_SOURCE_DIR}/tests/replays)
     find_package(Python3 COMPONENTS Interpreter QUIET)
     if(Python3_Interpreter_FOUND)
+        add_test(NAME render_trace_parser COMMAND ${Python3_EXECUTABLE} -I
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/compare_render_traces.py --self-test)
+        file(GLOB PVZ_SYNTHETIC_GENERATED CONFIGURE_DEPENDS generated/default/pvz_recomp.*.cpp)
+        add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/b001_originals.cpp
+            COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tests/b001_synthetic_sources.py
+                ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/b001_originals.cpp
+            DEPENDS tests/b001_synthetic_sources.py tests/b001_synthetic_test.cpp
+                src/native/b001_widget.cpp src/native/replacement.h src/xbox/Widget.h
+                .cache/pvz-image.bin ${PVZ_SYNTHETIC_GENERATED})
+        add_executable(b001_synthetic_test tests/b001_synthetic_test.cpp ${CMAKE_CURRENT_BINARY_DIR}/b001_originals.cpp)
+        target_include_directories(b001_synthetic_test PRIVATE src generated/default)
+        target_link_libraries(b001_synthetic_test PRIVATE rex::runtime)
+        rexglue_apply_target_settings(b001_synthetic_test)
+        add_test(NAME b001_synthetic COMMAND b001_synthetic_test ${CMAKE_CURRENT_BINARY_DIR}/b001_synthetic.json)
         add_test(NAME input_audit_manifest COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/input_audit_manifest_test.py)
         add_test(NAME state_dump_compare COMMAND ${Python3_EXECUTABLE} -I

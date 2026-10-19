@@ -1,4 +1,5 @@
 #include "mouse_bridge.h"
+#include "native/render_trace.h"
 #include "mouse_input.h"
 #include "widget_tree.h"
 #include "menu_mapping.h"
@@ -3285,6 +3286,7 @@ REX_HOOK_RAW(sub_82143880) {
   base[board + 0x5693] = hammer;
 }
 REX_HOOK_RAW(sub_8249D0E8) {
+  pvz::native::TraceGraphics(0x8249D0E8, ctx, base);
   if (ctx.lr == 0x82215B70 && ctx.r4.u32 && ctx.r4.u32 == Read(base, 0x82D0A0AC) && REXCVAR_GET(pvz_input_trace)) {
     static std::optional<bool> last_mouse;
     const bool mouse = MouseActive();
@@ -3314,6 +3316,7 @@ REX_HOOK_RAW(sub_8249D0E8) {
 }
 REX_EXTERN(__imp__sub_8249C430);
 REX_HOOK_RAW(sub_8249C430) {
+  pvz::native::TraceGraphics(0x8249C430, ctx, base);
   ctx.r4.u64 = pvz::ResolveControllerImage(ctx.r4.u32, base);
   if (!ctx.r4.u32) return;
   if (ConsoleCursorImage(ctx.r4.u32, base)) return;
@@ -3382,6 +3385,7 @@ REX_HOOK_RAW(sub_8249B408) {
 }
 REX_EXTERN(__imp__sub_8249BC50);
 REX_HOOK_RAW(sub_8249BC50) {
+  pvz::native::TraceGraphics(0x8249BC50, ctx, base);
   ctx.r4.u64 = pvz::ResolvePromptGlyph(pvz::ResolveControllerImage(ctx.r4.u32, base), ctx.r7.u32, base);
   if (!ctx.r4.u32 || ConsoleCursorImage(ctx.r4.u32, base)) return;
   __imp__sub_8249BC50(ctx, base);
@@ -3743,6 +3747,7 @@ REX_HOOK_RAW(sub_824A68C0) {
 
 REX_EXTERN(__imp__sub_8249D250); // Graphics::DrawImageCel
 REX_HOOK_RAW(sub_8249D250) {
+  pvz::native::TraceGraphics(0x8249D250, ctx, base);
   ctx.r4.u64 = pvz::ResolveControllerImage(ctx.r4.u32, base);
   if (ctx.r4.u32 && !ConsoleCursorImage(ctx.r4.u32, base)) __imp__sub_8249D250(ctx, base);
 }

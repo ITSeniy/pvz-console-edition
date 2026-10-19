@@ -8,6 +8,11 @@
 #include "xbox/Widget.h"
 #include <initializer_list>
 
+#ifndef PVZ_B001_SYNTHETIC_TEST
+PVZ_NATIVE_BATCH(b001)
+REXCVAR_DECLARE(bool, pvz_native_widget_82473730_inject_error);
+#endif
+
 REX_EXTERN(sub_824A62C0);
 REX_EXTERN(sub_824A5FE8);
 REX_EXTERN(sub_82475EB8);
@@ -46,6 +51,59 @@ namespace {
 using pvz::native::Range;
 using pvz::native::RegisterOutput;
 using Widget = pvz::xbox::Widget;
+
+#ifdef PVZ_B001_SYNTHETIC_TEST
+// Input domains are declared with this batch; LEAF selects one by name.
+// Registers and Xbox Widget offsets below are independent of host objects.
+uint64_t Random(uint64_t& s) { s ^= s << 13; s ^= s >> 7; s ^= s << 17; return s; }
+constexpr uint64_t words[]{0,1,0x7fffffff,0x80000000,0xffffffff,
+    0x100000000,0x7fffffffffffffff,0x8000000000000000,~uint64_t{}};
+const SyntheticInputs<PPCContext> IdentityInputs{
+    "r3.u64: 0,1,INT32_MAX,INT32_MIN,UINT32_MAX,2^32,INT64_MAX,INT64_MIN,UINT64_MAX; 1024 xorshift64 seed 42",
+    std::size(words),1024,42, [](size_t i,PPCContext& c,uint8_t*,uint64_t& s) {
+      c.r3.u64=i<std::size(words)?words[i]:Random(s);
+    }};
+const SyntheticInputs<PPCContext> FocusByteInputs{
+    "r3=0x1000; Widget.wants_focus (+A1): all 256 byte values, plus 1024 seeded cases",
+    256,1024,42, [](size_t i,PPCContext& c,uint8_t* b,uint64_t& s) {
+      c.r3.u64=0x1000; b[0x10A1]=uint8_t(i<256?i:Random(s));
+    }};
+// The original loops forever on INT32_MAX (eventually its word divisor is 0).
+// Its terminating domain is <= 1874919423: below the largest word divisor.
+// Include both sides of EVERY positive/negative wrapped-divisor boundary that
+// lies inside that domain, in addition to each ordinary decimal transition.
+const auto digitBoundaries=[] {
+  std::vector<int32_t> v{INT32_MIN,-1,0,1,1874919423};
+  uint32_t divisor=10;
+  while (divisor) {
+    int32_t d=std::bit_cast<int32_t>(divisor);
+    for (int64_t n=int64_t(d)-1;n<=int64_t(d)+1;++n)
+      if(n>=INT32_MIN && n<=1874919423) v.push_back(int32_t(n));
+    divisor*=10u;
+  }
+  std::sort(v.begin(),v.end()); v.erase(std::unique(v.begin(),v.end()),v.end()); return v;
+}();
+const SyntheticInputs<PPCContext> DigitsInputs{
+    "r4.s32: every decimal/wrapped divisor +/-1 in terminating domain [INT32_MIN,1874919423]; 1024 seeded values; larger inputs do not terminate",
+    digitBoundaries.size(),1024,42, [](size_t i,PPCContext& c,uint8_t*,uint64_t& s) {
+      c.r4.u64=i<digitBoundaries.size()?uint32_t(digitBoundaries[i]):uint32_t(int64_t(INT32_MIN)+int64_t(Random(s)%4022403072ULL));
+    }};
+constexpr uint32_t colorCounts[]{0,1,2,3};
+constexpr uint32_t colorIndices[]{0,1,2,3,4,0x7fffffff};
+constexpr uint32_t aliases[]{0x2000,0x3000,0x3010,0x3020,0x4000,0x3004,0x4004};
+const SyntheticInputs<PPCContext> ColorInputs{
+    "r4=Widget@1000; colors_begin/end (+84/+88) count 0..3; r5 index 0..4,INT_MAX; r6 default@4000; output distinct or aliases source/default including partial overlap; 1024 seeded colors",
+    std::size(colorCounts)*std::size(colorIndices)*std::size(aliases),1024,42,
+    [](size_t i,PPCContext& c,uint8_t* b,uint64_t& s) {
+      size_t key=i<168?i:size_t(Random(s)%168);
+      c.r3.u64=aliases[key%7]; key/=7; c.r5.u64=colorIndices[key%6];key/=6;
+      c.r4.u64=0x1000;c.r6.u64=0x4000;
+      pvz::guest::Write(b,0x1084,0x3000);pvz::guest::Write(b,0x1088,0x3000+colorCounts[key]*16);
+      for(uint32_t at=0x3000;at<0x3040;at+=4) pvz::guest::Write(b,at,uint32_t(Random(s)));
+      for(uint32_t at=0x4000;at<0x4020;at+=4) pvz::guest::Write(b,at,uint32_t(Random(s)));
+    }};
+#endif
+
 Widget& W(uint8_t* base, uint32_t address) {
   return *reinterpret_cast<Widget*>(base + address);
 }
@@ -130,6 +188,7 @@ void Insets(PPCContext& ctx, uint8_t* base) {
 }
 auto RectRange(const PPCContext& c) { return std::array{Range{c.r3.u32, 16}}; }
 
+#ifndef PVZ_B001_SYNTHETIC_TEST
 // Snapshot-only wrappers call guest code once. A real guest stack frame keeps
 // child home slots away from the caller; host locals survive volatile registers.
 struct Frame {
@@ -272,6 +331,7 @@ void GamepadDown(PPCContext& ctx, uint8_t* base) {
     Args(ctx, {current_proxy,button,user,flags | 8}); Virtual(ctx, base, current_proxy, 192, 0x82472F24);
   }
 }
+#endif
 void Color(PPCContext& ctx, uint8_t* base) {
   const auto& w = W(base, ctx.r4.u32);
   const uint32_t first = w.colors_begin, end = w.colors_end;
@@ -286,6 +346,7 @@ void Color(PPCContext& ctx, uint8_t* base) {
   pvz::guest::Write(base, ctx.r3.u32 + 8, c); pvz::guest::Write(base, ctx.r3.u32 + 12, d);
   pvz::guest::Write(base, ctx.r3.u32 + 4, b); pvz::guest::Write(base, ctx.r3.u32, a);
 }
+#ifndef PVZ_B001_SYNTHETIC_TEST
 constexpr uint32_t ColorsOffset = offsetof(Widget, colors_header);
 constexpr uint32_t AnimationOffset = offsetof(Widget, animation);
 constexpr uint32_t QueueOffset = offsetof(Widget, animation_queue);
@@ -444,7 +505,8 @@ void Centered(PPCContext& ctx, uint8_t* base) {
   Frame frame(ctx,base);
   Call(ctx,base,sub_8249A0B0,0x8247375C,{g}); const uint32_t font=ctx.r3.u32;
   Args(ctx,{font,text}); Virtual(ctx,base,font,28,0x82473770); const uint32_t width=ctx.r3.u32;
-  const uint32_t x=uint32_t(std::bit_cast<int32_t>(uint32_t(W(base,self).width)-width)/2);
+  const uint32_t x=uint32_t(std::bit_cast<int32_t>(uint32_t(W(base,self).width)-width)/2) +
+      uint32_t(REXCVAR_GET(pvz_native_widget_82473730_inject_error));
   Call(ctx,base,sub_8249B1A0,0x82473794,{g,text,x,y});
   Args(ctx,{font}); Virtual(ctx,base,font,16,0x824737A8); const uint32_t height=ctx.r3.u32;
   Args(ctx,{font}); Virtual(ctx,base,font,4,0x824737BC); const uint32_t ascent=ctx.r3.u32;
@@ -479,77 +541,80 @@ void CenteredShadow(PPCContext& ctx, uint8_t* base) {
   pvz::guest::Write(base,out+4,y+uint32_t(std::min(0,dy))-ascent);
   pvz::guest::Write(base,out,x+uint32_t(std::min(0,dx))); ctx.r3.u64=out;
 }
+#endif
 } // namespace
 
 // Batch eligibility follows measured coverage in native-replacements.csv.
 // Individual flags remain available for unproven implementations.
-#define LEAF(ADDRESS, PROVEN, BODY, OUTPUTS, RANGES) \
+#ifndef PVZ_B001_SYNTHETIC_TEST
+#define LEAF(ADDRESS, PROVEN, BODY, OUTPUTS, RANGES, INPUTS) \
   PVZ_NATIVE_BATCH_REPLACEMENT(b001, PROVEN, widget_##ADDRESS, sub_##ADDRESS, BODY, \
       pvz::native::Safety::DeclaredOutputsOnly, OUTPUTS, RANGES)
 #define SNAP(ADDRESS, PROVEN, BODY) \
   PVZ_NATIVE_BATCH_REPLACEMENT(b001, PROVEN, widget_##ADDRESS, sub_##ADDRESS, BODY, \
       pvz::native::Safety::SnapshotsOnly, noOutputs, NoRanges)
-LEAF(82472958, true, NoOp, r3out, NoRanges)
-LEAF(82472960, true, True, r3out, NoRanges)
+#endif
+LEAF(82472958, true, NoOp, r3out, NoRanges, None)
+LEAF(82472960, true, True, r3out, NoRanges, None)
 SNAP(82472968, true, Visible)
-LEAF(824729D8, true, NoOp, r3out, NoRanges)
-LEAF(824729E0, true, NoOp, r3out, NoRanges)
+LEAF(824729D8, true, NoOp, r3out, NoRanges, None)
+LEAF(824729E0, true, NoOp, r3out, NoRanges, None)
 SNAP(824729E8, true, Overlay)
 SNAP(824729F8, true, Resize)
 SNAP(82472A98, true, ResizeRect)
 SNAP(82472AB8, true, Move)
-LEAF(82472AD0, false, WantsFocus, r3out, NoRanges)
+LEAF(82472AD0, true, WantsFocus, r3out, NoRanges, FocusByte)
 SNAP(82472AD8, true, Disabled)
 SNAP(82472B98, true, FluentDisable)
-LEAF(82472BD8, true, Focus<true>, noOutputs, FocusRange)
-LEAF(82472BE8, true, Focus<false>, noOutputs, FocusRange)
-LEAF(82472C00, false, NoOp, r3out, NoRanges)
-LEAF(82472C08, false, NoOp, r3out, NoRanges)
+LEAF(82472BD8, true, Focus<true>, noOutputs, FocusRange, None)
+LEAF(82472BE8, true, Focus<false>, noOutputs, FocusRange, None)
+LEAF(82472C00, true, NoOp, r3out, NoRanges, Identity)
+LEAF(82472C08, true, NoOp, r3out, NoRanges, Identity)
 SNAP(82472C10, false, KeyDown)
-LEAF(82472C50, false, NoOp, r3out, NoRanges)
+LEAF(82472C50, true, NoOp, r3out, NoRanges, Identity)
 SNAP(82472C58, true, Enter)
-LEAF(82472C88, true, Leave, noOutputs, LeaveRanges)
-LEAF(82472CA0, true, Navigation, noOutputs, NavigationRange)
-LEAF(82472CB8, true, Next, r3out, NoRanges)
-LEAF(82472DB0, true, Proxy, noOutputs, ProxyRange)
+LEAF(82472C88, true, Leave, noOutputs, LeaveRanges, None)
+LEAF(82472CA0, true, Navigation, noOutputs, NavigationRange, None)
+LEAF(82472CB8, true, Next, r3out, NoRanges, None)
+LEAF(82472DB0, true, Proxy, noOutputs, ProxyRange, None)
 SNAP(82472DB8, false, ProxyFocus)
 SNAP(82472DE0, true, GamepadDown)
 SNAP(82472F90, true, ProxyRelease)
 SNAP(82472FB8, true, Finger)
-LEAF(82472FE8, true, NoOp, r3out, NoRanges)
-LEAF(82472FF0, true, NoOp, r3out, NoRanges)
-LEAF(82472FF8, true, NoOp, r3out, NoRanges)
+LEAF(82472FE8, true, NoOp, r3out, NoRanges, None)
+LEAF(82472FF0, true, NoOp, r3out, NoRanges, None)
+LEAF(82472FF8, true, NoOp, r3out, NoRanges, None)
 // 82473000 is already hooked in game_settings.cpp. Never register it twice.
-LEAF(82473040, false, NoOp, r3out, NoRanges)
-LEAF(82473048, false, NoOp, r3out, NoRanges)
+LEAF(82473040, true, NoOp, r3out, NoRanges, Identity)
+LEAF(82473048, true, NoOp, r3out, NoRanges, Identity)
 SNAP(82473050, false, MouseUp)
-LEAF(824730D0, false, NoOp, r3out, NoRanges)
-LEAF(824730D8, false, NoOp, r3out, NoRanges)
-LEAF(824730E0, false, NoOp, r3out, NoRanges)
+LEAF(824730D0, true, NoOp, r3out, NoRanges, Identity)
+LEAF(824730D8, true, NoOp, r3out, NoRanges, Identity)
+LEAF(824730E0, true, NoOp, r3out, NoRanges, Identity)
 SNAP(824730E8, false, WriteString)
 SNAP(82473148, true, WordWrapped)
 SNAP(824731B8, true, WrappedHeight)
-LEAF(824731D8, false, Digits, r3out, NoRanges)
+LEAF(824731D8, false, Digits, r3out, NoRanges, Digits)
 SNAP(82473200, false, NumberStrip)
-LEAF(82473318, true, Contains, r3out, NoRanges)
-LEAF(82473588, false, NoOp, r3out, NoRanges)
-LEAF(82473590, false, NoOp, r3out, NoRanges)
-LEAF(82473598, false, NoOp, r3out, NoRanges)
-LEAF(824735A0, false, NoOp, r3out, NoRanges)
-LEAF(824735A8, false, NoOp, r3out, NoRanges)
-LEAF(824735B0, false, NoOp, r3out, NoRanges)
-LEAF(824735B8, false, NoOp, r3out, NoRanges)
-LEAF(824735C0, false, NoOp, r3out, NoRanges)
-LEAF(824735C8, false, NoOp, r3out, NoRanges)
-LEAF(824735D0, false, NoOp, r3out, NoRanges)
-LEAF(824735D8, false, NoOp, r3out, NoRanges)
-LEAF(824735E0, false, NoOp, r3out, NoRanges)
-LEAF(824735E8, false, NoOp, r3out, NoRanges)
+LEAF(82473318, true, Contains, r3out, NoRanges, None)
+LEAF(82473588, true, NoOp, r3out, NoRanges, Identity)
+LEAF(82473590, true, NoOp, r3out, NoRanges, Identity)
+LEAF(82473598, true, NoOp, r3out, NoRanges, Identity)
+LEAF(824735A0, true, NoOp, r3out, NoRanges, Identity)
+LEAF(824735A8, true, NoOp, r3out, NoRanges, Identity)
+LEAF(824735B0, true, NoOp, r3out, NoRanges, Identity)
+LEAF(824735B8, true, NoOp, r3out, NoRanges, Identity)
+LEAF(824735C0, true, NoOp, r3out, NoRanges, Identity)
+LEAF(824735C8, true, NoOp, r3out, NoRanges, Identity)
+LEAF(824735D0, true, NoOp, r3out, NoRanges, Identity)
+LEAF(824735D8, true, NoOp, r3out, NoRanges, Identity)
+LEAF(824735E0, true, NoOp, r3out, NoRanges, Identity)
+LEAF(824735E8, true, NoOp, r3out, NoRanges, Identity)
 SNAP(824735F8, true, ColorReference)
-LEAF(824736B0, false, Color, noOutputs, RectRange)
+LEAF(824736B0, true, Color, noOutputs, RectRange, Color)
 SNAP(82473730, true, Centered)
 SNAP(824737E8, false, CenteredShadow)
-LEAF(82473960, true, Insets, noOutputs, RectRange)
+LEAF(82473960, true, Insets, noOutputs, RectRange, None)
 SNAP(824739B0, true, Animate)
 SNAP(82473C60, true, Destruct)
 SNAP(82473D68, true, SetColors<false>)
