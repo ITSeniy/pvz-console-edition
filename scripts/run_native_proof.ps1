@@ -6,10 +6,12 @@ Every input/output has SHA-256 provenance. No thresholds or state normalization.
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('b001')][string]$Batch,
+    [ValidateSet('b001','b002','b003','b002+b003','b001+b002+b003')][string]$Batch,
     [switch]$Discover,
     [switch]$SupplementalOnly,
     [switch]$RenderOnly,
+    [switch]$CompareOnly,
+    [switch]$RenderPartition,
     [string]$ReuseEvidence,
     [string[]]$Replacements = @('pixel_to_grid_x','tool_rect'),
     [ValidateSet('adventure','versus','minigame','zen','menu')]
@@ -25,6 +27,11 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $script:reuse = $null
+$batchNames = if ($Batch) {@($Batch.Split('+'))} else {@()}
+$batchSources = @{b001='src/native/b001_widget.cpp';b002='src/native/b002_gamepad.cpp';b003='src/native/b003_widget_container.cpp'}
+function Batch-Flags([string[]]$Names=$batchNames, [switch]$Compare) {
+    foreach ($b in $Names) { "--pvz_native_$b$(if($Compare){'_compare'})=true" }
+}
 
 function Read-NativeCounters([string[]]$LogTexts, [string[]]$Names) {
     $result = [ordered]@{}
@@ -173,6 +180,8 @@ if (-not $Replacements.Count -or @($Replacements | Select-Object -Unique).Count 
 foreach ($name in $Replacements) { if ($name -notmatch '^[a-z][a-zA-Z0-9_]*$') { throw "Invalid replacement name: $name" } }
 if ($Discover -and -not $Batch) { throw '-Discover requires -Batch' }
 if ($SupplementalOnly -and (-not $Batch -or -not $Discover)) { throw '-SupplementalOnly is a discovery diagnostic; use -Batch and -Discover' }
+if ($CompareOnly -and (-not $Batch -or $RenderOnly -or $SupplementalOnly)) {throw '-CompareOnly requires a batch and a separate render proof'}
+if ($RenderPartition -and (-not $Batch -or -not $RenderOnly -or $Cases.Count -ne 1)) {throw '-RenderPartition requires one explicit render-only case; aggregate acceptance must require all five cases and a caught negative control'}
 if (-not $OutputRoot) { $OutputRoot = 'runtime-data/native-proof/' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff') }
 $OutputRoot = [IO.Path]::GetFullPath($OutputRoot)
 if (Test-Path -LiteralPath $OutputRoot) { throw 'OutputRoot must be new; previous evidence is preserved' }
@@ -382,28 +391,41 @@ function BatchPhase([string]$Name, [string[]]$Flags, [switch]$ProfileOnly, [stri
     return (Get-Content $file -Raw|ConvertFrom-Json)
 }
 function SyntheticProof {
-    $path=Join-Path $OutputRoot 'synthetic.json'
-    & ./build/b001_synthetic_test.exe $path
-    if ($LASTEXITCODE -ne 0) {throw 'Synthetic B001 comparison failed'}
-    $data=Get-Content $path -Raw|ConvertFrom-Json
     $script:synthetic=@{}
+    $proofs=[ordered]@{}
+    foreach ($batchName in $batchNames) {
+    $path=Join-Path $OutputRoot "synthetic-$batchName.json"
+    & "./build/$($batchName)_synthetic_test.exe" $path
+    if ($LASTEXITCODE -ne 0) {throw "Synthetic $batchName comparison failed"}
+    $data=Get-Content $path -Raw|ConvertFrom-Json
     foreach ($f in $data.functions) {
         $script:synthetic[$f.address]=$f
         Criterion "synthetic/$($f.address)" ($f.cases -gt 0 -and $f.errors -eq 0 -and $f.negative_errors -eq $f.cases) $f
     }
-    Criterion 'synthetic/function_count' ($data.functions.Count -eq 24 -and $data.passed) $data.functions.Count
-    $manifest=Join-Path $OutputRoot 'synthetic-inputs.json'
-    Copy-Item -LiteralPath build/b001_originals.json -Destination $manifest
-    Copy-Item -LiteralPath build/b001_originals.cpp -Destination (Join-Path $OutputRoot 'synthetic-originals.cpp')
-    $summary['synthetic']=@{path=$path;sha256=(Hash $path);source_manifest=$manifest;
-        source_manifest_sha256=(Hash $manifest);executable_sha256=(Hash 'build/b001_synthetic_test.exe')}
+    $expectedCount=@{b001=24;b002=9;b003=9}[$batchName]
+    Criterion "synthetic/$batchName/function_count" ($data.functions.Count -eq $expectedCount -and $data.passed) $data.functions.Count
+    $manifest=Join-Path $OutputRoot "synthetic-$batchName-inputs.json"
+    Copy-Item -LiteralPath "build/$($batchName)_originals.json" -Destination $manifest
+    Copy-Item -LiteralPath "build/$($batchName)_originals.cpp" -Destination (Join-Path $OutputRoot "synthetic-$batchName-originals.cpp")
+    $proofs[$batchName]=@{path=$path;sha256=(Hash $path);source_manifest=$manifest;
+        source_manifest_sha256=(Hash $manifest);executable_sha256=(Hash "build/$($batchName)_synthetic_test.exe")}
+    }
+    $summary['synthetic']=$proofs
 }
 function RenderProof {
     $a=BatchPhase 'render-original' @() -Trace
     $b=BatchPhase 'render-repeat' @() -Trace
-    $n=BatchPhase 'render-native' @("--pvz_native_$Batch=true") -Trace
     $summary['render']=[ordered]@{}
-    foreach ($pair in @(@('repeat',$b),@('native',$n))) {
+    $pairs=@(,@('repeat',$b))
+    $groups=if($batchNames -contains 'b002' -or $batchNames -contains 'b003') {@('b002','b003','b001+b002+b003')} else {@($Batch)}
+    foreach($group in $groups) {
+        $groupNames=@($group.Split('+'))
+        $flags=@(Batch-Flags $groupNames)
+        if($Discover) {$flags+=@($entries|Where-Object {$_.batch -in $groupNames}|ForEach-Object {"--pvz_native_$($_.flag)=true"})}
+        $label=if($Batch -eq 'b001'){'native'}else{$group}
+        $pairs+=,@($label,(BatchPhase "render-$label" $flags -Trace))
+    }
+    foreach ($pair in $pairs) {
         foreach ($case in $Cases) {
             $left=$a.runs.PSObject.Properties["$case-1"].Value
             $right=$pair[1].runs.PSObject.Properties["$case-1"].Value
@@ -420,8 +442,13 @@ function RenderProof {
     $case=@($Cases|Where-Object {
         Select-String -LiteralPath $a.runs.PSObject.Properties["$_-1"].Value.render -SimpleMatch '"scope":"widget_82473730"' -Quiet
     }|Select-Object -First 1)
-    if (-not $case.Count) {throw 'No Centered draw in selected scenarios for render negative control'}
-    $negative=BatchPhase 'render-negative' @("--pvz_native_$Batch=true",'--pvz_native_widget_82473730_inject_error=true') -Trace -SelectedCases $case
+    if (-not $case.Count) {
+        if (-not $RenderPartition) {throw 'No Centered draw in selected scenarios for render negative control'}
+        $summary.render['negative'] = @{covered=$false;reason='No Centered call in this explicit partition; full acceptance requires a caught negative in another partition'}
+        return
+    }
+    $negativeBatches=if($Batch -eq 'b001'){@('b001')}else{@('b001','b002','b003')}
+    $negative=BatchPhase 'render-negative' (@(Batch-Flags $negativeBatches)+@('--pvz_native_widget_82473730_inject_error=true')) -Trace -SelectedCases $case
     $path=Join-Path $OutputRoot 'render-negative.json'
     & python -I tests/compare_render_traces.py $a.runs.PSObject.Properties["$($case[0])-1"].Value.render $negative.runs.PSObject.Properties["$($case[0])-1"].Value.render --output $path | Out-Null
     $r=Get-Content $path -Raw|ConvertFrom-Json
@@ -596,11 +623,11 @@ if ($Batch) {
     try {
         if ($Record) { throw 'Batch proof uses existing replay CSVs; -Record is not supported' }
         $inventoryPath = 'docs/native-port/data/native-replacements.csv'
-        $all = @(Import-Csv $inventoryPath | Where-Object {$_.batch -eq $Batch})
-        $expected = @((Import-Csv docs/native-port/data/replacement-batches.csv | Where-Object {$_.batch -eq $Batch.ToUpperInvariant()}).members.Split('|') | Sort-Object)
+        $all = @(Import-Csv $inventoryPath | Where-Object {$_.batch -in $batchNames})
+        $expected = @(Import-Csv docs/native-port/data/replacement-batches.csv | Where-Object {$_.batch.ToLowerInvariant() -in $batchNames} | ForEach-Object {$_.members.Split('|')} | Sort-Object)
         $actual = @($all | ForEach-Object {$_.address} | Sort-Object)
         if (($actual -join '|') -cne ($expected -join '|')) {throw 'Batch inventory must contain every member exactly once'}
-        $source = Get-Content "src/native/$($Batch)_widget.cpp" -Raw
+        $source = (@($batchNames|ForEach-Object {Get-Content $batchSources[$_] -Raw}) -join "`n")
         $gates = [regex]::Matches($source, '(?m)^(?:LEAF|SNAP)\(([0-9A-F]+), (true|false),')
         if ($gates.Count -ne @($all | Where-Object {$_.status -ne 'existing-hook'}).Count) {throw 'Unexpected source registration count'}
         foreach ($entry in $all | Where-Object {$_.status -ne 'existing-hook'}) {
@@ -622,11 +649,15 @@ if ($Batch) {
         }
         foreach ($file in @('build/pvz-console-edition.exe','.cache/pvz-image.bin',$inventoryPath,
                 'scripts/run_native_proof.ps1','scripts/run_determinism_check.ps1','scripts/compare_state_dumps.py',
-                'src/native/b001_widget.cpp','src/native/replacement.h','src/native/replacement.cpp','src/native/render_trace.cpp','src/xbox/Widget.h',
+                'src/native/b001_widget.cpp','src/native/guest_call.h','src/native/replacement.h','src/native/replacement.cpp','src/native/render_trace.cpp','src/xbox/Widget.h',
                 'tests/b001_synthetic_test.cpp','tests/b001_synthetic_sources.py','tests/compare_render_traces.py',
                 'CMakeLists.txt','src/controller_assets.cpp','src/native/render_trace.h',
                 'src/deterministic_replay.cpp','src/challenge_mouse.cpp','src/mouse_bridge.cpp',
                 'tests/render_resource_test.cpp','config/pc_defaults.toml','config/game.lock.json')) { $summary.inputs[$file] = Hash $file }
+        foreach ($file in @($batchNames|ForEach-Object {$batchSources[$_];"tests/$($_)_synthetic_test.cpp"})+@(
+            'tests/batch_synthetic.h','tests/batch_synthetic_sources.py','src/xbox/Gamepad.h','src/xbox/BaseGamepadControls.h','src/xbox/WidgetContainer.h')) {
+            $summary.inputs[$file]=Hash $file
+        }
         foreach ($file in Get-ChildItem -LiteralPath $Baseline -File -Recurse) {
             $summary.inputs["baseline/$($file.FullName.Substring(([IO.Path]::GetFullPath($Baseline)).Length))"] = Hash $file.FullName
         }
@@ -653,7 +684,7 @@ if ($Batch) {
             }
             $summary['reused_evidence'] = @{path=[IO.Path]::GetFullPath($manifest);sha256=(Hash $manifest)}
         }
-        $off = @('--pvz_native_compare_all=false',"--pvz_native_$Batch=false","--pvz_native_$($Batch)_compare=false")
+        $off = @('--pvz_native_compare_all=false')+@('b001','b002','b003'|ForEach-Object {"--pvz_native_$_=false";"--pvz_native_$($_)_compare=false"})
         foreach ($name in (@('pixel_to_grid_x','tool_rect') + @($all.flag) | Select-Object -Unique)) {
             if (-not $name) { continue }
             $off += @("--pvz_native_$name=false","--pvz_native_$($name)_compare=false","--pvz_native_$($name)_inject_error=false")
@@ -674,16 +705,21 @@ if ($Batch) {
         }
         if (-not $SupplementalOnly) { $original = Phase 'original' @() }
         $compareFlags = if ($Discover) { @($Replacements | ForEach-Object {"--pvz_native_$($_)_compare=true"}) }
-                        else { @("--pvz_native_$($Batch)_compare=true") }
+                        else { @(Batch-Flags -Compare) }
         if (-not $SupplementalOnly) {
             $compared = Phase 'compare' $compareFlags
             Counters 'compare' $compared $Replacements
             Compare-Dumps 'restore-original' $original $compared
+            if ($batchNames -contains 'b002' -or $batchNames -contains 'b003') {
+                $comparedAgain = Phase 'compare-repeat' $compareFlags
+                Counters 'compare-repeat' $comparedAgain $Replacements
+                Compare-Dumps 'restore-original-repeat' $original $comparedAgain
+            }
         }
         $extraCompared = SupplementalPhase 'compare-extra' $compareFlags
         Counters 'compare-extra' $extraCompared $Replacements
         $nativeFlags = if ($Discover) { @($Replacements | ForEach-Object {"--pvz_native_$_=true"}) }
-                       else { @("--pvz_native_$Batch=true") }
+                       else { @(Batch-Flags) }
         if (-not $SupplementalOnly) {
             $native = Phase 'native' $nativeFlags
             Counters 'native' $native $Replacements
@@ -728,9 +764,10 @@ if ($Batch) {
                 }
             }
         }
-        if (-not $SupplementalOnly) {RenderProof}
+        if (-not $SupplementalOnly -and -not $CompareOnly) {RenderProof}
         Criterion 'executable_unchanged' ((Hash 'build/pvz-console-edition.exe') -eq $exeHash) $exeHash
         $summary['supplemental_only'] = [bool]$SupplementalOnly
+        $summary['compare_only'] = [bool]$CompareOnly
         $summary.passed = @($summary.criteria | Where-Object {-not $_.passed}).Count -eq 0
     } catch { $summary.failure = $_.Exception.Message; $summary.passed = $false }
     $summary['elapsed_seconds'] = $watch.Elapsed.TotalSeconds

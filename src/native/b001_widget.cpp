@@ -6,7 +6,9 @@
 #include "pvz_pch.h"
 #include "guest_memory.h"
 #include "xbox/Widget.h"
-#include <initializer_list>
+#ifndef PVZ_B001_SYNTHETIC_TEST
+#include "guest_call.h"
+#endif
 
 #ifndef PVZ_B001_SYNTHETIC_TEST
 PVZ_NATIVE_BATCH(b001)
@@ -191,28 +193,16 @@ auto RectRange(const PPCContext& c) { return std::array{Range{c.r3.u32, 16}}; }
 #ifndef PVZ_B001_SYNTHETIC_TEST
 // Snapshot-only wrappers call guest code once. A real guest stack frame keeps
 // child home slots away from the caller; host locals survive volatile registers.
-struct Frame {
-  PPCContext& c; uint64_t sp, lr;
-  Frame(PPCContext& ctx, uint8_t* base) : c(ctx), sp(ctx.r1.u64), lr(ctx.lr) {
-    c.r1.u32 -= 128; pvz::guest::Write(base, c.r1.u32, uint32_t(sp));
-  }
-  ~Frame() { c.r1.u64 = sp; c.lr = lr; }
-};
-void Args(PPCContext& c, std::initializer_list<uint32_t> values) {
-  const std::array<PPCRegister*, 8> regs{&c.r3,&c.r4,&c.r5,&c.r6,&c.r7,&c.r8,&c.r9,&c.r10};
-  size_t i = 0; for (auto value : values) regs[i++]->u64 = value;
-}
-void Virtual(PPCContext& ctx, uint8_t* base, uint32_t self, unsigned slot, uint32_t lr) {
-  const uint32_t vtable = pvz::guest::Read(base, self);
-  ctx.ctr.u64 = pvz::guest::Read(base, vtable + slot);
-  ctx.lr = lr;
-  REX_CALL_INDIRECT_FUNC(ctx.ctr.u32);
-}
+using pvz::native::Frame;
+using pvz::native::Args;
+using pvz::native::Call;
+using pvz::native::Virtual;
+
 void Visible(PPCContext& ctx, uint8_t* base) {
   const uint32_t self = ctx.r3.u32; const auto value = ctx.r4.u8;
   auto& w = W(base, self);
   if (w.visible == value) return;
-  Frame frame(ctx, base);
+  Frame frame(ctx, base, 128);
   w.visible = value;
   Virtual(ctx, base, self, value ? 16 : 24, 0x824729B0);
   if (uint32_t(w.manager)) {
@@ -224,7 +214,7 @@ void Resize(PPCContext& ctx, uint8_t* base) {
   const uint32_t self = ctx.r3.u32, x = ctx.r4.u32, y = ctx.r5.u32, width = ctx.r6.u32, height = ctx.r7.u32;
   auto& w = W(base, self);
   if (uint32_t(w.x) == x && uint32_t(w.y) == y && uint32_t(w.width) == width && uint32_t(w.height) == height) return;
-  Frame frame(ctx, base);
+  Frame frame(ctx, base, 128);
   Virtual(ctx, base, self, 24, 0x82472A5C);
   w.x = x; w.y = y; w.width = width; w.height = height;
   Args(ctx, {self}); Virtual(ctx, base, self, 16, 0x82472A80);
@@ -242,7 +232,7 @@ void Move(PPCContext& ctx, uint8_t* base) {
   Virtual(ctx, base, ctx.r3.u32, 124, uint32_t(ctx.lr));
 }
 void FluentDisable(PPCContext& ctx, uint8_t* base) {
-  const uint32_t self = ctx.r3.u32; Frame frame(ctx, base);
+  const uint32_t self = ctx.r3.u32; Frame frame(ctx, base, 128);
   Virtual(ctx, base, self, 144, 0x82472BBC); ctx.r3.u64 = self;
 }
 void Enter(PPCContext& ctx, uint8_t* base) {
@@ -262,7 +252,7 @@ void ProxyRelease(PPCContext& ctx, uint8_t* base) {
 void MouseUp(PPCContext& ctx, uint8_t* base) {
   const uint32_t self = ctx.r3.u32, x = ctx.r4.u32, y = ctx.r5.u32;
   const int32_t button = ctx.r6.s32;
-  Frame frame(ctx, base);
+  Frame frame(ctx, base, 128);
   Virtual(ctx, base, self, 232, 0x8247307C);
   const uint32_t kind = button == 3 ? 2 : button < 0 ? 1 : 0;
   const uint32_t count = button == 3 ? 1 : button < 0 ? 0u - uint32_t(button) : uint32_t(button);
@@ -275,7 +265,7 @@ void Disabled(PPCContext& ctx, uint8_t* base) {
   const uint32_t self = ctx.r3.u32; const auto value = ctx.r4.u8;
   auto& w = W(base, self);
   if (w.disabled == value) return;
-  Frame frame(ctx, base); w.disabled = value;
+  Frame frame(ctx, base, 128); w.disabled = value;
   if (value && uint32_t(w.manager)) {
     Args(ctx, {w.manager,self}); ctx.lr = 0x82472B20; sub_824A68F0(ctx, base);
   }
@@ -310,7 +300,7 @@ void GamepadDown(PPCContext& ctx, uint8_t* base) {
   if (int32_t(w.user_index) != -1 && uint32_t(w.user_index) != user) return;
   const uint32_t proxy = w.field_ac;
   if (proxy && int32_t(W(base, proxy).user_index) != -1 && uint32_t(W(base, proxy).user_index) != user) return;
-  Frame frame(ctx, base);
+  Frame frame(ctx, base, 128);
   Args(ctx, {self,button}); Virtual(ctx, base, self, 184, 0x82472E48);
   const uint32_t target = ctx.r3.u32;
   if (target && uint32_t(w.manager)) {
@@ -350,13 +340,10 @@ void Color(PPCContext& ctx, uint8_t* base) {
 constexpr uint32_t ColorsOffset = offsetof(Widget, colors_header);
 constexpr uint32_t AnimationOffset = offsetof(Widget, animation);
 constexpr uint32_t QueueOffset = offsetof(Widget, animation_queue);
-template<class Function> void Call(PPCContext& ctx, uint8_t* base, Function function,
-    uint32_t lr, std::initializer_list<uint32_t> args) {
-  Args(ctx, args); ctx.lr = lr; function(ctx, base);
-}
+
 void ColorReference(PPCContext& ctx, uint8_t* base) {
   const uint32_t self = ctx.r3.u32, index = ctx.r4.u32;
-  Frame frame(ctx, base);
+  Frame frame(ctx, base, 128);
   // Static default Color and its guard are guest globals, shared with original.
   const uint32_t guard = pvz::guest::Read(base, 0x828923C8);
   if (!(guard & 1)) {
@@ -372,7 +359,7 @@ void ColorReference(PPCContext& ctx, uint8_t* base) {
 }
 void SetColor(PPCContext& ctx, uint8_t* base) {
   const uint32_t self = ctx.r3.u32, index = ctx.r4.u32, source = ctx.r5.u32;
-  Frame frame(ctx, base); auto& w = W(base, self);
+  Frame frame(ctx, base, 128); auto& w = W(base, self);
   const int32_t count = std::bit_cast<int32_t>(uint32_t(w.colors_end) - uint32_t(w.colors_begin)) >> 4;
   if (int32_t(index) >= count)
     Call(ctx, base, sub_824745D0, 0x82474038, {self + ColorsOffset,index + 1});
@@ -385,7 +372,7 @@ void SetColor(PPCContext& ctx, uint8_t* base) {
 }
 template<bool Alpha> void SetColors(PPCContext& ctx, uint8_t* base) {
   const uint32_t self = ctx.r3.u32, source = ctx.r4.u32;
-  const int32_t count = ctx.r5.s32; Frame frame(ctx, base);
+  const int32_t count = ctx.r5.s32; Frame frame(ctx, base, 128);
   Call(ctx, base, sub_824A5840, Alpha ? 0x82473E10 : 0x82473D88, {self + ColorsOffset});
   for (int32_t i = 0; i < count; ++i) {
     const uint32_t src = source + uint32_t(i) * (Alpha ? 16 : 12), temp = ctx.r1.u32 + 80;
@@ -401,7 +388,7 @@ template<bool Alpha> void SetColors(PPCContext& ctx, uint8_t* base) {
   Args(ctx,{self}); Virtual(ctx,base,self,16,Alpha ? 0x82473E74 : 0x82473DE8);
 }
 void Animate(PPCContext& ctx, uint8_t* base) {
-  const uint32_t self = ctx.r3.u32; Frame frame(ctx,base); auto& w = W(base,self);
+  const uint32_t self = ctx.r3.u32; Frame frame(ctx, base, 128); auto& w = W(base,self);
   if (!uint32_t(w.animation)) return;
   Args(ctx,{w.animation}); Virtual(ctx,base,w.animation,8,0x824739E8);
   Args(ctx,{w.animation}); Virtual(ctx,base,w.animation,12,0x824739FC);
@@ -422,7 +409,7 @@ void Animate(PPCContext& ctx, uint8_t* base) {
   Call(ctx,base,sub_821B0F00,0x82473A70,{self+AnimationOffset,uint32_t(w.animation_queue[0])});
 }
 void Destruct(PPCContext& ctx, uint8_t* base) {
-  const uint32_t self = ctx.r3.u32; Frame frame(ctx,base); auto& w = W(base,self);
+  const uint32_t self = ctx.r3.u32; Frame frame(ctx, base, 128); auto& w = W(base,self);
   w.vtable = 0x8205D504; w.listener_vtable = 0x8205D4D0;
   Call(ctx,base,sub_824A5840,0x82473C9C,{self+ColorsOffset});
   Call(ctx,base,sub_825FB4E8,0x82473CB4,{self+QueueOffset,4,3,0x82474108});
@@ -431,14 +418,14 @@ void Destruct(PPCContext& ctx, uint8_t* base) {
   Call(ctx,base,sub_82492FD8,0x82473CDC,{self});
 }
 void Delete(PPCContext& ctx, uint8_t* base) {
-  const uint32_t self = ctx.r3.u32, flags=ctx.r4.u32; Frame frame(ctx,base);
+  const uint32_t self = ctx.r3.u32, flags=ctx.r4.u32; Frame frame(ctx, base, 128);
   // Call the dispatched destructor, so tracing/other overrides remain honored.
   Call(ctx,base,sub_82473C60,0x824E3EC8,{self});
   if (flags & 1) Call(ctx,base,sub_825F8F50,0x824E3ED8,{self});
   ctx.r3.u64 = self;
 }
 void Construct(PPCContext& ctx, uint8_t* base) {
-  const uint32_t self = ctx.r3.u32; Frame frame(ctx,base);
+  const uint32_t self = ctx.r3.u32; Frame frame(ctx, base, 128);
   Call(ctx,base,sub_82492F28,0x82473EA4,{self});
   auto& w=W(base,self);
   w.listener_vtable=0x8205D484; w.vtable=0x8205D504; w.listener_vtable=0x8205D4D0;
@@ -458,7 +445,7 @@ auto& Graphics(uint8_t* base, uint32_t address) {
 void WriteString(PPCContext& ctx, uint8_t* base) {
   const uint32_t g=ctx.r4.u32, text=ctx.r5.u32, x=ctx.r6.u32, y=ctx.r7.u32,
       width=ctx.r8.u32, justification=ctx.r9.u32, draw=ctx.r10.u32;
-  Frame frame(ctx,base);
+  Frame frame(ctx, base, 128);
   const auto old=Graphics(base,g).write_colored_string;
   Graphics(base,g).write_colored_string=base[0x827D2720];
   pvz::guest::Write(base,ctx.r1.u32+84,pvz::guest::Read(base,uint32_t(frame.sp)+92));
@@ -468,7 +455,7 @@ void WriteString(PPCContext& ctx, uint8_t* base) {
 }
 void WordWrapped(PPCContext& ctx, uint8_t* base) {
   const uint32_t g=ctx.r4.u32, rect=ctx.r5.u32, text=ctx.r6.u32, spacing=ctx.r7.u32, justification=ctx.r8.u32;
-  Frame frame(ctx,base); const auto old=Graphics(base,g).write_colored_string;
+  Frame frame(ctx, base, 128); const auto old=Graphics(base,g).write_colored_string;
   Graphics(base,g).write_colored_string=base[0x827D2720];
   base[ctx.r1.u32+87]=0;
   Call(ctx,base,sub_8249E900,0x8247319C,{g,rect,text,spacing,justification,0,~0u,0});
@@ -481,7 +468,7 @@ void WrappedHeight(PPCContext& ctx, uint8_t* base) {
 // PPC word arithmetic wraps; keep intermediate UI coordinates in uint32_t.
 void NumberStrip(PPCContext& ctx, uint8_t* base) {
   const uint32_t g=ctx.r4.u32, number=ctx.r5.u32, x=ctx.r6.u32, y=ctx.r7.u32, image=ctx.r8.u32, spacing=ctx.r9.u32;
-  Frame frame(ctx,base); int32_t divisor=10; uint32_t digits=1;
+  Frame frame(ctx, base, 128); int32_t divisor=10; uint32_t digits=1;
   while (int32_t(number)>=divisor) { divisor=std::bit_cast<int32_t>(uint32_t(divisor)*10u); ++digits; }
   if (!number) divisor=10;
   Call(ctx,base,sub_824AC938,0x8247325C,{image});
@@ -502,7 +489,7 @@ void NumberStrip(PPCContext& ctx, uint8_t* base) {
 }
 void Centered(PPCContext& ctx, uint8_t* base) {
   const uint32_t out=ctx.r3.u32,self=ctx.r4.u32,g=ctx.r5.u32,y=ctx.r6.u32,text=ctx.r7.u32;
-  Frame frame(ctx,base);
+  Frame frame(ctx, base, 128);
   Call(ctx,base,sub_8249A0B0,0x8247375C,{g}); const uint32_t font=ctx.r3.u32;
   Args(ctx,{font,text}); Virtual(ctx,base,font,28,0x82473770); const uint32_t width=ctx.r3.u32;
   const uint32_t x=uint32_t(std::bit_cast<int32_t>(uint32_t(W(base,self).width)-width)/2) +
@@ -516,7 +503,7 @@ void Centered(PPCContext& ctx, uint8_t* base) {
 void CenteredShadow(PPCContext& ctx, uint8_t* base) {
   const uint32_t out=ctx.r3.u32,self=ctx.r4.u32,g=ctx.r5.u32,y=ctx.r6.u32,text=ctx.r7.u32;
   const uint64_t color1=ctx.r8.u64,color2=ctx.r9.u64,color3=ctx.r10.u64;
-  Frame frame(ctx,base);
+  Frame frame(ctx, base, 128);
   // Struct arguments are homed as big-endian 64-bit registers before calling
   // Graphics::SetColor. Shadow Point* is the tenth argument, entry SP+100.
   const uint32_t shadow=pvz::guest::Read(base,uint32_t(frame.sp)+100);

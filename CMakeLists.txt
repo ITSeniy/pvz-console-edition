@@ -22,6 +22,8 @@ configure_file(src/game_content_lock.h.in ${CMAKE_CURRENT_BINARY_DIR}/game_conte
 # Sources
 set(PVZ_SOURCES
     src/native/b001_widget.cpp
+    src/native/b002_gamepad.cpp
+    src/native/b003_widget_container.cpp
     src/native/replacement.cpp
     src/native/render_trace.cpp
     src/native/tool_rect.cpp
@@ -125,6 +127,26 @@ if(BUILD_TESTING)
         target_link_libraries(b001_synthetic_test PRIVATE rex::runtime)
         rexglue_apply_target_settings(b001_synthetic_test)
         add_test(NAME b001_synthetic COMMAND b001_synthetic_test ${CMAKE_CURRENT_BINARY_DIR}/b001_synthetic.json)
+        foreach(batch b002 b003)
+            if(batch STREQUAL "b002")
+                set(batch_source src/native/b002_gamepad.cpp)
+            else()
+                set(batch_source src/native/b003_widget_container.cpp)
+            endif()
+            file(GLOB PVZ_T15_LAYOUTS CONFIGURE_DEPENDS src/xbox/*.h)
+            add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${batch}_originals.cpp
+                COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tests/batch_synthetic_sources.py
+                    ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/${batch}_originals.cpp ${batch}
+                DEPENDS tests/batch_synthetic_sources.py tests/batch_synthetic.h tests/${batch}_synthetic_test.cpp
+                    ${batch_source} src/native/replacement.h ${PVZ_T15_LAYOUTS}
+                    .cache/pvz-image.bin ${PVZ_SYNTHETIC_GENERATED})
+            add_executable(${batch}_synthetic_test tests/${batch}_synthetic_test.cpp ${CMAKE_CURRENT_BINARY_DIR}/${batch}_originals.cpp)
+            target_include_directories(${batch}_synthetic_test PRIVATE src generated/default)
+            target_link_libraries(${batch}_synthetic_test PRIVATE rex::runtime)
+            rexglue_apply_target_settings(${batch}_synthetic_test)
+            add_test(NAME ${batch}_synthetic COMMAND ${batch}_synthetic_test ${CMAKE_CURRENT_BINARY_DIR}/${batch}_synthetic.json)
+            set_tests_properties(${batch}_synthetic PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+        endforeach()
         add_test(NAME input_audit_manifest COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/input_audit_manifest_test.py)
         add_test(NAME state_dump_compare COMMAND ${Python3_EXECUTABLE} -I
