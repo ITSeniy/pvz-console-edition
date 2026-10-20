@@ -37,6 +37,17 @@ $batchSources = @{b001='src/native/b001_widget.cpp';b002='src/native/b002_gamepa
 if ($Batch) {
     if (@($batchNames | Select-Object -Unique).Count -ne $batchNames.Count) { throw 'Batch names must be unique' }
     foreach ($name in $batchNames) { if ($name -notin $knownBatches) { throw "Unknown batch: $name" } }
+    # A replacement translates the Xbox body. Calling the original (__imp__) or a
+    # FORWARD wrapper would pass every comparison without replacing anything.
+    foreach ($name in $batchNames) {
+        $lines = @(Get-Content -LiteralPath $batchSources[$name])
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            $code = $lines[$i] -replace '//.*$', ''
+            if ($code -cmatch '__imp__sub_|\bFORWARD\b') {
+                throw "$($batchSources[$name]):$($i + 1): batch sources must not call the original or forward to it"
+            }
+        }
+    }
 }
 function Batch-Flags([string[]]$Names=$batchNames, [switch]$Compare) {
     foreach ($b in $Names) { "--pvz_native_$b$(if($Compare){'_compare'})=true" }
