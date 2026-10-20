@@ -1,17 +1,20 @@
 [CmdletBinding(DefaultParameterSetName='Deterministic')]
 param([string[]]$Cases=@('vs_mouse_pad','vs_pad_mouse','vs_two_pads','coop_mouse_pad','coop_pad_mouse','coop_two_pads',
  'vs_mouse_p2_sun','vs_custom_mouse_plants','vs_custom_mouse_zombies','vs_join_mouse','vs_join_pad','vs_pick_sides'), [switch]$Append,
+ [ValidateSet('b001','b002','b003','b005','b010','b013','b017')][string[]]$NativeBatches=@(),
  [Parameter(ParameterSetName='Deterministic')][switch]$Deterministic,
  [Parameter(Mandatory=$true,ParameterSetName='WallClock')][switch]$WallClock)
 $ErrorActionPreference='Stop'
 Set-Location (Split-Path $PSScriptRoot -Parent)
 # Fixed before measuring T12; never choose values to make a scenario pass.
 $useDeterministic=$PSCmdlet.ParameterSetName -eq 'Deterministic'
+$NativeBatches=@($NativeBatches|Sort-Object -Unique)
 $regression=[ordered]@{
  mode=$(if($useDeterministic){'deterministic'}else{'wall-clock'})
  seed=$(if($useDeterministic){'42'}else{$null})
  clock_epoch=$(if($useDeterministic){'1792195200'}else{$null})
  time_window=$(if($useDeterministic){'after-replay-title-and-captures'}else{'after-process-start'})
+ native_batches=@($NativeBatches)
  runner_sha256=(Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash.ToLowerInvariant()
  smoke_sha256=(Get-FileHash -LiteralPath ./smoke.ps1 -Algorithm SHA256).Hash.ToLowerInvariant()
 }
@@ -20,6 +23,7 @@ $diagnosticArgs=@()
 if($useDeterministic){
  $diagnosticArgs=@('--pvz_deterministic_seed=42','--pvz_deterministic_clock=1792195200')
 }
+$diagnosticArgs+=@($NativeBatches|ForEach-Object {"--pvz_native_$_=true"})
 # Only scenarios that still vary with fixed seed/clock need recorded delivery.
 $stepReplays=@{
  coop_mouse_pad='feedback_coop_mouse_pad.steps.csv'

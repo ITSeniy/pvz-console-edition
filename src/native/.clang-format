@@ -1,0 +1,7 @@
+# Style of the native replacement batches (b002 onward). b001 predates it.
+BasedOnStyle: LLVM
+ColumnLimit: 110
+PointerAlignment: Left
+ReferenceAlignment: Left
+SortIncludes: Never
+AllowShortFunctionsOnASingleLine: Empty

@@ -1,7 +1,9 @@
-"""Extract verbatim B002/B003 LEAF generated bodies and input SHA-256s.
+"""Extract verbatim Xbox function bodies and input SHA-256s for batch synthetics.
 
 Inputs: batch source, generated/default, Xbox image, layouts and test harness.
 Output: build-only C++ reference TU and JSON provenance. No body rewriting.
+Native test bodies use the common PVZ_BATCH_SYNTHETIC_TEST guard, supplied by
+batch_synthetic.h; this extractor does not define a task-specific guard.
 """
 import hashlib
 import json
@@ -10,8 +12,22 @@ import re
 import sys
 root, output = map(Path, sys.argv[1:3])
 batch = sys.argv[3]
-source = root / ('src/native/'+{'b002':'b002_gamepad.cpp','b003':'b003_widget_container.cpp'}[batch])
-names = set(re.findall(r'^LEAF\(([0-9A-F]{8}),', source.read_text(), re.M))
+source = root / ('src/native/'+{
+    'b002':'b002_gamepad.cpp',
+    'b003':'b003_widget_container.cpp',
+    'b005':'b005_scrollbar.cpp',
+    'b010':'b010_data.cpp',
+    'b013':'b013_widget_manager.cpp',
+    'b017':'b017_bigint.cpp',
+}[batch])
+source_text = source.read_text()
+names = set(re.findall(r'^LEAF\(([0-9A-F]{8}),', source_text, re.M))
+if batch == 'b005':
+    # Two SnapshotOnly setters are absent from the supplied game replays. Their
+    # synthetic tests compare declared guest-memory snapshots against the Xbox
+    # bodies, including a deliberately corrupted negative case.
+    names.update(re.findall(r'^SNAP\(([0-9A-F]{8}), true, (?:SetHorizontal|SetButtonFields)\)',
+                            source_text, re.M))
 hashes, bodies = {}, {}
 def record(p):
     hashes[p.relative_to(root).as_posix()] = hashlib.sha256(p.read_bytes()).hexdigest()

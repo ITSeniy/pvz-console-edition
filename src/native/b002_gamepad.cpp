@@ -6,11 +6,11 @@
 #include "xbox/Gamepad.h"
 #include "xbox/BaseGamepadControls.h"
 #include <cmath>
-#ifndef PVZ_T15_SYNTHETIC_TEST
+#ifndef PVZ_BATCH_SYNTHETIC_TEST
 #include "guest_call.h"
 #endif
 
-#ifndef PVZ_T15_SYNTHETIC_TEST
+#ifndef PVZ_BATCH_SYNTHETIC_TEST
 PVZ_NATIVE_BATCH(b002)
 #endif
 REX_EXTERN(sub_82580870);
@@ -86,7 +86,7 @@ void Vibration(PPCContext& c, uint8_t* b) {
   g.vibration_duration = float(c.f3.f64);
   g.vibration_remaining = float(c.f3.f64);
 }
-#ifndef PVZ_T15_SYNTHETIC_TEST
+#ifndef PVZ_BATCH_SYNTHETIC_TEST
 // Child calls keep Xbox LR sites and exact frame sizes. No host object lives
 // in guest memory; frame scratch is deliberately SnapshotsOnly.
 using pvz::native::Args;
@@ -535,7 +535,7 @@ void ControlsUpdate(PPCContext& c, uint8_t* b) {
 }
 #endif
 } // namespace
-#ifndef PVZ_T15_SYNTHETIC_TEST
+#ifndef PVZ_BATCH_SYNTHETIC_TEST
 #define LEAF(A, P, B, O, R, I)                                                                               \
   PVZ_NATIVE_BATCH_REPLACEMENT(b002, P, gamepad_##A, sub_##A, B, pvz::native::Safety::DeclaredOutputsOnly,   \
                                O, R)

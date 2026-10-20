@@ -4,10 +4,10 @@
 #include "guest_memory.h"
 #include "xbox/Widget.h"
 #include "xbox/WidgetContainer.h"
-#ifndef PVZ_T15_SYNTHETIC_TEST
+#ifndef PVZ_BATCH_SYNTHETIC_TEST
 #include "guest_call.h"
 #endif
-#ifndef PVZ_T15_SYNTHETIC_TEST
+#ifndef PVZ_BATCH_SYNTHETIC_TEST
 PVZ_NATIVE_BATCH(b003)
 #endif
 REX_EXTERN(sub_821DF2A0);
@@ -57,7 +57,7 @@ void Rect(PPCContext& c, uint8_t* b) {
   for (uint32_t i = 0; i < 4; ++i)
     pvz::guest::Write(b, c.r3.u32 + 4 * i, v[i]);
 }
-#ifndef PVZ_T15_SYNTHETIC_TEST
+#ifndef PVZ_BATCH_SYNTHETIC_TEST
 using pvz::native::Args;
 using pvz::native::Call;
 using pvz::native::Frame;
@@ -346,7 +346,7 @@ void DirtyChildFull(PPCContext& c, uint8_t* b) {
 }
 #endif
 } // namespace
-#ifndef PVZ_T15_SYNTHETIC_TEST
+#ifndef PVZ_BATCH_SYNTHETIC_TEST
 #define LEAF(A, P, B, O, R, I)                                                                               \
   PVZ_NATIVE_BATCH_REPLACEMENT(b003, P, container_##A, sub_##A, B, pvz::native::Safety::DeclaredOutputsOnly, \
                                O, R)

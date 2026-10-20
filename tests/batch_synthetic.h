@@ -1,7 +1,7 @@
 // Shared isolated domains, actual Xbox constants and sparse guest address space.
 #pragma once
 #define PVZ_NATIVE_REPLACEMENT_TEST
-#define PVZ_T15_SYNTHETIC_TEST
+#define PVZ_BATCH_SYNTHETIC_TEST
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
@@ -13,6 +13,7 @@
 #include "xbox/BaseGamepadControls.h"
 #include "xbox/Widget.h"
 #include "xbox/WidgetContainer.h"
+#include "xbox/ScrollbarWidget.h"
 #include <cmath>
 #include <initializer_list>
 #include <fstream>

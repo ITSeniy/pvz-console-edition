@@ -323,3 +323,112 @@ Sexy::WidgetListNode,widget,0x8,GuestPtr,0x82492984,T15 complete Xbox body,verif
 Sexy::WidgetUpdateContext,modal_flags,0x0,rex::be<uint32_t>,0x82492864,T15 complete Xbox body,verified Xbox access
 Sexy::WidgetUpdateContext,flags,0x4,rex::be<uint32_t>,0x82492880,T15 complete Xbox body,verified Xbox access
 Sexy::WidgetUpdateContext,is_modal,0x8,uint8_t,0x824928C0,T15 complete Xbox body,verified Xbox access
+Sexy::ScrollbarWidget,field_130,0x130,rex::be<uint32_t>,0x824B9C10,T16 full Xbox body,verified Xbox access
+Sexy::ScrollbarWidget,button_listener_vtable,0xD4,GuestPtr,0x824BA7E8,T16 full Xbox body,verified Xbox access
+Sexy::ScrollbarWidget,up_button,0xD8,GuestPtr,0x824B9BB8,T16 full Xbox body,verified Xbox access
+Sexy::ScrollbarWidget,down_button,0xDC,GuestPtr,0x824B9BB8,T16 full Xbox body,verified Xbox access
+Sexy::ScrollbarWidget,invis_if_no_scroll,0xE0,uint8_t,0x824BA160,T16 full Xbox body,verified Xbox access
+Sexy::ScrollbarWidget,value,0xE8,rex::be<double>,0x824B9E98,T16 full Xbox body,verified Xbox access
+Sexy::ScrollbarWidget,max_value,0xF0,rex::be<double>,0x824B9DF8,T16 full Xbox body,verified Xbox access
+Sexy::ScrollbarWidget,page_size,0xF8,rex::be<double>,0x824B9E48,T16 full Xbox body,verified Xbox access
+Sexy::ScrollbarWidget,horizontal,0x100,uint8_t,0x824B9BB8,T16 full Xbox body,verified Xbox access
+Sexy::ScrollbarWidget,field_104,0x104,rex::be<int32_t>,0x824B9FC0,T16 full Xbox body,verified Xbox access
+Sexy::ScrollbarWidget,pressed_on_thumb,0x108,uint8_t,0x824BA5D8,T16 full Xbox body,verified Xbox access
+Sexy::ScrollbarWidget,thumb_position,0x10C,rex::be<int32_t>,0x824BA5D8,T16 full Xbox body,verified Xbox access
+Sexy::ScrollbarWidget,mouse_down_x,0x110,rex::be<int32_t>,0x824BA5D8,T16 full Xbox body,verified Xbox access
+Sexy::ScrollbarWidget,mouse_down_y,0x114,rex::be<int32_t>,0x824BA5D8,T16 full Xbox body,verified Xbox access
+Sexy::ScrollbarWidget,update_mode,0x118,rex::be<int32_t>,0x824BA5D8,T16 full Xbox body,verified Xbox access
+Sexy::ScrollbarWidget,update_acc,0x11C,rex::be<int32_t>,0x824BA5D8,T16 full Xbox body,verified Xbox access
+Sexy::ScrollbarWidget,button_acc,0x120,rex::be<int32_t>,0x824BA328,T16 full Xbox body,verified Xbox access
+Sexy::ScrollbarWidget,last_mouse_x,0x124,rex::be<int32_t>,0x824BA5D8,T16 full Xbox body,verified Xbox access
+Sexy::ScrollbarWidget,last_mouse_y,0x128,rex::be<int32_t>,0x824BA5D8,T16 full Xbox body,verified Xbox access
+Sexy::ScrollbarWidget,scroll_listener,0x12C,GuestPtr,0x824BA7E8,T16 full Xbox body,verified Xbox access
+Sexy::ScrollbarWidget,field_134,0x134,rex::be<uint32_t>,0x824B9C18,T16 full Xbox body,verified Xbox access
+Sexy::ScrollbarWidget,field_138,0x138,rex::be<uint32_t>,0x824B9C18,T16 full Xbox body,verified Xbox access
+Sexy::ScrollbuttonWidget,width,0x48,rex::be<int32_t>,0x824B9FC0,T16 full Xbox body,verified Xbox access
+Sexy::ScrollbuttonWidget,field_F8,0xF8,rex::be<uint32_t>,0x824B9BD8,T16 full Xbox body,verified Xbox access
+Sexy::ScrollbuttonWidget,field_100,0x100,rex::be<uint32_t>,0x824B9BD8,T16 full Xbox body,verified Xbox access
+Sexy::ScrollbuttonWidget,field_104,0x104,rex::be<uint32_t>,0x824B9BD8,T16 full Xbox body,verified Xbox access
+Sexy::ScrollbuttonWidget,horizontal,0x170,uint8_t,0x824B9BB8,T16 full Xbox body,verified Xbox access
+Sexy::RefCount,vtable,0x0,GuestPtr,0x821B4000,T16 full Xbox constructor,verified Xbox access
+Sexy::DataElement,vtable,0x0,GuestPtr,0x825522F8,T16 full Xbox constructor,verified Xbox access
+Sexy::DataElement,field_4,0x4,uint8_t,0x825522F8,T16 full Xbox constructor,verified Xbox access
+Sexy::DataWriter,vtable,0x0,GuestPtr,0x82593198,T16 full Xbox constructor,verified Xbox access
+Sexy::DataWriter,field_4,0x4,rex::be<uint32_t>,0x82593198,T16 full Xbox constructor,verified Xbox access
+Sexy::DataWriter,field_8,0x8,rex::be<uint32_t>,0x82593198,T16 full Xbox constructor,verified Xbox access
+Sexy::DataWriter,field_C,0xC,rex::be<uint32_t>,0x82593198,T16 full Xbox constructor,verified Xbox access
+Sexy::DataWriter,field_10,0x10,rex::be<uint32_t>,0x82593198,T16 full Xbox constructor,verified Xbox access
+Sexy::DataReader,vtable,0x0,GuestPtr,0x825936D8,T16 full Xbox constructor,verified Xbox access
+Sexy::DataReader,field_4,0x4,rex::be<uint32_t>,0x825936D8,T16 full Xbox constructor,verified Xbox access
+Sexy::DataReader,field_8,0x8,rex::be<uint32_t>,0x825936D8,T16 full Xbox constructor,verified Xbox access
+Sexy::DataReader,field_C,0xC,rex::be<uint32_t>,0x825936D8,T16 full Xbox constructor,verified Xbox access
+Sexy::DataReader,field_10,0x10,rex::be<uint32_t>,0x825936D8,T16 full Xbox constructor,verified Xbox access
+Sexy::DataReader,field_14,0x14,uint8_t,0x825936D8,T16 full Xbox constructor,verified Xbox access
+Sexy::EncodingParser,field_20,0x20,GuestPtr,0x825565E8,T16 full Xbox setter,verified Xbox access
+Sexy::EncodingParser,field_24,0x24,uint8_t,0x825565E8,T16 full Xbox setter,verified Xbox access
+BigInt,vtable,0x0,GuestPtr,0x825838F0,T16 full Xbox constructor,verified Xbox access
+BigInt,negative,0x4,uint8_t,0x82584188,T16 full Xbox constructor,verified Xbox access
+BigInt,limbs,0x8,GuestPtr,0x82584188,T16 full Xbox constructor,verified Xbox access
+BigInt,count,0xC,rex::be<uint32_t>,0x82584188,T16 full Xbox constructor,verified Xbox access
+BigInt,capacity,0x10,rex::be<uint32_t>,0x82584188,T16 full Xbox constructor,verified Xbox access
+Sexy::WidgetManager,current_mode,0xA0,uint8_t,0x824A60F0,T16 full Xbox flags helper,verified Xbox access
+Sexy::WidgetManager,modal_widget,0xB4,GuestPtr,0x824A60F0,T16 full Xbox flags helper,verified Xbox access
+Sexy::WidgetManager,flags_add,0xB8,rex::be<uint32_t>,0x824A60F0,T16 full Xbox flags helper,verified Xbox access
+Sexy::WidgetManager,flags_remove,0xBC,rex::be<uint32_t>,0x824A60F0,T16 full Xbox flags helper,verified Xbox access
+Sexy::WidgetManager,modal_flags_add,0xC0,rex::be<uint32_t>,0x824A60F0,T16 full Xbox flags helper,verified Xbox access
+Sexy::WidgetManager,modal_flags_remove,0xC4,rex::be<uint32_t>,0x824A60F0,T16 full Xbox flags helper,verified Xbox access
+Sexy::WidgetManager,current_flags,0x228,rex::be<uint32_t>,0x824A60F0,T16 full Xbox flags helper,verified Xbox access
+DataVector,proxy,0x0,GuestPtr,0x82126D2C,SyncObject::construct vector at self+4,verified Xbox access
+DataVector,begin,0xC,GuestPtr,0x82126D30,SyncObject::construct vector at self+4,verified Xbox access
+DataVector,end,0x10,GuestPtr,0x82126D34,SyncObject::construct vector at self+4,verified Xbox access
+DataVector,capacity_end,0x14,GuestPtr,0x82126D38,SyncObject::construct vector at self+4,verified Xbox access
+SyncObject,vtable,0x0,GuestPtr,0x82126D0C,SyncObject::construct,verified Xbox access
+SyncObject,vector,0x4,DataVector,0x82126D08,SyncObject::construct,verified Xbox access
+Buffer,vtable,0x0,GuestPtr,0x824B69B0,Buffer::construct,verified Xbox access
+Buffer,bytes,0x4,DataVector,0x824B69A8,Buffer::construct,verified Xbox access
+Buffer,field_1C,0x1C,be<uint32_t>,0x824B69C0,Buffer::construct,verified Xbox access
+Buffer,field_20,0x20,be<uint32_t>,0x824B69C4,Buffer::construct,verified Xbox access
+Buffer,field_24,0x24,be<uint32_t>,0x824B69C8,Buffer::construct,verified Xbox access
+SingleDataElement,name,0x8,guest string object[0x1C],0x82552418,SingleDataElement::construct,verified Xbox access
+SingleDataElement,nested_element,0x24,GuestPtr,0x82552430,SingleDataElement::construct,verified Xbox access
+ListDataElement,elements,0x8,DataVector,0x8255357C,ListDataElement::construct,verified Xbox access
+EncodingParser,vtable,0x0,GuestPtr,0x82556DD0,EncodingParser::construct,verified Xbox access
+EncodingParser,stream,0x4,GuestPtr,0x82556DE4,EncodingParser::construct,verified Xbox access
+EncodingParser,buffered_characters,0x8,DataVector,0x82556DC8,EncodingParser::construct,verified Xbox access
+EncodingParser,first_character,0x25,uint8_t,0x82556DF4,EncodingParser::construct,verified Xbox access
+EncodingParser,swap_utf16,0x26,uint8_t,0x82556DF8,EncodingParser::construct,verified Xbox access
+DataFileCursor,length,0x10,be<uint32_t>,0x825566B0,EncodingParser::eof fallback,verified Xbox access
+DataFileCursor,position,0x14,be<uint32_t>,0x825566A8,EncodingParser::eof fallback,verified Xbox access
+DataString,storage,0x4,uint8_t[16],0x82556B0C,EncodingParser::open path inline data,verified Xbox access
+DataString,length,0x14,be<uint32_t>,0x82556E1C,EncodingParser::push reversed wide string,verified Xbox access
+DataString,capacity,0x18,be<uint32_t>,0x82556AF4,EncodingParser::open path,verified Xbox access
+DataSync,vtable,0x0,GuestPtr,0x8255B0B0,DataSync::construct,verified Xbox access
+DataSync,reader,0x4,GuestPtr,0x8255B0DC,DataSync::construct,verified Xbox access
+DataSync,writer,0x8,GuestPtr,0x8255B0E0,DataSync::construct,verified Xbox access
+DataSync,map_10,0x10,opaque map object[0x20],0x8255B0A4,DataSync::construct,verified Xbox access
+DataSync,map_30,0x30,opaque map object[0x20],0x8255B0BC,DataSync::construct,verified Xbox access
+DataSync,objects,0x50,DataVector,0x8255B0CC,DataSync::construct,verified Xbox access
+WidgetManagerFlags,container,0x0,WidgetContainer,0x824A6D74,WidgetManager::construct,verified Xbox access
+WidgetManagerFlags,field_68,0x68,GuestPtr,0x824A6E2C,WidgetManager::construct,verified Xbox access
+WidgetManagerFlags,app,0x70,GuestPtr,0x824A6E14,WidgetManager::construct,verified Xbox access
+WidgetManagerFlags,field_74,0x74,GuestPtr,0x824A6E30,WidgetManager::construct,verified Xbox access
+WidgetManagerFlags,flag_7C,0x7C,uint8_t,0x824A6E34,WidgetManager::construct,verified Xbox access
+WidgetManagerFlags,field_80,0x80,GuestPtr,0x824A6E38,WidgetManager::construct,verified Xbox access
+WidgetManagerFlags,vector_84,0x84,DataVector,0x824A6D7C,WidgetManager::construct,verified Xbox access
+WidgetManagerFlags,field_9C,0x9C,be<int32_t>,0x824A6E1C,WidgetManager::construct,verified Xbox access
+WidgetManagerFlags,focus,0xA4,GuestPtr,0x824A6E3C,WidgetManager::construct,verified Xbox access
+WidgetManagerFlags,gamepad_focus,0xA8,GuestPtr,0x824A6E40,WidgetManager::construct,verified Xbox access
+WidgetManagerFlags,mouse_down,0xAC,GuestPtr,0x824A6E44,WidgetManager::construct,verified Xbox access
+WidgetManagerFlags,mouse_over,0xB0,GuestPtr,0x824A6E48,WidgetManager::construct,verified Xbox access
+WidgetManagerFlags,field_C8,0xC8,be<uint32_t>,0x824A6DB0,WidgetManager::construct,verified Xbox access
+WidgetManagerFlags,field_CC,0xCC,be<uint32_t>,0x824A6E50,WidgetManager::construct,verified Xbox access
+WidgetManagerFlags,vector_D0,0xD0,DataVector,0x824A6DA8,WidgetManager::construct,verified Xbox access
+WidgetManagerFlags,rect_E8,0xE8,be<int32_t>[4],0x824A6DD0,WidgetManager::construct stores E8..F4,verified Xbox access
+WidgetManagerFlags,rect_F8,0xF8,be<int32_t>[4],0x824A6DF0,WidgetManager::construct stores F8..104,verified Xbox access
+WidgetManagerFlags,flag_108,0x108,uint8_t,0x824A6E28,WidgetManager::construct,verified Xbox access
+WidgetManagerFlags,pressed_buttons,0x114,be<uint32_t>,0x824A6E6C,WidgetManager::construct,verified Xbox access
+WidgetManagerFlags,update_flags,0x118,be<uint32_t>,0x824A6E70,WidgetManager::construct,verified Xbox access
+WidgetManagerFlags,last_key_update,0x11C,be<uint32_t>,0x824A67FC,WidgetManager::key up,verified Xbox access
+WidgetManagerFlags,field_120,0x120,be<uint32_t>,0x824A6E74,WidgetManager::construct,verified Xbox access
+WidgetManagerFlags,key_states,0x124,uint8_t[255],0x824A6E7C,WidgetManager::construct stbu loop,verified Xbox access
+WidgetManagerFlags,field_224,0x224,be<uint32_t>,0x824A6E68,WidgetManager::construct,verified Xbox access
