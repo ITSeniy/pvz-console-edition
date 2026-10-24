@@ -3,7 +3,7 @@ param([string[]]$Cases=@('begh_console','twist_console','quarium_pc','quarium_co
  'whack_pc','whack_console','slot_pc','slot_console','izombie_pc','stars_pc',
  'laststand_pc','laststand_console','scrollbar','heavy_console','vases_pc','vases_console','shovel_console'),
  [string]$Baseline='runtime-data/zen-shop-probe-user', [switch]$Append,
- [ValidateSet('b001','b002','b003','b005','b010','b013','b017')][string[]]$NativeBatches=@(),
+ [ValidateSet('b001','b002','b003','b005','b008','b010','b013','b014','b017','b018')][string[]]$NativeBatches=@(),
  [Parameter(ParameterSetName='Deterministic')][switch]$Deterministic,
  [Parameter(Mandatory=$true,ParameterSetName='WallClock')][switch]$WallClock)
 $ErrorActionPreference='Stop'

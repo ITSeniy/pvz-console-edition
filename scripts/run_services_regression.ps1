@@ -1,6 +1,6 @@
 [CmdletBinding(DefaultParameterSetName='Deterministic')]
 param([string]$Baseline = 'runtime-data/zen-shop-probe-user', [string[]]$Cases=@(), [switch]$Append,
- [ValidateSet('b001','b002','b003','b005','b010','b013','b017')][string[]]$NativeBatches=@(),
+ [ValidateSet('b001','b002','b003','b005','b008','b010','b013','b014','b017','b018')][string[]]$NativeBatches=@(),
  [Parameter(ParameterSetName='Deterministic')][switch]$Deterministic,
  [Parameter(Mandatory=$true,ParameterSetName='WallClock')][switch]$WallClock)
 $ErrorActionPreference = 'Stop'

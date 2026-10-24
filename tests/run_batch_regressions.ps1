@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)][ValidatePattern('^[a-zA-Z0-9_-]+$')][string]$Tag,
-    [ValidateSet('b001','b002','b003','b005','b010','b013','b017')][string[]]$NativeBatches=@(),
+    [ValidatePattern('^b0[0-9]{2}$')][string[]]$NativeBatches=@(),
     [ValidateSet('feedback','multiplayer','services','shop')][string[]]$Suites=@('feedback','multiplayer','services','shop'),
     [switch]$Wait
 )
@@ -14,6 +14,10 @@ $outputRoot=if($null -ne $runtimeTarget){$runtimeTarget.FullName}else{$runtimeDi
 $processFile=Join-Path $outputRoot "batch-regression-$Tag-processes.json"
 if(Test-Path -LiteralPath $processFile){throw "Process manifest already exists: $processFile"}
 $NativeBatches=@($NativeBatches|Sort-Object -Unique)
+foreach($batch in $NativeBatches) {
+    $sources=@(Get-ChildItem -LiteralPath (Join-Path $taskRoot 'src/native') -Filter "$($batch)_*.cpp" -File)
+    if($sources.Count -ne 1) {throw "Unknown or ambiguous native batch: $batch"}
+}
 $Suites=@($Suites|Select-Object -Unique)
 $receipts=@()
 $processes=@()

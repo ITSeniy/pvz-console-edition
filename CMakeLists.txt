@@ -25,6 +25,9 @@ set(PVZ_SOURCES
     src/native/b002_gamepad.cpp
     src/native/b003_widget_container.cpp
     src/native/b005_scrollbar.cpp
+    src/native/b008_dialog.cpp
+    src/native/b014_buttons.cpp
+    src/native/b018_edit_widget.cpp
     src/native/b010_data.cpp
     src/native/b013_widget_manager.cpp
     src/native/b017_bigint.cpp
@@ -131,20 +134,13 @@ if(BUILD_TESTING)
         target_link_libraries(b001_synthetic_test PRIVATE rex::runtime)
         rexglue_apply_target_settings(b001_synthetic_test)
         add_test(NAME b001_synthetic COMMAND b001_synthetic_test ${CMAKE_CURRENT_BINARY_DIR}/b001_synthetic.json)
-        foreach(batch b002 b003 b005 b010 b013 b017)
-            if(batch STREQUAL "b002")
-                set(batch_source src/native/b002_gamepad.cpp)
-            elseif(batch STREQUAL "b003")
-                set(batch_source src/native/b003_widget_container.cpp)
-            elseif(batch STREQUAL "b005")
-                set(batch_source src/native/b005_scrollbar.cpp)
-            elseif(batch STREQUAL "b010")
-                set(batch_source src/native/b010_data.cpp)
-            elseif(batch STREQUAL "b013")
-                set(batch_source src/native/b013_widget_manager.cpp)
-            else()
-                set(batch_source src/native/b017_bigint.cpp)
+        foreach(batch b002 b003 b005 b008 b010 b013 b014 b017 b018)
+            file(GLOB batch_sources RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} src/native/${batch}_*.cpp)
+            list(LENGTH batch_sources batch_source_count)
+            if(NOT batch_source_count EQUAL 1)
+                message(FATAL_ERROR "Expected one native source for ${batch}")
             endif()
+            list(GET batch_sources 0 batch_source)
             file(GLOB PVZ_T15_LAYOUTS CONFIGURE_DEPENDS src/xbox/*.h)
             add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${batch}_originals.cpp
                 COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tests/batch_synthetic_sources.py

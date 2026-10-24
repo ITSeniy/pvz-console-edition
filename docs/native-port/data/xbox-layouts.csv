@@ -432,3 +432,160 @@ WidgetManagerFlags,last_key_update,0x11C,be<uint32_t>,0x824A67FC,WidgetManager::
 WidgetManagerFlags,field_120,0x120,be<uint32_t>,0x824A6E74,WidgetManager::construct,verified Xbox access
 WidgetManagerFlags,key_states,0x124,uint8_t[255],0x824A6E7C,WidgetManager::construct stbu loop,verified Xbox access
 WidgetManagerFlags,field_224,0x224,be<uint32_t>,0x824A6E68,WidgetManager::construct,verified Xbox access
+Dialog,button_listener_vtable,0xD4,GuestPtr,0x824A8B94,sub_824A8B28,verified Xbox access
+Dialog,field_d8,0xD8,rex::be<uint32_t>,0x824A8D68,sub_824A8B28,verified Xbox access
+Dialog,listener,0xDC,GuestPtr,0x824A8DE4,sub_824A8B28,verified Xbox access
+Dialog,background,0xE0,GuestPtr,0x824A8D50,sub_824A8B28,verified Xbox access
+Dialog,yes_button,0xE4,GuestPtr,0x824A8E64,sub_824A8B28,verified Xbox access
+Dialog,no_button,0xE8,GuestPtr,0x824A8E7C,sub_824A8B28,verified Xbox access
+Dialog,field_ec,0xEC,GuestPtr,0x824A8EA4,sub_824A8B28,verified Xbox access
+Dialog,header,0xF0,DataString,0x824A8B90,sub_824A8B28,verified Xbox access
+Dialog,footer,0x10C,DataString,0x824A8BB4,sub_824A8B28,verified Xbox access
+Dialog,body,0x128,DataString,0x824A8BCC,sub_824A8B28,verified Xbox access
+Dialog,button_mode,0x144,rex::be<int32_t>,0x824A8E1C,sub_824A8B28,verified Xbox access
+Dialog,header_font,0x148,GuestPtr,0x824A9004,sub_824A8B28,verified Xbox access
+Dialog,body_font,0x14C,GuestPtr,0x824A9018,sub_824A8B28,verified Xbox access
+Dialog,field_150,0x150,rex::be<uint32_t>,0x824A8DB8,sub_824A8B28,verified Xbox access
+Dialog,field_154,0x154,rex::be<uint32_t>,0x824A8DBC,sub_824A8B28,verified Xbox access
+Dialog,button_height,0x158,rex::be<uint32_t>,0x824A8FF8,sub_824A8B28,verified Xbox access
+Dialog,background_insets,0x15C,rex::be<uint32_t>[4],0x824A8BE4,sub_824A8B28,verified Xbox access
+Dialog,content_insets,0x16C,rex::be<uint32_t>[4],0x824A8D9C,sub_824A8B28,verified Xbox access
+Dialog,header_spacing,0x17C,rex::be<uint32_t>,0x824A8DC0,sub_824A8B28,verified Xbox access
+Dialog,dragging,0x180,uint8_t,0x824A901C,sub_824A8B28,verified Xbox access
+Dialog,modal,0x18C,uint8_t,0x824A8D78,sub_824A8B28,verified Xbox access
+Dialog,result,0x190,rex::be<uint32_t>,0x824A8D70,sub_824A8B28,verified Xbox access
+Dialog,field_194,0x194,rex::be<uint32_t>,0x824A8DCC,sub_824A8B28,verified Xbox access
+Dialog,button_spacing,0x198,rex::be<uint32_t>,0x824A8DC4,sub_824A8B28,verified Xbox access
+Dialog,alpha,0x19C,rex::be<uint32_t>,0x824A8DEC,sub_824A8B28,verified Xbox access
+Dialog,waiting,0x1A0,uint8_t,0x824A9058,sub_824A8B28,verified Xbox access
+Dialog,drag_x,0x184,rex::be<uint32_t>,0x824A85C4,sub_824A8588,verified Xbox access
+Dialog,drag_y,0x188,rex::be<uint32_t>,0x824A85C8,sub_824A8588,verified Xbox access
+DialogButtonMetrics,label,0xD4,DataString,0x824A82D8,sub_824A8260,verified Xbox access
+DialogButtonMetrics,font,0xF4,GuestPtr,0x824A82DC,sub_824A8260,verified Xbox access
+DialogWidgetFlags,field_5c,0x5C,rex::be<uint32_t>,0x824A9020,sub_824A8B28,verified Xbox access
+DialogAppState,field_800,0x800,uint8_t,0x824A880C,sub_824A87A8,verified Xbox access
+ButtonWidget,label,0xd4,DataString,0x824AE768,sub_824AE730,verified Xbox access; base r30
+ButtonWidget,field_f0,0xf0,rex::be<int32_t>,0x824AE800,sub_824AE730,verified Xbox access; base r30
+ButtonWidget,font,0xf4,GuestPtr,0x824AE7FC,sub_824AE730,verified Xbox access; base r30
+ButtonWidget,image,0xf8,GuestPtr,0x824AE804,sub_824AE730,verified Xbox access; base r30
+ButtonWidget,over_image,0xfc,GuestPtr,0x824AE808,sub_824AE730,verified Xbox access; base r30
+ButtonWidget,down_image,0x100,GuestPtr,0x824AE80C,sub_824AE730,verified Xbox access; base r30
+ButtonWidget,disabled_image,0x104,GuestPtr,0x824AE810,sub_824AE730,verified Xbox access; base r30
+ButtonWidget,rects,0x108,rex::be<uint32_t>[4][4],0x824AE784,sub_824AE730,verified Xbox access; base r30
+ButtonWidget,field_148,0x148,uint8_t,0x824AE814,sub_824AE730,verified Xbox access; base r30
+ButtonWidget,field_149,0x149,uint8_t,0x824AE818,sub_824AE730,verified Xbox access; base r30
+ButtonWidget,field_14a,0x14a,uint8_t,0x824AE81C,sub_824AE730,verified Xbox access; base r30
+ButtonWidget,listener,0x14c,GuestPtr,0x824AE820,sub_824AE730,verified Xbox access; base r30
+ButtonWidget,over_alpha,0x150,rex::be<double>,0x824AE7EC,sub_824AE730,verified Xbox access; base r30
+ButtonWidget,fade_out,0x158,rex::be<double>,0x824AE7F0,sub_824AE730,verified Xbox access; base r30
+ButtonWidget,fade_in,0x160,rex::be<double>,0x824AE7F8,sub_824AE730,verified Xbox access; base r30
+ButtonWidget,button_user,0x168,rex::be<uint32_t>,0x824AE840,sub_824AE730,verified Xbox access; base r30
+Checkbox,listener,0xd4,GuestPtr,0x8254C3B0,sub_8254C380,verified Xbox access; base r30
+Checkbox,checked,0xd8,uint8_t,0x8254C3CC,sub_8254C380,verified Xbox access; base r30
+Checkbox,unchecked_image,0xdc,GuestPtr,0x8254C3B8,sub_8254C380,verified Xbox access; base r30
+Checkbox,checked_image,0xe0,GuestPtr,0x8254C3C0,sub_8254C380,verified Xbox access; base r30
+Checkbox,checked_rect,0xe4,rex::be<uint32_t>[4],0x8254C3E0,sub_8254C380,verified Xbox access; base r30
+Checkbox,unchecked_rect,0xf4,rex::be<uint32_t>[4],0x8254C3E8,sub_8254C380,verified Xbox access; base r30
+Checkbox,outline_color,0x104,rex::be<uint32_t>[4],0x8254C41C,sub_8254C380,verified Xbox access; base r30
+Checkbox,background_color,0x114,rex::be<uint32_t>[4],0x8254C3F0,sub_8254C380,verified Xbox access; base r30
+Checkbox,check_color,0x124,rex::be<uint32_t>[4],0x8254C444,sub_8254C380,verified Xbox access; base r30
+ButtonRect,x,0x0,rex::be<uint32_t>,0x824E3E3C,sub_824E3AD0,verified Xbox access; base r21
+ButtonRect,y,0x4,rex::be<uint32_t>,0x824E3D8C,sub_824E3AD0,verified Xbox access; base r21
+ButtonRect,height,0xc,rex::be<uint32_t>,0x824E3D88,sub_824E3AD0,verified Xbox access; base r21
+ButtonRect,width,0x8,rex::be<uint32_t>,0x824E3DA4,sub_824E3AD0,verified Xbox access; base r21
+ButtonManagerState,field_a0,0xa0,uint8_t,0x824AE210,sub_824AE1E8,verified Xbox access; base r11
+DialogButton,dialog_image,0x170,GuestPtr,0x824DCF50,sub_824DCF20,verified Xbox access; base r30
+DialogButton,down_x,0x174,rex::be<uint32_t>,0x824DCF84,sub_824DCF20,verified Xbox access; base r30
+DialogButton,down_y,0x178,rex::be<uint32_t>,0x824DCF60,sub_824DCF20,verified Xbox access; base r30
+DialogButton,text_x,0x17c,rex::be<uint32_t>,0x824DCF7C,sub_824DCF20,verified Xbox access; base r30
+DialogButton,text_y,0x180,rex::be<uint32_t>,0x824DCF68,sub_824DCF20,verified Xbox access; base r30
+ScrollbuttonFull,horizontal,0x170,uint8_t,0x825827DC,sub_82582798,verified Xbox access; base r31
+ScrollbuttonFull,direction,0x174,rex::be<int32_t>,0x825827BC,sub_82582798,verified Xbox access; base r31
+LabelWidget,font,0xd4,GuestPtr,0x82593DDC,sub_82593D98,verified Xbox access; base r30
+LabelWidget,label,0xd8,DataString,0x82593DE0,sub_82593D98,verified Xbox access; base r30
+LabelWidget,alignment,0xf4,rex::be<int32_t>,0x82593D1C,sub_82593CE8,verified Xbox access; base r31
+LabelGraphics,font,0x40,GuestPtr,0x82593D2C,sub_82593CE8,verified Xbox access; base r30
+GameButton,app,0x188,GuestPtr,0x82187E10,sub_82187D90,verified Xbox access; base r30
+GameButton,field_18c,0x18c,GuestPtr,0x82187E74,sub_82187D90,verified Xbox access; base r30
+GameButton,field_190,0x190,rex::be<uint32_t>,0x82187E60,sub_82187D90,verified Xbox access; base r30
+GameButton,field_194,0x194,rex::be<uint32_t>,0x82187E64,sub_82187D90,verified Xbox access; base r30
+GameButton,field_198,0x198,uint8_t,0x82187E68,sub_82187D90,verified Xbox access; base r30
+GameButton,field_19c,0x19c,rex::be<float>,0x82187DF8,sub_82187D90,verified Xbox access; base r30
+GameButton,field_1a0,0x1a0,rex::be<float>,0x82187E00,sub_82187D90,verified Xbox access; base r30
+GameButton,field_1a4,0x1a4,rex::be<uint32_t>,0x82187E6C,sub_82187D90,verified Xbox access; base r30
+GameButton,field_1a8,0x1a8,rex::be<uint32_t>,0x82187E70,sub_82187D90,verified Xbox access; base r30
+GameButton,field_1ac,0x1ac,rex::be<uint32_t>,0x82187E3C,sub_82187D90,verified Xbox access; base r30
+GameButton,field_1b0,0x1b0,uint8_t,0x82187E78,sub_82187D90,verified Xbox access; base r30
+GameButton,field_1b4,0x1b4,rex::be<uint32_t>,0x82187E7C,sub_82187D90,verified Xbox access; base r30
+GameButton,field_1b8,0x1b8,rex::be<uint32_t>,0x82187E80,sub_82187D90,verified Xbox access; base r30
+GameButton,field_1bc,0x1bc,rex::be<uint32_t>,0x82187E84,sub_82187D90,verified Xbox access; base r30
+GameButton,field_1c0,0x1c0,rex::be<uint32_t>,0x82187E88,sub_82187D90,verified Xbox access; base r30
+GameButton,field_1c4,0x1c4,rex::be<float>,0x82187F14,sub_82187D90,verified Xbox access; base r30
+GameButton,field_1c8,0x1c8,rex::be<float>,0x82187F18,sub_82187D90,verified Xbox access; base r30
+GameButton,field_1cc,0x1cc,rex::be<float>,0x82187F1C,sub_82187D90,verified Xbox access; base r30
+GameButton,field_1d0,0x1d0,rex::be<float>,0x82187F20,sub_82187D90,verified Xbox access; base r30
+GameButton,field_1d4,0x1d4,rex::be<float>,0x82187EF8,sub_82187D90,verified Xbox access; base r30
+GameButton,field_1d8,0x1d8,rex::be<int32_t>,0x82187F08,sub_82187D90,verified Xbox access; base r30
+GameButton,field_1dc,0x1dc,rex::be<uint32_t>,0x82187F00,sub_82187D90,verified Xbox access; base r30
+GameButton,field_1e0,0x1e0,rex::be<uint32_t>,0x82187F04,sub_82187D90,verified Xbox access; base r30
+GameButton,field_1e4,0x1e4,rex::be<int32_t>,0x82187F0C,sub_82187D90,verified Xbox access; base r30
+ButtonPair,first,0x0,rex::be<uint32_t>,0x82663EB4,sub_82663EB0,verified Xbox access; base r3
+ButtonPair,second,0x4,rex::be<uint32_t>,0x82663EB8,sub_82663EB0,verified Xbox access; base r3
+StartButton,color,0xd4,rex::be<uint32_t>[4],0x82218130,sub_822180A8,verified Xbox access; base r31
+StartButton,over_color,0xe4,rex::be<uint32_t>[4],0x8221810C,sub_822180A8,verified Xbox access; base r31
+StartButton,listener,0xf4,GuestPtr,0x8221820C,sub_82218208,verified Xbox access; base r3
+StartButton,font,0xf8,GuestPtr,0x822180B8,sub_822180A8,verified Xbox access; base r3
+StartButton,label,0xfc,DataString,0x822180CC,sub_822180A8,verified Xbox access; base r31
+StartButton,last_user,0x118,rex::be<uint32_t>,0x82218214,sub_82218208,verified Xbox access; base r11
+StartButton,mode,0x11c,rex::be<int32_t>,0x82218160,sub_822180A8,verified Xbox access; base r31
+StartButton,phase,0x120,rex::be<float>,0x8221816C,sub_822180A8,verified Xbox access; base r31
+StretchableGameButton,text_width,0x1e8,rex::be<uint32_t>,0x821896B8,sub_821896A8,verified Xbox access; base r4
+StretchableGameButton,left,0x1ec,rex::be<uint32_t>,0x821890C4,sub_82189070,verified Xbox access; base r30
+StretchableGameButton,right,0x1f0,rex::be<uint32_t>,0x821890C8,sub_82189070,verified Xbox access; base r30
+StretchableGameButton,alignment,0x1f4,rex::be<int32_t>,0x821890B0,sub_82189070,verified Xbox access; base r30
+Slider,listener,0xd4,GuestPtr,0x824E2E14,sub_824E2DE8,verified Xbox access; base r31
+Slider,button_listener,0xd8,GuestPtr,0x824E2E1C,sub_824E2DE8,verified Xbox access; base r31
+Slider,value,0xe0,rex::be<double>,0x824E2E44,sub_824E2DE8,verified Xbox access; base r31
+Slider,track_image,0xe8,GuestPtr,0x824E2E24,sub_824E2DE8,verified Xbox access; base r31
+Slider,thumb_image,0xec,GuestPtr,0x824E2E2C,sub_824E2DE8,verified Xbox access; base r31
+Slider,dragging,0xf0,uint8_t,0x824E2E58,sub_824E2DE8,verified Xbox access; base r31
+Slider,drag_x,0xf4,rex::be<uint32_t>,0x824E2E64,sub_824E2DE8,verified Xbox access; base r31
+Slider,drag_y,0xf8,rex::be<uint32_t>,0x824E2E60,sub_824E2DE8,verified Xbox access; base r31
+Slider,horizontal,0xfc,uint8_t,0x824E2E5C,sub_824E2DE8,verified Xbox access; base r31
+Slider,left_down,0xfd,uint8_t,0x824E2E68,sub_824E2DE8,verified Xbox access; base r31
+Slider,right_down,0xfe,uint8_t,0x824E2E6C,sub_824E2DE8,verified Xbox access; base r31
+Slider,discrete,0xff,uint8_t,0x824E2E74,sub_824E2DE8,verified Xbox access; base r31
+Slider,steps,0x100,rex::be<uint32_t>,0x824E2E78,sub_824E2DE8,verified Xbox access; base r31
+Slider,step,0x104,rex::be<uint32_t>,0x824E2E7C,sub_824E2DE8,verified Xbox access; base r31
+Slider,sound,0x108,rex::be<int32_t>,0x824E2E70,sub_824E2DE8,verified Xbox access; base r31
+EditList,proxy,0x0,GuestPtr,0x824AF854,sub_824AF830,verified Xbox access; base r31
+EditList,sentinel,0x14,GuestPtr,0x824AF84C,sub_824AF830,verified Xbox access; base r31
+EditNode,next,0x0,GuestPtr,0x824AF8D0,sub_824AF830,verified Xbox access; base r29
+EditNode,previous,0x4,GuestPtr,0x824B22CC,sub_824B2298,verified Xbox access; base r28
+EditNode,font,0x8,GuestPtr,0x824AF890,sub_824AF830,verified Xbox access; base r29
+EditProxy,owner,0x0,GuestPtr,0x824AF8D8,sub_824AF830,verified Xbox access; base r30
+EditWidget,text,0xd4,DataString,0x824AF938,sub_824AF900,verified Xbox access; base r30
+EditWidget,masked_text,0xf0,DataString,0x824AF94C,sub_824AF900,verified Xbox access; base r30
+EditWidget,font,0x10c,GuestPtr,0x824AF988,sub_824AF900,verified Xbox access; base r30
+EditWidget,fonts,0x120,EditList,0x824AF95C,sub_824AF900,verified Xbox access; base r30
+EditWidget,listener,0x13c,GuestPtr,0x824AF984,sub_824AF900,verified Xbox access; base r30
+EditWidget,blink,0x140,uint8_t,0x824AF9BC,sub_824AF900,verified Xbox access; base r30
+EditWidget,show_selection,0x141,uint8_t,0x824AF9C0,sub_824AF900,verified Xbox access; base r30
+EditWidget,double_click,0x142,uint8_t,0x824AF990,sub_824AF900,verified Xbox access; base r30
+EditWidget,cursor,0x144,rex::be<uint32_t>,0x824AF9B8,sub_824AF900,verified Xbox access; base r30
+EditWidget,anchor,0x148,rex::be<uint32_t>,0x824AF998,sub_824AF900,verified Xbox access; base r30
+EditWidget,blink_counter,0x14c,rex::be<uint32_t>,0x824AF9B4,sub_824AF900,verified Xbox access; base r30
+EditWidget,blink_delay,0x150,rex::be<int32_t>,0x824AF9D0,sub_824AF900,verified Xbox access; base r30
+EditWidget,scroll,0x154,rex::be<uint32_t>,0x824AF9A0,sub_824AF900,verified Xbox access; base r30
+EditWidget,max_chars,0x158,rex::be<int32_t>,0x824AF9C4,sub_824AF900,verified Xbox access; base r30
+EditWidget,max_width,0x15c,rex::be<int32_t>,0x824AF9C8,sub_824AF900,verified Xbox access; base r30
+EditWidget,password_char,0x160,rex::be<uint16_t>,0x824AF9CC,sub_824AF900,verified Xbox access; base r30
+EditWidget,undo_text,0x164,DataString,0x824AF964,sub_824AF900,verified Xbox access; base r30
+EditWidget,undo_cursor,0x180,rex::be<uint32_t>,0x824AF9A8,sub_824AF900,verified Xbox access; base r30
+EditWidget,undo_anchor,0x184,rex::be<uint32_t>,0x824AF9AC,sub_824AF900,verified Xbox access; base r30
+EditWidget,undo_scroll,0x188,rex::be<uint32_t>,0x824AF9B0,sub_824AF900,verified Xbox access; base r30
+EditApp,field_406,0x406,uint8_t,0x824AF338,sub_824AF310,verified Xbox access; base r11
+EditColor,rgba,0x0,rex::be<uint32_t>[4],0x824AFEA4,sub_824AFDD0,verified Xbox access; base r4
+EditModifiers,shift,0x134,uint8_t,0x824B068C,sub_824B0668,verified Xbox access; base r10
+EditModifiers,control,0x135,uint8_t,0x824B0690,sub_824B0668,verified Xbox access; base r10
+EditGlobalApp,extended_characters,0x13d,uint8_t,0x824B10FC,sub_824B0668,verified Xbox access; base r11

@@ -12,14 +12,10 @@ import re
 import sys
 root, output = map(Path, sys.argv[1:3])
 batch = sys.argv[3]
-source = root / ('src/native/'+{
-    'b002':'b002_gamepad.cpp',
-    'b003':'b003_widget_container.cpp',
-    'b005':'b005_scrollbar.cpp',
-    'b010':'b010_data.cpp',
-    'b013':'b013_widget_manager.cpp',
-    'b017':'b017_bigint.cpp',
-}[batch])
+sources = list((root / 'src/native').glob(batch + '_*.cpp'))
+if len(sources) != 1:
+    raise ValueError(f'expected one native source for {batch}: {sources}')
+source = sources[0]
 source_text = source.read_text()
 names = set(re.findall(r'^LEAF\(([0-9A-F]{8}),', source_text, re.M))
 if batch == 'b005':

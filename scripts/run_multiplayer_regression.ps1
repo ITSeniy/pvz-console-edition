@@ -1,7 +1,7 @@
 [CmdletBinding(DefaultParameterSetName='Deterministic')]
 param([string[]]$Cases=@('vs_mouse_pad','vs_pad_mouse','vs_two_pads','coop_mouse_pad','coop_pad_mouse','coop_two_pads',
  'vs_mouse_p2_sun','vs_custom_mouse_plants','vs_custom_mouse_zombies','vs_join_mouse','vs_join_pad','vs_pick_sides'), [switch]$Append,
- [ValidateSet('b001','b002','b003','b005','b010','b013','b017')][string[]]$NativeBatches=@(),
+ [ValidateSet('b001','b002','b003','b005','b008','b010','b013','b014','b017','b018')][string[]]$NativeBatches=@(),
  [Parameter(ParameterSetName='Deterministic')][switch]$Deterministic,
  [Parameter(Mandatory=$true,ParameterSetName='WallClock')][switch]$WallClock)
 $ErrorActionPreference='Stop'

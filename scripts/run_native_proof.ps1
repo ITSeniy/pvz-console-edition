@@ -13,9 +13,14 @@ param(
     [switch]$CompareOnly,
     [string[]]$SupplementalCases=@(),
     [string]$DrawThumbReplay,
+    [string[]]$ExtraRenderReplays=@(),
+    [string]$ExtraRenderEvidence,
+    [switch]$ExtraRenderOnly,
+    [switch]$NoExtraRender,
     [switch]$DrawThumbOnly,
     [switch]$RenderPartition,
     [string]$ReuseEvidence,
+    [switch]$RecheckOnly,
     [string[]]$Replacements = @('pixel_to_grid_x','tool_rect'),
     [ValidateSet('adventure','versus','minigame','zen','menu')]
     [string[]]$Cases = @('adventure','versus','minigame','zen','menu'),
@@ -31,9 +36,15 @@ param(
 $ErrorActionPreference = 'Stop'
 $script:reuse = $null
 $batchNames = if ($Batch) {@($Batch.Split('+'))} else {@()}
-$knownBatches = @('b001','b002','b003','b005','b010','b013','b017')
-$batchSources = @{b001='src/native/b001_widget.cpp';b002='src/native/b002_gamepad.cpp';b003='src/native/b003_widget_container.cpp';
-    b005='src/native/b005_scrollbar.cpp';b010='src/native/b010_data.cpp';b013='src/native/b013_widget_manager.cpp';b017='src/native/b017_bigint.cpp'}
+# Batch names and source paths are repository data, derived from filenames.
+$batchSources = @{}
+foreach ($file in Get-ChildItem -LiteralPath (Join-Path (Split-Path $PSScriptRoot -Parent) 'src/native') -Filter 'b0??_*.cpp' -File) {
+    if ($file.Name -notmatch '^(b0[0-9]{2})_.+\.cpp$') {continue}
+    $name=$Matches[1]
+    if ($batchSources.ContainsKey($name)) {throw "Multiple native sources for batch: $name"}
+    $batchSources[$name]="src/native/$($file.Name)"
+}
+$knownBatches = @($batchSources.Keys | Sort-Object)
 if ($Batch) {
     if (@($batchNames | Select-Object -Unique).Count -ne $batchNames.Count) { throw 'Batch names must be unique' }
     foreach ($name in $batchNames) { if ($name -notin $knownBatches) { throw "Unknown batch: $name" } }
@@ -148,6 +159,23 @@ function Read-NativeCheckpoint([byte[]]$Bytes) {
     if (-not $valid.Count) { throw 'Native checkpoint has no committed comparison' }
     return @($valid | Sort-Object comparisons -Descending)[0]
 }
+function Test-NegativeCounters($Counters, [bool]$AllowZero) {
+    if (-not $Counters.replay_end_valid) {return $false}
+    $calls=[uint64]$Counters.comparisons
+    $errors=[uint64]$Counters.errors
+    if ($Counters.Contains('process_end')) {
+        # Mismatches are counted across the complete log. Use the committed
+        # process checkpoint for that same interval: calls may occur after the
+        # replay_end marker while the host is completing the process.
+        $calls=[uint64]$Counters.process_end.counts.comparisons
+        $errors=[uint64]$Counters.process_end.counts.errors
+    }
+    if ($errors -lt $Counters.max_errors) {return $false}
+    if ($AllowZero -and $calls -eq 0) {
+        return $errors -eq 0 -and $Counters.logged_mismatches -eq 0
+    }
+    return $calls -gt 0 -and $errors -gt 0 -and $Counters.logged_mismatches -gt 0
+}
 if ($SelfTest) {
     function Assert($value) { if (-not $value) { throw 'Native proof parser self-test failed' } }
     function Reject([scriptblock]$Action) {
@@ -201,7 +229,21 @@ if ($SelfTest) {
     $rb=@(Render-Configuration @('--pvz_native_render_trace=b','--pvz_state_inputs_sha256=two','--pvz_native_render_steps=6000','--pvz_controller_glyphs=xbox'))
     Assert (($ra -join '|') -eq ($rb -join '|') -and $ra.Count -eq 2)
     Assert (($ra -join '|') -ne ((@(Render-Configuration @('--pvz_native_render_steps=6000','--pvz_controller_glyphs=auto'))) -join '|'))
-    Write-Output 'native proof parser: 27 checks passed'
+    $late=[ordered]@{comparisons=0;errors=0;max_errors=0;logged_mismatches=1;replay_end_valid=$true;
+        process_end=@{counts=@{comparisons=1;errors=1}}}
+    Assert (Test-NegativeCounters $late $true)
+    $late.process_end.counts.errors=0
+    Assert (-not (Test-NegativeCounters $late $true))
+    $late.Remove('process_end')
+    Assert (-not (Test-NegativeCounters $late $true))
+    $late.logged_mismatches=0
+    Assert (Test-NegativeCounters $late $true)
+    Assert (-not (Test-NegativeCounters $late $false))
+    $late.replay_end_valid=$false
+    Assert (-not (Test-NegativeCounters $late $true))
+    $late.replay_end_valid=$true;$late.comparisons=1;$late.errors=1;$late.max_errors=1;$late.logged_mismatches=1
+    Assert (Test-NegativeCounters $late $false)
+    Write-Output 'native proof parser: 34 checks passed'
     exit 0
 }
 Set-Location (Split-Path $PSScriptRoot -Parent)
@@ -209,9 +251,12 @@ if ($Record -and $PSBoundParameters.ContainsKey('ReplayDirectory')) { throw 'Use
 if (-not $Replacements.Count -or @($Replacements | Select-Object -Unique).Count -ne $Replacements.Count) { throw 'Supply distinct replacements' }
 foreach ($name in $Replacements) { if ($name -notmatch '^[a-z][a-zA-Z0-9_]*$') { throw "Invalid replacement name: $name" } }
 if ($Discover -and -not $Batch) { throw '-Discover requires -Batch' }
+if ($RecheckOnly -and (-not $Batch -or -not $ReuseEvidence -or $Record)) {throw '-RecheckOnly requires a batch, immutable ReuseEvidence and no Record'}
 if ($SupplementalOnly -and (-not $Batch -or -not $Discover)) { throw '-SupplementalOnly is a discovery diagnostic; use -Batch and -Discover' }
 if ($CompareOnly -and (-not $Batch -or $RenderOnly -or $SupplementalOnly)) {throw '-CompareOnly requires a batch and a separate render proof'}
 if ($SupplementalCases.Count -and -not $CompareOnly) {throw '-SupplementalCases is restricted to the short CompareOnly preflight; full proof requires every supplemental replay'}
+if ($ExtraRenderOnly -and (-not $RenderOnly -or $NoExtraRender -or -not $ExtraRenderEvidence)) {throw '-ExtraRenderOnly requires RenderOnly and completed compare evidence'}
+if ($NoExtraRender -and (-not $RenderOnly -or -not $RenderPartition)) {throw '-NoExtraRender is restricted to an explicit render partition; full proof includes supplemental traces'}
 if ($DrawThumbOnly -and (-not $RenderOnly -or 'b005' -notin $batchNames -or -not $DrawThumbReplay)) {throw '-DrawThumbOnly requires -RenderOnly, B005 and an existing converted replay'}
 if ($RenderPartition -and (-not $Batch -or -not $RenderOnly -or $Cases.Count -ne 1)) {throw '-RenderPartition requires one explicit render-only case; aggregate acceptance must require all five cases and a caught negative control'}
 if (-not $OutputRoot) { $OutputRoot = 'runtime-data/native-proof/' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff') }
@@ -222,6 +267,7 @@ Copy-Item -LiteralPath $PSCommandPath -Destination (Join-Path $OutputRoot 'runne
 function Hash([string]$Path) { (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() }
 $summary = [ordered]@{schema=2;passed=$false;replacements=$Replacements;cases=$Cases;inputs=[ordered]@{};
     commands=@();phases=[ordered]@{};counters=[ordered]@{};criteria=@();failure=$null}
+$summary['recheck_only']=[bool]$RecheckOnly
 function Criterion([string]$Name, [bool]$Pass, $Evidence) {
     $summary.criteria += [ordered]@{name=$Name;passed=$Pass;evidence=$Evidence}
 }
@@ -281,7 +327,7 @@ function Read-Tail([string]$Path) {
         try {return $reader.ReadToEnd()} finally {$reader.Dispose()}
     } finally {$file.Dispose()}
 }
-function BatchPhase([string]$Name, [string[]]$Flags, [switch]$ProfileOnly, [string[]]$SelectedCases=$Cases, [switch]$Trace, [int]$FrameOverride=0) {
+function BatchPhase([string]$Name, [string[]]$Flags, [switch]$ProfileOnly, [string[]]$SelectedCases=$Cases, [switch]$Trace, [int]$FrameOverride=0, [switch]$FreshMenu) {
     # Same five T05 scenarios and exact frame counts. Completion is based on
     # delivered input AND complete snapshots/journals, not startup wall time.
     # The 180s deadline is only a bounded failure guard, never a reduced frame target.
@@ -292,6 +338,7 @@ function BatchPhase([string]$Name, [string[]]$Flags, [switch]$ProfileOnly, [stri
         zen=@{frames=5000;fresh=$false;mode=44}
         menu=@{frames=5000;fresh=$false;mode=-1}
     }
+    if($FreshMenu) {$definitions.menu.fresh=$true}
     if($FrameOverride) {
         if($SelectedCases.Count -ne 1 -or $SelectedCases[0] -ne 'menu' -or $FrameOverride -lt 5000) {throw 'Extra render override requires one menu replay and at least 5000 frames'}
         $definitions.menu.frames=$FrameOverride
@@ -360,6 +407,7 @@ function BatchPhase([string]$Name, [string[]]$Flags, [switch]$ProfileOnly, [stri
                 continue
             }
         }
+        if ($RecheckOnly) {throw "RecheckOnly has no matching immutable process: $Name/$case"}
         $summary.commands+=@{script='batch process';parameters=@{phase=$Name;case=$case;arguments=$gameArgs;deadline_seconds=180}}
         Save-Summary
         $quoted=@($gameArgs|ForEach-Object {'"'+$_.Replace('"','\"')+'"'})
@@ -463,89 +511,151 @@ function SyntheticProof {
         throw 'Synthetic preflight failed; game phases were not started'
     }
 }
-function ExtraRenderProof {
-    # Use only the existing almanac event stream, projected from its actual
-    # recorded logical delivery. No hand-authored events or assumed FPS.
-    $directory=Join-Path $OutputRoot 'extra-render-steps'
-    New-Item -ItemType Directory -Path $directory|Out-Null
-    $replay=Join-Path $directory 'menu.csv'
-    $source=[IO.Path]::GetFullPath('tests/replays/services_almanac_regression.csv')
-    if($DrawThumbReplay) {
-        Copy-Item -LiteralPath $DrawThumbReplay -Destination $replay
-        Copy-Item -LiteralPath "$DrawThumbReplay.json" -Destination "$replay.json"
-    } else {
-        $run=$extraCompared.runs.services_almanac_regression
-        if(-not $run){throw 'Almanac compare evidence is required for the DrawThumb trace'}
-        & python -I scripts/replay_seconds_to_steps.py $source @($run.log_files) --output $replay|Out-Null
-        if($LASTEXITCODE){throw 'Could not project recorded almanac delivery'}
+function Selected-ExtraRenderReplays {
+    if($NoExtraRender){return}
+    if($ExtraRenderReplays.Count) {return $ExtraRenderReplays}
+    if('b005' -in $batchNames) {'services_almanac_regression'}
+    if('b008' -in $batchNames -or 'b014' -in $batchNames) {
+        'game_settings';'services_settings_pad';'menu_panels';
+        'menu_panels_actions';'audio_settings';'minis_chooser_ui';'oct7_chooser';'input_ownership'
     }
-    $manifest=Get-Content "$replay.json" -Raw|ConvertFrom-Json
-    if($manifest.source_sha256 -ne (Hash $source) -or $manifest.output_sha256 -ne (Hash $replay) -or
-       $manifest.converter_sha256 -ne (Hash 'scripts/replay_seconds_to_steps.py') -or
-       $manifest.method -ne 'recorded app logical update delivery; no FPS interpolation') {throw 'Invalid almanac delivery provenance'}
-    foreach($log in $manifest.logs.PSObject.Properties) {if((Hash $log.Name) -ne $log.Value){throw "Recorded delivery log changed: $($log.Name)"}}
-    $summary.inputs[$replay]=Hash $replay
-    $summary.inputs["$replay.json"]=Hash "$replay.json"
-    $maxStep=0
-    foreach($line in Get-Content $replay) {if($line.Trim() -and -not $line.TrimStart().StartsWith('#')){$maxStep=[Math]::Max($maxStep,[int]$line.Split(',')[0])}}
-    $target=[int][Math]::Max(5000,$maxStep+256)
-    $summary['extra_render']=[ordered]@{source=$source;source_sha256=(Hash $source);replay=$replay;
-        replay_sha256=(Hash $replay);delivery_manifest="$replay.json";delivery_manifest_sha256=(Hash "$replay.json");
-        frames=$target;scope_calls=[ordered]@{};comparisons=[ordered]@{}}
-    $previousSteps=$script:steps
-    try {
-        $script:steps=$directory
-        $a=BatchPhase 'extra-render-original' @() -SelectedCases @('menu') -Trace -FrameOverride $target
-        $b=BatchPhase 'extra-render-repeat' @() -SelectedCases @('menu') -Trace -FrameOverride $target
-        $allSeven='b001+b002+b003+b005+b010+b013+b017'
-        $forced=if($Discover -or $DrawThumbOnly){@($entries|ForEach-Object {"--pvz_native_$(Native-CVarName $_.flag)=true"})}else{@()}
-        $nativeFlags=@(Batch-Flags)+$forced
-        $n=BatchPhase 'extra-render-native' $nativeFlags -SelectedCases @('menu') -Trace -FrameOverride $target
-        $seven=BatchPhase 'extra-render-seven' (@(Batch-Flags $knownBatches)+$forced) -SelectedCases @('menu') -Trace -FrameOverride $target
-        $runs=@{original=$a;repeat=$b;native=$n;seven=$seven}
-        $scopes=@('scrollbar_824ba9d0','scrollbar_824bab78')
-        foreach($name in @('original','repeat','native','seven')) {
-            $trace=$runs[$name].runs.'menu-1'.render
-            $code='import json,sys,collections; c=collections.Counter(x.get("scope", "").lower() for line in open(sys.argv[1],encoding="utf-8-sig") for x in json.loads(line).get("calls", [])); print(json.dumps({s:c[s] for s in ("scrollbar_824ba9d0", "scrollbar_824bab78")}))'
-            $counts=(& python -I -c $code $trace|ConvertFrom-Json)
-            if($LASTEXITCODE){throw 'Could not count drawing scopes'}
-            $summary.extra_render.scope_calls[$name]=$counts
-            foreach($scope in $scopes){Criterion "extra-render/coverage/$name/$scope" ($counts.$scope -gt 0) $counts.$scope}
+}
+function Drawing-Scopes {
+    $declarations=@($batchNames|ForEach-Object {
+        $text=Get-Content $batchSources[$_] -Raw
+        [regex]::Matches($text,'REXCVAR_DECLARE\(bool,\s*pvz_native_(\w+)_inject_error\)') |
+            ForEach-Object {$_.Groups[1].Value.ToLowerInvariant()}
+    })
+    @($entries|Where-Object {$_.flag.ToLowerInvariant() -in $declarations}|ForEach-Object {$_.flag.ToLowerInvariant()})
+}
+function Read-DrawingCounts([string]$Trace) {
+    # Count paint operations, excluding font/color/clip/translation-only scopes.
+    $code='import json,sys,collections; c=collections.Counter(); paint={"8249B1A0","8249B588","8249B650","8249BC50","8249C430","8249D0E8","8249D250"}; [c.update(x.get("scope", "").lower() for x in json.loads(line).get("calls", []) if x.get("op") in paint) for line in open(sys.argv[1],encoding="utf-8-sig")]; print(json.dumps(dict(c)))'
+    $counts=& python -I -c $code $Trace|ConvertFrom-Json -AsHashtable
+    if($LASTEXITCODE){throw 'Could not count painting scopes'}
+    return $counts
+}
+function Accumulate-DrawingCoverage([string]$Mode, $Run) {
+    if(-not $summary.Contains('drawing')) {
+        $summary['drawing']=[ordered]@{coverage=[ordered]@{};negative=[ordered]@{};traces=@()}
+    }
+    if(-not $summary.drawing.coverage.Contains($Mode)) {$summary.drawing.coverage[$Mode]=[ordered]@{}}
+    $counts=Read-DrawingCounts $Run.render
+    foreach($scope in Drawing-Scopes) {
+        if(-not $summary.drawing.coverage[$Mode].Contains($scope)) {$summary.drawing.coverage[$Mode][$scope]=[uint64]0}
+        $summary.drawing.coverage[$Mode][$scope]+=[uint64]$counts[$scope]
+    }
+    $summary.drawing.traces+=@{mode=$Mode;path=$Run.render;sha256=(Hash $Run.render);painting=$counts}
+    return $counts
+}
+function Drawing-Negatives($OriginalRun, [string[]]$Flags, [string]$Prefix, [string]$Case='menu', [int]$Frames=0, [switch]$FreshMenu) {
+    $counts=Read-DrawingCounts $OriginalRun.render
+    foreach($scope in Drawing-Scopes) {
+        if(-not $counts[$scope] -or $summary.drawing.negative.Contains($scope)) {continue}
+        $negative=BatchPhase "$Prefix-negative-$scope" ($Flags+@("--pvz_native_$(Native-CVarName $scope)_inject_error=true")) -SelectedCases @($Case) -Trace -FrameOverride $Frames -FreshMenu:$FreshMenu
+        $path=Join-Path $OutputRoot "$Prefix-negative-$scope.json"
+        & python -I tests/compare_render_traces.py $OriginalRun.render $negative.runs."$Case-1".render --output $path|Out-Null
+        $r=Get-Content $path -Raw|ConvertFrom-Json
+        $caught=-not $r.equal -and $null -ne $r.first_difference.step -and $r.first_difference.a.scope -eq $scope
+        Criterion "drawing/negative/$scope" $caught $r
+        $summary.drawing.negative[$scope]=@{caught=$caught;comparison=$path;sha256=(Hash $path)}
+    }
+}
+function Require-DrawingCoverage {
+    foreach($scope in Drawing-Scopes) {
+        $coverage=[ordered]@{}
+        foreach($mode in @('original','repeat','native','all')) {$coverage[$mode]=[uint64]$summary.drawing.coverage[$mode][$scope]}
+        if($Discover -and -not $coverage.native) {continue}
+        Criterion "drawing/coverage/$scope" (@($coverage.Values|Where-Object {$_ -eq 0}).Count -eq 0) $coverage
+        Criterion "drawing/negative-covered/$scope" ($summary.drawing.negative.Contains($scope) -and $summary.drawing.negative[$scope].caught) $summary.drawing.negative[$scope]
+    }
+}
+function ExtraRenderProof {
+    # A list of existing event streams, each projected from recorded logical delivery.
+    $summary['extra_render']=@()
+    $definitions=Supplemental-Definitions
+    foreach($case in @(Selected-ExtraRenderReplays|Select-Object -Unique)) {
+        if(-not $definitions.Contains($case)) {throw "Unknown extra render replay: $case"}
+        if($definitions[$case].expected_exit){throw "Quit replay cannot provide a complete fixed-frame Graphics trace: $case; select a non-exiting replay"}
+        $source=[IO.Path]::GetFullPath("tests/replays/$($definitions[$case].replay)")
+        if ($RecheckOnly) {
+            $previous=@($script:reuse.extra_render|Where-Object {$_.case -eq $case})
+            if ($previous.Count -ne 1 -or $previous[0].source_sha256 -ne (Hash $source) -or
+                $previous[0].replay_sha256 -ne (Hash $previous[0].replay) -or
+                $previous[0].delivery_manifest_sha256 -ne (Hash $previous[0].delivery_manifest)) {
+                throw "RecheckOnly requires the unchanged projected replay: $case"
+            }
+            $replay=$previous[0].replay
+            $directory=Split-Path $replay -Parent
+        } else {
+            $directory=Join-Path $OutputRoot "extra-render-steps-$case"
+            New-Item -ItemType Directory -Path $directory|Out-Null
+            $replay=Join-Path $directory 'menu.csv'
         }
-        foreach($name in @('repeat','native','seven')) {
-            $path=Join-Path $OutputRoot "extra-render-$name.json"
-            & python -I tests/compare_render_traces.py $a.runs.'menu-1'.render $runs[$name].runs.'menu-1'.render --output $path|Out-Null
-            $code=$LASTEXITCODE;$comparison=Get-Content $path -Raw|ConvertFrom-Json
-            Criterion "extra-render/$name/trace" ($code -eq 0 -and $comparison.equal) $comparison
-            $summary.extra_render.comparisons[$name]=$comparison
-            $path=Join-Path $OutputRoot "extra-render-state-$name.json"
-            & python -I scripts/compare_state_dumps.py $a.runs.'menu-1'.dump $runs[$name].runs.'menu-1'.dump --output $path|Out-Null
-            $code=$LASTEXITCODE;$state=Get-Content $path -Raw|ConvertFrom-Json
-            Criterion "extra-render/$name/state" ($code -eq 0 -and $state.equal) $state
+        if ($RecheckOnly) {
+            # Read the original delivery projection without rewriting any
+            # evidence. The common provenance checks below still apply.
+        } elseif($DrawThumbReplay -and $case -eq 'services_almanac_regression') {
+            Copy-Item -LiteralPath $DrawThumbReplay -Destination $replay
+            Copy-Item -LiteralPath "$DrawThumbReplay.json" -Destination "$replay.json"
+        } else {
+            $run=$extraCompared.runs.PSObject.Properties[$case].Value
+            if(-not $run){throw "Compare evidence with recorded delivery is required for Graphics: $case"}
+            & python -I scripts/replay_seconds_to_steps.py $source @($run.log_files) --output $replay|Out-Null
+            if($LASTEXITCODE){throw "Could not project recorded delivery: $case"}
         }
-        foreach($scope in $scopes) {
-            $flag=Native-CVarName $scope
-            $negative=BatchPhase "extra-render-negative-$scope" ($nativeFlags+@("--pvz_native_$($flag)_inject_error=true")) -SelectedCases @('menu') -Trace -FrameOverride $target
-            $path=Join-Path $OutputRoot "extra-render-negative-$scope.json"
-            & python -I tests/compare_render_traces.py $a.runs.'menu-1'.render $negative.runs.'menu-1'.render --output $path|Out-Null
-            $r=Get-Content $path -Raw|ConvertFrom-Json
-            $caught=-not $r.equal -and $null -ne $r.first_difference.step -and $r.first_difference.a.scope -eq $scope
-            if($scope -eq 'scrollbar_824ba9d0') {$caught=$caught -and $r.first_difference.a.op -eq '8249B650' -and $r.first_difference.b.r4 -eq $r.first_difference.a.r4+1}
-            Criterion "extra-render/negative/$scope" $caught $r
-            $summary.extra_render.comparisons["negative/$scope"]=$r
-        }
-    } finally {$script:steps=$previousSteps}
+        $manifest=Get-Content "$replay.json" -Raw|ConvertFrom-Json
+        if($manifest.source_sha256 -ne (Hash $source) -or $manifest.output_sha256 -ne (Hash $replay) -or
+           $manifest.converter_sha256 -ne (Hash 'scripts/replay_seconds_to_steps.py') -or
+           $manifest.method -ne 'recorded app logical update delivery; no FPS interpolation') {throw "Invalid delivery provenance: $case"}
+        foreach($log in $manifest.logs.PSObject.Properties) {if((Hash $log.Name) -ne $log.Value){throw "Recorded delivery log changed: $($log.Name)"}}
+        $summary.inputs[$replay]=Hash $replay
+        $summary.inputs["$replay.json"]=Hash "$replay.json"
+        $maxStep=0
+        foreach($line in Get-Content $replay) {if($line.Trim() -and -not $line.TrimStart().StartsWith('#')){$maxStep=[Math]::Max($maxStep,[int]$line.Split(',')[0])}}
+        $target=[int][Math]::Max(5000,$maxStep+256)
+        $item=[ordered]@{case=$case;source=$source;source_sha256=(Hash $source);replay=$replay;replay_sha256=(Hash $replay);
+            delivery_manifest="$replay.json";delivery_manifest_sha256=(Hash "$replay.json");frames=$target;scope_calls=[ordered]@{};comparisons=[ordered]@{}}
+        $summary.extra_render+=,$item
+        $previousSteps=$script:steps
+        try {
+            $script:steps=$directory
+            $fresh=[bool]$definitions[$case].fresh
+            $forced=if($Discover -or $DrawThumbOnly){@($entries|ForEach-Object {"--pvz_native_$(Native-CVarName $_.flag)=true"})}else{@()}
+            $nativeFlags=@(Batch-Flags)+$forced
+            $allFlags=@(Batch-Flags $knownBatches)+$forced
+            $runs=[ordered]@{}
+            foreach($mode in @('original','repeat','native','all')) {
+                $flags=@(switch($mode){native {$nativeFlags};all {$allFlags};default {@()}})
+                $runs[$mode]=BatchPhase "extra-render-$case-$mode" $flags -SelectedCases @('menu') -Trace -FrameOverride $target -FreshMenu:$fresh
+                $item.scope_calls[$mode]=Accumulate-DrawingCoverage $mode $runs[$mode].runs.'menu-1'
+            }
+            foreach($mode in @('repeat','native','all')) {
+                $path=Join-Path $OutputRoot "extra-render-$case-$mode.json"
+                & python -I tests/compare_render_traces.py $runs.original.runs.'menu-1'.render $runs[$mode].runs.'menu-1'.render --output $path|Out-Null
+                $code=$LASTEXITCODE;$comparison=Get-Content $path -Raw|ConvertFrom-Json
+                Criterion "extra-render/$case/$mode/trace" ($code -eq 0 -and $comparison.equal) $comparison
+                $item.comparisons[$mode]=@{path=$path;sha256=(Hash $path);equal=$comparison.equal}
+                $path=Join-Path $OutputRoot "extra-render-state-$case-$mode.json"
+                & python -I scripts/compare_state_dumps.py $runs.original.runs.'menu-1'.dump $runs[$mode].runs.'menu-1'.dump --output $path|Out-Null
+                $code=$LASTEXITCODE;$state=Get-Content $path -Raw|ConvertFrom-Json
+                Criterion "extra-render/$case/$mode/state" ($code -eq 0 -and $state.equal) $state
+            }
+            Drawing-Negatives $runs.original.runs.'menu-1' $nativeFlags "extra-render-$case" -Frames $target -FreshMenu:$fresh
+        } finally {$script:steps=$previousSteps}
+    }
 }
 function RenderProof {
     $a=BatchPhase 'render-original' @() -Trace
     $b=BatchPhase 'render-repeat' @() -Trace
     $summary['render']=[ordered]@{}
     $pairs=@(,@('repeat',$b))
-    $allSeven='b001+b002+b003+b005+b010+b013+b017'
+    $allSeven=$knownBatches -join '+'
     $groups=if($batchNames -contains 'b002' -or $batchNames -contains 'b003') {
         @('b002','b003',$allSeven)
     } elseif ($batchNames -contains 'b005' -or $batchNames -contains 'b010' -or
-              $batchNames -contains 'b013' -or $batchNames -contains 'b017') {
+              $batchNames -contains 'b013' -or $batchNames -contains 'b017' -or
+              $batchNames -contains 'b008' -or $batchNames -contains 'b014' -or $batchNames -contains 'b018') {
         @($Batch,$allSeven)
     } else {@($Batch)}
     foreach($group in $groups) {
@@ -555,6 +665,7 @@ function RenderProof {
         $label=if($Batch -eq 'b001'){'native'}else{$group}
         $pairs+=,@($label,(BatchPhase "render-$label" $flags -Trace))
     }
+    foreach($case in $Cases) {$null=Accumulate-DrawingCoverage 'original' $a.runs.PSObject.Properties["$case-1"].Value}
     foreach ($pair in $pairs) {
         foreach ($case in $Cases) {
             $left=$a.runs.PSObject.Properties["$case-1"].Value
@@ -565,8 +676,12 @@ function RenderProof {
             Criterion "render/$($pair[0])/$case" ($code -eq 0 -and $r.equal) $r
             $summary.render["$($pair[0])/$case"]=$r
         }
+        $mode=if($pair[0] -eq 'repeat'){'repeat'}elseif($pair[0] -eq $Batch){'native'}elseif($pair[0] -eq $allSeven){'all'}else{$pair[0]}
+        foreach($case in $Cases) {$null=Accumulate-DrawingCoverage $mode $pair[1].runs.PSObject.Properties["$case-1"].Value}
         Compare-Dumps "render-state-$($pair[0])" $a $pair[1]
     }
+    $drawFlags=@(Batch-Flags)+$(if($Discover){@($entries|ForEach-Object {"--pvz_native_$(Native-CVarName $_.flag)=true"})}else{@()})
+    foreach($drawCase in $Cases) {Drawing-Negatives $a.runs.PSObject.Properties["$drawCase-1"].Value $drawFlags "render-$drawCase" -Case $drawCase}
     # Choose a scenario that actually reaches Centered; no new replay or
     # weakened expectation is introduced when selecting the negative case.
     $case=@($Cases|Where-Object {
@@ -575,6 +690,8 @@ function RenderProof {
     if (-not $case.Count) {
         if (-not $RenderPartition) {throw 'No Centered draw in selected scenarios for render negative control'}
         $summary.render['negative'] = @{covered=$false;reason='No Centered call in this explicit partition; full acceptance requires a caught negative in another partition'}
+        if(@(Selected-ExtraRenderReplays).Count){ExtraRenderProof}
+        Require-DrawingCoverage
         return
     }
     $negativeBatches=if($Batch -eq 'b001'){@('b001')}else{@($knownBatches)}
@@ -586,7 +703,8 @@ function RenderProof {
         $r.first_difference.a.scope -eq 'widget_82473730' -and $r.first_difference.a.op -eq '8249B1A0' -and
         $r.first_difference.b.x -eq $r.first_difference.a.x+1) $r
     $summary.render.negative=$r
-    if('b005' -in $batchNames){ExtraRenderProof}
+    if(@(Selected-ExtraRenderReplays).Count){ExtraRenderProof}
+    Require-DrawingCoverage
 }
 function Phase([string]$Name, [string[]]$Flags, [int]$Repeats=1, [switch]$Record, [switch]$ProfileOnly, [string[]]$SelectedCases=$Cases) {
     if ($Batch -and $script:reuse -and $script:reuse.phases.PSObject.Properties[$Name]) {
@@ -599,7 +717,7 @@ function Phase([string]$Name, [string[]]$Flags, [int]$Repeats=1, [switch]$Record
             $expectedFlags=@(Merge-GameFlags ($common+$Flags))
             foreach ($case in $SelectedCases) {
                 $run=$data.runs.PSObject.Properties["$case-1"].Value
-                $actualFlags=@($run.arguments|Where-Object {$_ -match '^--(?:pvz_native_|pvz_deterministic_|log_max_)'})
+                $actualFlags=@($run.arguments|Where-Object {$_ -match '^--(?:pvz_native_|pvz_deterministic_|log_max_|pvz_frame_limit=)'})
                 if (($actualFlags|ConvertTo-Json -Compress) -ne ($expectedFlags|ConvertTo-Json -Compress)) {throw "Reused flags differ: $Name/$case"}
                 $receipt=Get-Content $run.receipt -Raw|ConvertFrom-Json
                 if (-not $receipt.complete -or -not $receipt.replay_complete -or
@@ -634,6 +752,7 @@ function Phase([string]$Name, [string[]]$Flags, [int]$Repeats=1, [switch]$Record
         $summary.commands += @{script='reused immutable phase';parameters=$options;original=$old[0]}
         return $data
     }
+    if ($RecheckOnly) {throw "RecheckOnly has no matching immutable phase: $Name"}
     $summary.commands += [ordered]@{script='scripts/run_determinism_check.ps1';parameters=$options}
     Save-Summary
     & "$PSScriptRoot/run_determinism_check.ps1" @options | Out-Host
@@ -692,9 +811,7 @@ function Counters([string]$PhaseName, $Data, [string[]]$Names, [switch]$Negative
         $summary.counters[$PhaseName][$property.Name] = $counters
         foreach ($name in $Names) {
             $c = $counters[$name]
-            $pass = if ($Negative -and $Batch -and $c.replay_end_valid -and $c.comparisons -eq 0) {
-                        $c.errors -eq 0 -and $c.logged_mismatches -eq 0
-                    } elseif ($Negative) { $c.replay_end_valid -and $c.comparisons -gt 0 -and $c.errors -gt 0 -and $c.logged_mismatches -gt 0 }
+            $pass = if ($Negative) { Test-NegativeCounters $c ([bool]$Batch) }
                     else { $c.replay_end_valid -and $c.errors -eq 0 -and $c.max_errors -eq 0 -and $c.logged_mismatches -eq 0 -and
                         (-not $c.Contains('process_end') -or $c.process_end.counts.errors -eq 0) }
             Criterion "$PhaseName/$($property.Name)/$name" $pass $c
@@ -717,10 +834,7 @@ function Compare-Dumps([string]$Label, $Left, $Right) {
         Criterion "$Label/$case" ($code -eq 0 -and $result.equal) @{path=$out;sha256=(Hash $out);result=$result}
     }
 }
-function SupplementalPhase([string]$Name, [string[]]$Flags) {
-    $root = Join-Path $OutputRoot $Name
-    New-Item -ItemType Directory -Path $root | Out-Null
-    $runs = [ordered]@{}
+function Supplemental-Definitions {
     $supplementalDefinitions = [ordered]@{}
     if ($batchNames | Where-Object {$_ -in @('b001','b002','b003')}) {
         $supplementalDefinitions.menu_hover = @{replay='menu_hover.csv';seconds=82;fresh=$false}
@@ -749,6 +863,26 @@ function SupplementalPhase([string]$Name, [string[]]$Flags) {
         $supplementalDefinitions.services_tree_purchase = @{replay='services_tree_purchase.csv';seconds=80;fresh=$false}
         $supplementalDefinitions.services_almanac_regression = @{replay='services_almanac_regression.csv';seconds=46;fresh=$false}
     }
+    if ('b008' -in $batchNames) {
+        $supplementalDefinitions.game_settings = @{replay='game_settings.csv';seconds=58;fresh=$false}
+        $supplementalDefinitions.services_quit_confirm = @{replay='services_quit_confirm.csv';seconds=25;fresh=$false;expected_exit=$true}
+        $supplementalDefinitions.services_settings_pad = @{replay='services_settings_pad.csv';seconds=43;fresh=$false}
+    }
+    if ('b014' -in $batchNames) {
+        $supplementalDefinitions.menu_panels = @{replay='menu_panels.csv';seconds=32;fresh=$true}
+        $supplementalDefinitions.menu_panels_actions = @{replay='menu_panels_actions.csv';seconds=66;fresh=$true}
+        $supplementalDefinitions.audio_settings = @{replay='audio_settings.csv';seconds=32;fresh=$false}
+        $supplementalDefinitions.minis_chooser_ui = @{replay='minis_chooser_ui.csv';seconds=85;fresh=$false}
+        $supplementalDefinitions.oct7_chooser = @{replay='oct7_chooser.csv';seconds=68;fresh=$false}
+        $supplementalDefinitions.input_ownership = @{replay='input_ownership.csv';seconds=60;fresh=$true}
+    }
+    return $supplementalDefinitions
+}
+function SupplementalPhase([string]$Name, [string[]]$Flags) {
+    $root = Join-Path $OutputRoot $Name
+    New-Item -ItemType Directory -Path $root | Out-Null
+    $runs = [ordered]@{}
+    $supplementalDefinitions = Supplemental-Definitions
     $selected=@($supplementalDefinitions.Keys)
     if($SupplementalCases.Count) {
         foreach($selectedName in $SupplementalCases){if(-not $supplementalDefinitions.Contains($selectedName)){throw "Unknown supplemental replay: $selectedName"}}
@@ -773,7 +907,7 @@ function SupplementalPhase([string]$Name, [string[]]$Flags) {
         # Capture actual logical delivery of this existing replay. Its event
         # stream is unchanged; the converter later projects these recorded
         # delivery steps for deterministic original/repeat/native Graphics.
-        if($case -eq 'services_almanac_regression') {
+        if($case -in @(Selected-ExtraRenderReplays)) {
             $options.GameArgs=@(Merge-GameFlags ($options.GameArgs+@('--pvz_replay_record_steps=true')))
         }
         if ($script:reuse -and $script:reuse.phases.PSObject.Properties[$Name]) {
@@ -791,7 +925,7 @@ function SupplementalPhase([string]$Name, [string[]]$Flags) {
                 if (($old.log_files -join "`n") -cne ($oldReceipt.log_files -join "`n") -or -not $oldReceipt.raw_log_files.Count) {throw 'Missing immutable supplemental logs'}
                 foreach($log in $oldReceipt.raw_log_files) {if((Hash $log.path) -ne $log.sha256){throw "Changed supplemental raw log: $($log.path)"}}
                 $text=($old.log_files|ForEach-Object {Get-Content $_ -Raw}) -join "`n"
-                if (-not $oldReceipt.survived -or $oldReceipt.fatal.Count -or -not $oldReceipt.gpu_initialized -or
+                if (-not ($oldReceipt.survived -or ($definition.expected_exit -and $oldReceipt.exit_code -eq 0 -and -not $oldReceipt.stopped_by_test)) -or $oldReceipt.fatal.Count -or -not $oldReceipt.gpu_initialized -or
                     $text -notmatch 'PvZ replay wait_title ready' -or $text -notmatch 'PvZ (?:frame )?replay completed ' -or
                     $text -match 'PvZ (?:frame )?replay.*(?:timed out|readiness failed|missed row|not ready|invalid)') {throw "Invalid supplemental replay: $Name/$case"}
                 $runs[$case]=$old
@@ -801,6 +935,7 @@ function SupplementalPhase([string]$Name, [string[]]$Flags) {
                 continue
             }
         }
+        if ($RecheckOnly) {throw "RecheckOnly has no matching immutable supplemental process: $Name/$case"}
         $summary.commands += @{script='smoke.ps1';parameters=$options}
         Save-Summary
         & ./smoke.ps1 @options | Out-Host
@@ -811,7 +946,7 @@ function SupplementalPhase([string]$Name, [string[]]$Flags) {
         # smoke's live polling can miss a marker moved into a rotated log. The
         # immutable raw logs are authoritative: require readiness and completion,
         # and reject real replay failures even if the smoke receipt says complete.
-        if (-not $run.survived -or $run.fatal.Count -or -not $run.gpu_initialized -or
+        if (-not ($run.survived -or ($definition.expected_exit -and $run.exit_code -eq 0 -and -not $run.stopped_by_test)) -or $run.fatal.Count -or -not $run.gpu_initialized -or
             $text -notmatch 'PvZ replay wait_title ready' -or
             $text -notmatch 'PvZ (?:frame )?replay completed ' -or
             $text -match 'PvZ (?:frame )?replay.*(?:timed out|readiness failed|missed row|not ready|invalid)') {throw "Supplemental replay failed: $case"}
@@ -863,7 +998,8 @@ if ($Batch) {
         foreach ($file in @($batchNames|ForEach-Object {$batchSources[$_];"tests/$($_)_synthetic_test.cpp"})+@(
             'tests/batch_synthetic.h','tests/batch_synthetic_sources.py','src/xbox/Gamepad.h','src/xbox/BaseGamepadControls.h',
             'src/xbox/WidgetContainer.h','src/xbox/ScrollbarWidget.h',
-            'src/xbox/DataObjects.h','src/xbox/WidgetManager.h','src/xbox/BigInt.h')) {
+            'src/xbox/DataObjects.h','src/xbox/WidgetManager.h','src/xbox/BigInt.h',
+            'src/xbox/Dialog.h','src/xbox/Buttons.h','src/xbox/EditWidget.h')) {
             $summary.inputs[$file]=Hash $file
         }
         foreach ($file in Get-ChildItem -LiteralPath $Baseline -File -Recurse) {
@@ -904,8 +1040,28 @@ if ($Batch) {
         $script:steps = [IO.Path]::GetFullPath($ReplayDirectory)
         foreach ($case in $Cases) { $summary.inputs["steps/$case.csv"] = Hash (Join-Path $steps "$case.csv") }
         SyntheticProof
+        if ($ExtraRenderEvidence) {
+            if(-not $RenderOnly){throw '-ExtraRenderEvidence is only for an independent render phase'}
+            $evidencePath=[IO.Path]::GetFullPath($ExtraRenderEvidence)
+            $evidence=Get-Content $evidencePath -Raw|ConvertFrom-Json
+            if($evidence.batch -ne $Batch -or $evidence.inputs.'build/pvz-console-edition.exe' -ne $exeHash -or
+               -not $evidence.passed -or $evidence.discovery -ne [bool]$Discover) {throw 'Extra render requires completed matching compare evidence'}
+            foreach($input in $summary.inputs.Keys) {
+                if($input -eq 'scripts/run_native_proof.ps1'){continue}
+                if($evidence.inputs.PSObject.Properties[$input].Value -ne $summary.inputs[$input]) {throw "Extra render input differs: $input"}
+            }
+            $phase=$evidence.phases.'compare-extra'
+            if((Hash $phase.path) -ne $phase.sha256){throw 'Changed extra compare manifest'}
+            $extraCompared=Get-Content $phase.path -Raw|ConvertFrom-Json
+            foreach($run in $extraCompared.runs.PSObject.Properties.Value) {
+                if((Hash $run.receipt) -ne $run.receipt_sha256){throw 'Changed extra compare receipt'}
+                $receipt=Get-Content $run.receipt -Raw|ConvertFrom-Json
+                foreach($log in $receipt.raw_log_files){if((Hash $log.path) -ne $log.sha256){throw 'Changed extra compare raw log'}}
+            }
+            $summary['extra_render_evidence']=@{path=$evidencePath;sha256=(Hash $evidencePath);phase=$phase}
+        }
         if ($RenderOnly) {
-            if($DrawThumbOnly){ExtraRenderProof}else{RenderProof}
+            if($DrawThumbOnly -or $ExtraRenderOnly){ExtraRenderProof;Require-DrawingCoverage}else{RenderProof}
             Criterion 'executable_unchanged' ((Hash 'build/pvz-console-edition.exe') -eq $exeHash) $exeHash
             $summary['elapsed_seconds']=$watch.Elapsed.TotalSeconds
             $summary.passed=@($summary.criteria|Where-Object {-not $_.passed}).Count -eq 0
@@ -991,7 +1147,7 @@ if ($Batch) {
         $summary['compare_only'] = [bool]$CompareOnly
         $summary['supplemental_cases'] = @($SupplementalCases)
         $summary.passed = @($summary.criteria | Where-Object {-not $_.passed}).Count -eq 0
-    } catch { $summary.failure = $_.Exception.Message; $summary.passed = $false }
+    } catch { $summary.failure = $_.Exception.Message; $summary['failure_details'] = $_.ScriptStackTrace; $summary['failure_position'] = $_.InvocationInfo.PositionMessage; $summary.passed = $false }
     $summary['elapsed_seconds'] = $watch.Elapsed.TotalSeconds
     Save-Summary
     Write-Output "Batch proof: $OutputRoot/summary.json (passed=$($summary.passed))"
@@ -1055,7 +1211,7 @@ try {
     Require-Coverage $totals $Replacements
     Criterion 'executable_unchanged' ((Hash 'build/pvz-console-edition.exe') -eq $exeHash) $exeHash
     $summary.passed = @($summary.criteria | Where-Object {-not $_.passed}).Count -eq 0
-} catch { $summary.failure = $_.Exception.Message; $summary.passed = $false }
+} catch { $summary.failure = $_.Exception.Message; $summary['failure_details'] = $_.ScriptStackTrace; $summary['failure_position'] = $_.InvocationInfo.PositionMessage; $summary.passed = $false }
 Save-Summary
 Write-Output "Native proof: $OutputRoot/summary.json (passed=$($summary.passed))"
 if (-not $summary.passed) { exit 1 }
